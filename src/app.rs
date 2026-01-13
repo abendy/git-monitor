@@ -19,6 +19,16 @@ const MAX_ACTIVITY: usize = 50;
 /// Maximum number of commands to keep in history
 const MAX_COMMAND_HISTORY: usize = 100;
 
+/// History display mode
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum HistoryMode {
+    /// Show reflog (git actions)
+    Reflog,
+    /// Show commit log
+    #[default]
+    CommitLog,
+}
+
 /// Application state
 pub struct App {
     /// Path to the repository
@@ -68,6 +78,8 @@ pub struct App {
     pub show_section_aliases: bool,
     /// Selected alias within section
     pub alias_selected: usize,
+    /// Current history display mode (reflog vs commit log)
+    pub history_mode: HistoryMode,
 }
 
 impl App {
@@ -80,7 +92,8 @@ impl App {
             .unwrap_or_else(|| path.clone());
 
         let status = repo.status().unwrap_or_default();
-        let activity = repo.reflog(MAX_ACTIVITY).unwrap_or_default();
+        // Load commit log by default (matches HistoryMode::default())
+        let activity = repo.commit_log(MAX_ACTIVITY).unwrap_or_default();
         let config = GitConfig::load(&repo_path).unwrap_or_default();
 
         Ok(Self {
@@ -107,6 +120,7 @@ impl App {
             alias_section_selected: 0,
             show_section_aliases: false,
             alias_selected: 0,
+            history_mode: HistoryMode::default(),
         })
     }
 
@@ -146,9 +160,50 @@ impl App {
             }
         }
 
-        // Refresh activity log
-        if let Ok(activity) = self.repo.reflog(MAX_ACTIVITY) {
+        // Refresh activity log based on history mode
+        self.refresh_activity();
+    }
+
+    /// Refresh activity based on current history mode
+    fn refresh_activity(&mut self) {
+        let result = match self.history_mode {
+            HistoryMode::Reflog => self.repo.reflog(MAX_ACTIVITY),
+            HistoryMode::CommitLog => self.repo.commit_log(MAX_ACTIVITY),
+        };
+
+        if let Ok(activity) = result {
             self.activity = activity;
+        }
+    }
+
+    /// Toggle history mode between reflog and commit log
+    fn toggle_history_mode(&mut self) {
+        self.history_mode = match self.history_mode {
+            HistoryMode::Reflog => HistoryMode::CommitLog,
+            HistoryMode::CommitLog => HistoryMode::Reflog,
+        };
+        self.refresh_activity();
+    }
+
+    /// Check if selection is in the history section
+    fn is_in_history(&self) -> bool {
+        let staged_len = self.status.staged_changes().len();
+        let working_len = self.status.working_changes().len();
+        let files_total = staged_len + working_len;
+
+        // Index 0 is command, files are 1..=files_total, history starts after
+        self.selected > files_total
+    }
+
+    /// Jump to first history item
+    fn jump_to_history(&mut self) {
+        let staged_len = self.status.staged_changes().len();
+        let working_len = self.status.working_changes().len();
+        let files_total = staged_len + working_len;
+
+        // First history item is at index files_total + 1
+        if !self.activity.is_empty() {
+            self.selected = files_total + 1;
         }
     }
 
@@ -234,6 +289,17 @@ impl App {
             // Refresh
             KeyCode::Char('r') => {
                 self.refresh_status();
+            }
+
+            // History mode toggle / focus
+            KeyCode::Char('h') => {
+                if self.is_in_history() {
+                    // Already in history, toggle mode
+                    self.toggle_history_mode();
+                } else {
+                    // Just jump to history section
+                    self.jump_to_history();
+                }
             }
 
             // Stage/Unstage

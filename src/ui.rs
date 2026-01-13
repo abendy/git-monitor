@@ -6,7 +6,7 @@ use ratatui::{
 };
 
 use crate::{
-    app::App,
+    app::{App, HistoryMode},
     git::{CommandType, FileState, RefDecoration},
     tui::Frame,
 };
@@ -329,9 +329,20 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             items.push(ListItem::new(Line::from("")));
         }
 
+        let history_label = match app.history_mode {
+            HistoryMode::Reflog => "Reflog",
+            HistoryMode::CommitLog => "History",
+        };
+
         items.push(ListItem::new(Line::from(Span::styled(
-            format!("── History ({activity_len}) ──"),
+            format!("── {history_label} ({activity_len}) ──"),
             Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        ))));
+
+        // Hint for switching modes
+        items.push(ListItem::new(Line::from(Span::styled(
+            "  h to switch to reflog/history",
+            Style::default().fg(Color::DarkGray).italic(),
         ))));
 
         for (i, cmd) in app.activity.iter().enumerate() {
@@ -571,6 +582,7 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
         Line::from("  d / Enter          Show diff"),
         Line::from("  y                  Copy commit sha"),
         Line::from("  r                  Refresh status"),
+        Line::from("  h                  Toggle history/reflog"),
         Line::from(""),
         Line::from(Span::styled(
             "Command & Aliases",

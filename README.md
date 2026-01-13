@@ -81,6 +81,7 @@ git-monitor --tick-rate 100
 | `y` | Copy commit sha to clipboard |
 | `a` | Browse git aliases (when on command section) |
 | `r` | Refresh status |
+| `h` | Toggle history mode (history/reflog) |
 | `:` | Enter command mode |
 | `?` | Toggle help |
 | `q` / `Esc` | Quit (or close overlay) |

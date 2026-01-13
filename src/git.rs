@@ -468,6 +468,71 @@ impl GitRepo {
         Ok(commands)
     }
 
+    /// Get commit history (git log)
+    pub fn commit_log(&self, limit: usize) -> Result<Vec<GitCommand>> {
+        let mut commands = Vec::new();
+
+        // Get HEAD
+        let head = match self.repo.head() {
+            Ok(head) => head,
+            Err(_) => return Ok(commands), // No commits yet
+        };
+
+        let head_oid = match head.target() {
+            Some(oid) => oid,
+            None => return Ok(commands),
+        };
+
+        // Collect refs for decorations
+        let refs_map = self.collect_refs();
+
+        // Walk commits
+        let mut revwalk = self.repo.revwalk().context("Failed to create revwalk")?;
+        revwalk.push(head_oid).context("Failed to push HEAD")?;
+        revwalk.set_sorting(git2::Sort::TIME)?;
+
+        for oid_result in revwalk.take(limit) {
+            let oid = match oid_result {
+                Ok(oid) => oid,
+                Err(_) => continue,
+            };
+
+            let commit = match self.repo.find_commit(oid) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+
+            // Get commit message (first line)
+            let message = commit
+                .summary()
+                .unwrap_or("")
+                .to_string();
+
+            // Parse timestamp
+            let time = commit.time();
+            let timestamp = Local
+                .timestamp_opt(time.seconds(), 0)
+                .single()
+                .unwrap_or_else(Local::now);
+
+            // Get short SHA
+            let short_sha = format!("{:.7}", oid);
+
+            // Look up decorations
+            let decorations = refs_map.get(&short_sha).cloned().unwrap_or_default();
+
+            commands.push(GitCommand {
+                timestamp,
+                command_type: CommandType::Commit,
+                message,
+                sha: Some(short_sha),
+                decorations,
+            });
+        }
+
+        Ok(commands)
+    }
+
     /// Populate file statuses
     fn populate_file_statuses(&self, status: &mut GitStatus) -> Result<()> {
         let mut opts = StatusOptions::new();

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -116,6 +117,19 @@ impl GitStatus {
     }
 }
 
+/// A decoration (branch, tag, etc.) attached to a commit
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RefDecoration {
+    /// HEAD pointer
+    Head,
+    /// Local branch
+    LocalBranch(String),
+    /// Remote branch (e.g., origin/main)
+    RemoteBranch(String),
+    /// Tag
+    Tag(String),
+}
+
 /// A git command/action from the reflog
 #[derive(Debug, Clone)]
 pub struct GitCommand {
@@ -127,6 +141,8 @@ pub struct GitCommand {
     pub message: String,
     /// Short SHA if available
     pub sha: Option<String>,
+    /// Decorations (branches, tags) pointing to this commit
+    pub decorations: Vec<RefDecoration>,
 }
 
 /// Types of git commands
@@ -356,6 +372,61 @@ impl GitRepo {
         Ok(output)
     }
 
+    /// Collect all refs (branches, tags) and map them to commit SHAs
+    fn collect_refs(&self) -> HashMap<String, Vec<RefDecoration>> {
+        let mut refs_map: HashMap<String, Vec<RefDecoration>> = HashMap::new();
+
+        // Get HEAD commit for HEAD decoration
+        if let Ok(head) = self.repo.head() {
+            if let Some(oid) = head.target() {
+                let short_sha = format!("{:.7}", oid);
+                refs_map.entry(short_sha).or_default().push(RefDecoration::Head);
+            }
+        }
+
+        // Iterate through all references
+        if let Ok(refs) = self.repo.references() {
+            for reference in refs.flatten() {
+                let Some(name) = reference.name() else {
+                    continue;
+                };
+
+                // Get the commit this ref points to
+                let oid = if let Some(oid) = reference.target() {
+                    oid
+                } else if let Ok(resolved) = reference.resolve() {
+                    match resolved.target() {
+                        Some(oid) => oid,
+                        None => continue,
+                    }
+                } else {
+                    continue;
+                };
+
+                let short_sha = format!("{:.7}", oid);
+
+                // Parse the ref name into a decoration
+                let decoration = if let Some(branch) = name.strip_prefix("refs/heads/") {
+                    RefDecoration::LocalBranch(branch.to_string())
+                } else if let Some(remote) = name.strip_prefix("refs/remotes/") {
+                    // Skip HEAD refs like origin/HEAD
+                    if remote.ends_with("/HEAD") {
+                        continue;
+                    }
+                    RefDecoration::RemoteBranch(remote.to_string())
+                } else if let Some(tag) = name.strip_prefix("refs/tags/") {
+                    RefDecoration::Tag(tag.to_string())
+                } else {
+                    continue;
+                };
+
+                refs_map.entry(short_sha).or_default().push(decoration);
+            }
+        }
+
+        refs_map
+    }
+
     /// Get recent activity from reflog
     pub fn reflog(&self, limit: usize) -> Result<Vec<GitCommand>> {
         let mut commands = Vec::new();
@@ -364,6 +435,9 @@ impl GitRepo {
             Ok(reflog) => reflog,
             Err(_) => return Ok(commands), // No reflog yet
         };
+
+        // Collect all refs once for decoration lookup
+        let refs_map = self.collect_refs();
 
         for entry in reflog.iter().take(limit) {
             let message = entry.message().unwrap_or("").to_string();
@@ -377,13 +451,17 @@ impl GitRepo {
                 .unwrap_or_else(Local::now);
 
             // Get short SHA
-            let sha = Some(format!("{:.7}", entry.id_new()));
+            let short_sha = format!("{:.7}", entry.id_new());
+
+            // Look up decorations for this commit
+            let decorations = refs_map.get(&short_sha).cloned().unwrap_or_default();
 
             commands.push(GitCommand {
                 timestamp,
                 command_type,
                 message,
-                sha,
+                sha: Some(short_sha),
+                decorations,
             });
         }
 

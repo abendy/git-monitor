@@ -7,7 +7,7 @@ use ratatui::{
 
 use crate::{
     app::App,
-    git::{CommandType, FileState},
+    git::{CommandType, FileState, RefDecoration},
     tui::Frame,
 };
 
@@ -345,10 +345,17 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             let color = command_color(cmd.command_type);
             let sha_str = cmd.sha.as_deref().unwrap_or("-------");
 
-            // Truncate message if too long (account for sha display)
-            let max_msg_len = area.width.saturating_sub(32) as usize;
-            let message = if cmd.message.len() > max_msg_len {
+            // Build decoration spans
+            let decoration_spans = format_decorations(&cmd.decorations);
+            let decoration_width: usize = decoration_spans.iter().map(|s| s.content.len()).sum();
+
+            // Truncate message if too long (account for sha, time, decorations)
+            let base_width = 32 + decoration_width;
+            let max_msg_len = area.width.saturating_sub(base_width as u16) as usize;
+            let message = if cmd.message.len() > max_msg_len && max_msg_len > 3 {
                 format!("{}...", &cmd.message[..max_msg_len.saturating_sub(3)])
+            } else if max_msg_len <= 3 {
+                String::new()
             } else {
                 cmd.message.clone()
             };
@@ -359,13 +366,21 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 Style::default()
             };
 
-            items.push(ListItem::new(Line::from(vec![
+            let mut spans = vec![
                 Span::raw(prefix),
                 Span::styled(format!("{sha_str} "), style.fg(Color::Yellow)),
                 Span::styled(format!("{time_str}  "), style.fg(Color::DarkGray)),
                 Span::styled(format!("{icon} "), style.fg(color)),
                 Span::styled(message, style.fg(Color::White)),
-            ])));
+            ];
+
+            // Add decorations if any
+            if !decoration_spans.is_empty() {
+                spans.push(Span::raw(" "));
+                spans.extend(decoration_spans);
+            }
+
+            items.push(ListItem::new(Line::from(spans)));
         }
     }
 
@@ -406,6 +421,84 @@ const fn command_color(cmd: CommandType) -> Color {
         CommandType::Stash => Color::Yellow,
         CommandType::Other => Color::DarkGray,
     }
+}
+
+/// Format decorations (branches, tags) into styled spans
+fn format_decorations(decorations: &[RefDecoration]) -> Vec<Span<'static>> {
+    if decorations.is_empty() {
+        return Vec::new();
+    }
+
+    let mut spans = Vec::new();
+    spans.push(Span::styled("(", Style::default().fg(Color::DarkGray)));
+
+    let mut first = true;
+    let mut has_head = false;
+    let mut head_branch: Option<&str> = None;
+
+    // Check for HEAD and find its branch
+    for dec in decorations {
+        if matches!(dec, RefDecoration::Head) {
+            has_head = true;
+        }
+    }
+
+    // Find local branch that HEAD points to
+    if has_head {
+        for dec in decorations {
+            if let RefDecoration::LocalBranch(name) = dec {
+                head_branch = Some(name);
+                break;
+            }
+        }
+    }
+
+    // Format: HEAD → branch for the HEAD + branch combo
+    if has_head {
+        if let Some(branch) = head_branch {
+            spans.push(Span::styled("HEAD → ", Style::default().fg(Color::Cyan).bold()));
+            spans.push(Span::styled(branch.to_string(), Style::default().fg(Color::Green).bold()));
+            first = false;
+        } else {
+            spans.push(Span::styled("HEAD", Style::default().fg(Color::Cyan).bold()));
+            first = false;
+        }
+    }
+
+    // Add remaining decorations
+    for dec in decorations {
+        // Skip HEAD (already handled) and the branch HEAD points to
+        if matches!(dec, RefDecoration::Head) {
+            continue;
+        }
+        if let RefDecoration::LocalBranch(name) = dec {
+            if head_branch == Some(name) {
+                continue;
+            }
+        }
+
+        if !first {
+            spans.push(Span::styled(", ", Style::default().fg(Color::DarkGray)));
+        }
+        first = false;
+
+        match dec {
+            RefDecoration::LocalBranch(name) => {
+                spans.push(Span::styled(name.clone(), Style::default().fg(Color::Green)));
+            }
+            RefDecoration::RemoteBranch(name) => {
+                spans.push(Span::styled(name.clone(), Style::default().fg(Color::Red)));
+            }
+            RefDecoration::Tag(name) => {
+                spans.push(Span::styled("tag: ", Style::default().fg(Color::DarkGray)));
+                spans.push(Span::styled(name.clone(), Style::default().fg(Color::Yellow)));
+            }
+            RefDecoration::Head => {} // Already handled
+        }
+    }
+
+    spans.push(Span::styled(")", Style::default().fg(Color::DarkGray)));
+    spans
 }
 
 /// Render the footer with keybindings

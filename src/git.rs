@@ -284,6 +284,79 @@ impl GitRepo {
         Ok(())
     }
 
+    /// Stage a file
+    pub fn stage(&self, path: &Path) -> Result<()> {
+        let mut index = self.repo.index().context("Failed to get index")?;
+        index
+            .add_path(path)
+            .with_context(|| format!("Failed to stage {}", path.display()))?;
+        index.write().context("Failed to write index")?;
+        Ok(())
+    }
+
+    /// Unstage a file
+    pub fn unstage(&self, path: &Path) -> Result<()> {
+        let head = self.repo.head().context("Failed to get HEAD")?;
+        let head_commit = head.peel_to_commit().context("Failed to get HEAD commit")?;
+        let head_tree = head_commit.tree().context("Failed to get HEAD tree")?;
+
+        self.repo
+            .reset_default(Some(&head_commit.as_object()), [path])
+            .or_else(|_| -> std::result::Result<(), git2::Error> {
+                // If reset fails (file is new), remove from index
+                let mut index = self.repo.index()?;
+                index.remove_path(path)?;
+                index.write()?;
+                Ok(())
+            })
+            .with_context(|| format!("Failed to unstage {}", path.display()))?;
+
+        drop(head_tree);
+        Ok(())
+    }
+
+    /// Get diff for a file (working directory changes)
+    pub fn diff_file(&self, path: &Path, staged: bool) -> Result<String> {
+        use std::fmt::Write;
+
+        let mut diff_opts = git2::DiffOptions::new();
+        diff_opts.pathspec(path);
+
+        let diff = if staged {
+            // Staged: diff HEAD to index
+            let head = self.repo.head().ok();
+            let head_tree = head.and_then(|h| h.peel_to_tree().ok());
+            self.repo
+                .diff_tree_to_index(head_tree.as_ref(), None, Some(&mut diff_opts))
+        } else {
+            // Unstaged: diff index to workdir
+            self.repo
+                .diff_index_to_workdir(None, Some(&mut diff_opts))
+        }
+        .context("Failed to get diff")?;
+
+        let mut output = String::new();
+
+        diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
+            let prefix = match line.origin() {
+                '+' => "+",
+                '-' => "-",
+                ' ' => " ",
+                _ => "",
+            };
+            let content = std::str::from_utf8(line.content()).unwrap_or("");
+            let _ = write!(output, "{prefix}{content}");
+            true
+        })
+        .context("Failed to print diff")?;
+
+        if output.is_empty() {
+            output = String::from("(no changes)");
+        }
+
+        Ok(output)
+    }
+
     /// Get recent activity from reflog
     pub fn reflog(&self, limit: usize) -> Result<Vec<GitCommand>> {
         let mut commands = Vec::new();

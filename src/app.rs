@@ -65,6 +65,12 @@ pub struct App {
     pub staged_selected: usize,
     /// Show help overlay
     pub show_help: bool,
+    /// Show diff overlay
+    pub show_diff: bool,
+    /// Current diff content
+    pub diff_content: String,
+    /// Diff file path (for title)
+    pub diff_path: String,
     /// Error message to display
     pub error: Option<String>,
 }
@@ -92,6 +98,9 @@ impl App {
             working_selected: 0,
             staged_selected: 0,
             show_help: false,
+            show_diff: false,
+            diff_content: String::new(),
+            diff_path: String::new(),
             error: None,
         })
     }
@@ -170,9 +179,19 @@ impl App {
 
     /// Handle keyboard input
     fn handle_key(&mut self, key: KeyEvent) {
-        // Help overlay captures all keys
+        // Overlays capture keys
         if self.show_help {
             self.show_help = false;
+            return;
+        }
+
+        if self.show_diff {
+            match key.code {
+                KeyCode::Char('q') | KeyCode::Esc | KeyCode::Char('d') => {
+                    self.show_diff = false;
+                }
+                _ => {}
+            }
             return;
         }
 
@@ -193,6 +212,16 @@ impl App {
             // Refresh
             KeyCode::Char('r') => {
                 self.refresh_status();
+            }
+
+            // Stage/Unstage
+            KeyCode::Char('s') => {
+                self.toggle_stage();
+            }
+
+            // Diff
+            KeyCode::Char('d') | KeyCode::Enter => {
+                self.show_diff();
             }
 
             // Panel navigation
@@ -218,6 +247,73 @@ impl App {
             }
 
             _ => {}
+        }
+    }
+
+    /// Toggle stage/unstage for selected file
+    fn toggle_stage(&mut self) {
+        let result = match self.active_panel {
+            Panel::Working => {
+                // Stage the selected working file
+                let changes = self.status.working_changes();
+                if let Some(file) = changes.get(self.working_selected) {
+                    let path = file.path.clone();
+                    self.repo.stage(&path)
+                } else {
+                    return;
+                }
+            }
+            Panel::Staged => {
+                // Unstage the selected staged file
+                let changes = self.status.staged_changes();
+                if let Some(file) = changes.get(self.staged_selected) {
+                    let path = file.path.clone();
+                    self.repo.unstage(&path)
+                } else {
+                    return;
+                }
+            }
+            Panel::Activity => return,
+        };
+
+        if let Err(e) = result {
+            self.error = Some(format!("Error: {e}"));
+        } else {
+            self.refresh_status();
+        }
+    }
+
+    /// Show diff for selected file
+    fn show_diff(&mut self) {
+        let (path, staged) = match self.active_panel {
+            Panel::Working => {
+                let changes = self.status.working_changes();
+                if let Some(file) = changes.get(self.working_selected) {
+                    (file.path.clone(), false)
+                } else {
+                    return;
+                }
+            }
+            Panel::Staged => {
+                let changes = self.status.staged_changes();
+                if let Some(file) = changes.get(self.staged_selected) {
+                    (file.path.clone(), true)
+                } else {
+                    return;
+                }
+            }
+            Panel::Activity => return,
+        };
+
+        match self.repo.diff_file(&path, staged) {
+            Ok(content) => {
+                self.diff_content = content;
+                self.diff_path = path.to_string_lossy().to_string();
+                self.show_diff = true;
+            }
+            Err(e) => {
+                self.error = Some(format!("Diff error: {e}"));
+            }
         }
     }
 

@@ -29,9 +29,13 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
     render_body(frame, app, layout[1]);
     render_footer(frame, app, layout[2]);
 
-    // Help overlay
+    // Overlays
     if app.show_help {
         render_help(frame, area);
+    }
+
+    if app.show_diff {
+        render_diff(frame, app, area);
     }
 }
 
@@ -335,9 +339,11 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Span::styled(" Tab ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" switch  "),
             Span::styled(" j/k ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" navigate  "),
-            Span::styled(" r ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" refresh  "),
+            Span::raw(" nav  "),
+            Span::styled(" s ", Style::default().bg(Color::DarkGray).bold()),
+            Span::raw(" stage  "),
+            Span::styled(" d ", Style::default().bg(Color::DarkGray).bold()),
+            Span::raw(" diff  "),
             Span::styled(" ? ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" help  "),
             Span::styled(" q ", Style::default().bg(Color::DarkGray).bold()),
@@ -404,6 +410,61 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
     );
 
     frame.render_widget(help, help_area);
+}
+
+/// Render diff overlay
+fn render_diff(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    // Use most of the screen for diff
+    let diff_area = centered_rect(90, 90, area);
+
+    // Clear the area behind the popup
+    frame.render_widget(Clear, diff_area);
+
+    // Parse diff content into styled lines
+    let lines: Vec<Line<'_>> = app
+        .diff_content
+        .lines()
+        .map(|line| {
+            let (style, content) = if line.starts_with('+') && !line.starts_with("+++") {
+                (Style::default().fg(Color::Green), line)
+            } else if line.starts_with('-') && !line.starts_with("---") {
+                (Style::default().fg(Color::Red), line)
+            } else if line.starts_with("@@") {
+                (Style::default().fg(Color::Cyan), line)
+            } else if line.starts_with("diff") || line.starts_with("index") {
+                (Style::default().fg(Color::Yellow), line)
+            } else {
+                (Style::default().fg(Color::White), line)
+            };
+            Line::from(Span::styled(format!(" {content}"), style))
+        })
+        .collect();
+
+    let diff = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .title(format!(" Diff: {} ", app.diff_path))
+                .title_style(Style::default().fg(Color::Cyan).bold())
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Cyan)),
+        )
+        .wrap(ratatui::widgets::Wrap { trim: false });
+
+    frame.render_widget(diff, diff_area);
+
+    // Footer hint
+    let hint_area = Rect {
+        x: diff_area.x,
+        y: diff_area.y + diff_area.height - 1,
+        width: diff_area.width,
+        height: 1,
+    };
+    let hint = Paragraph::new(Line::from(vec![
+        Span::styled(" q ", Style::default().bg(Color::DarkGray).bold()),
+        Span::raw(" close "),
+    ]))
+    .alignment(Alignment::Center);
+    frame.render_widget(hint, hint_area);
 }
 
 /// Create a centered rectangle

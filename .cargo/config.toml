@@ -1,0 +1,30 @@
+[build]
+# Use all available cores
+jobs = -1
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+[alias]
+# Development
+r = "run"
+c = "check"
+b = "build"
+br = "build --release"
+t = "test"
+
+# Linting
+lint = "clippy --all-targets --all-features -- -D warnings"
+lint-fix = "clippy --all-targets --all-features --fix --allow-dirty -- -D warnings"
+
+# Formatting
+fmt-check = "fmt --all -- --check"
+
+# Full CI check
+ci = ["fmt-check", "lint", "test"]

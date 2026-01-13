@@ -67,6 +67,14 @@ impl RepoWatcher {
                     .watcher()
                     .watch(&refs_path, RecursiveMode::Recursive);
             }
+
+            // Watch logs for reflog changes
+            let logs_path = git_dir.join("logs");
+            if logs_path.exists() {
+                let _ = debouncer
+                    .watcher()
+                    .watch(&logs_path, RecursiveMode::Recursive);
+            }
         }
 
         Ok(Self { debouncer })

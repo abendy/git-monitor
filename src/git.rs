@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use chrono::{DateTime, Local, TimeZone};
 use git2::{Repository, Status, StatusOptions};
 
 /// Status of a file in the repository
@@ -115,6 +116,97 @@ impl GitStatus {
     }
 }
 
+/// A git command/action from the reflog
+#[derive(Debug, Clone)]
+pub struct GitCommand {
+    /// When the command was executed
+    pub timestamp: DateTime<Local>,
+    /// Type of command
+    pub command_type: CommandType,
+    /// Command message/description
+    pub message: String,
+    /// Short SHA if available
+    #[allow(dead_code)]
+    pub sha: Option<String>,
+}
+
+/// Types of git commands
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommandType {
+    Commit,
+    Checkout,
+    Merge,
+    Rebase,
+    Pull,
+    #[allow(dead_code)]
+    Push,
+    Reset,
+    CherryPick,
+    Revert,
+    Branch,
+    Clone,
+    Init,
+    #[allow(dead_code)]
+    Fetch,
+    #[allow(dead_code)]
+    Stash,
+    Other,
+}
+
+impl CommandType {
+    /// Parse command type from reflog message
+    pub fn from_message(msg: &str) -> Self {
+        let msg_lower = msg.to_lowercase();
+
+        if msg_lower.starts_with("commit") {
+            Self::Commit
+        } else if msg_lower.starts_with("checkout") {
+            Self::Checkout
+        } else if msg_lower.starts_with("merge") {
+            Self::Merge
+        } else if msg_lower.starts_with("rebase") {
+            Self::Rebase
+        } else if msg_lower.starts_with("pull") {
+            Self::Pull
+        } else if msg_lower.starts_with("reset") {
+            Self::Reset
+        } else if msg_lower.starts_with("cherry-pick") {
+            Self::CherryPick
+        } else if msg_lower.starts_with("revert") {
+            Self::Revert
+        } else if msg_lower.starts_with("branch") {
+            Self::Branch
+        } else if msg_lower.starts_with("clone") {
+            Self::Clone
+        } else if msg_lower.contains("initial") {
+            Self::Init
+        } else {
+            Self::Other
+        }
+    }
+
+    /// Icon for this command type
+    pub const fn icon(self) -> &'static str {
+        match self {
+            Self::Commit => "●",
+            Self::Checkout => "⎇",
+            Self::Merge => "⑂",
+            Self::Rebase => "↺",
+            Self::Pull => "↓",
+            Self::Push => "↑",
+            Self::Fetch => "⟳",
+            Self::Reset => "↩",
+            Self::CherryPick => "❋",
+            Self::Revert => "⊗",
+            Self::Stash => "□",
+            Self::Branch => "⌥",
+            Self::Clone => "⊕",
+            Self::Init => "★",
+            Self::Other => "•",
+        }
+    }
+}
+
 /// Git repository wrapper
 pub struct GitRepo {
     repo: Repository,
@@ -190,6 +282,40 @@ impl GitRepo {
         }
 
         Ok(())
+    }
+
+    /// Get recent activity from reflog
+    pub fn reflog(&self, limit: usize) -> Result<Vec<GitCommand>> {
+        let mut commands = Vec::new();
+
+        let reflog = match self.repo.reflog("HEAD") {
+            Ok(reflog) => reflog,
+            Err(_) => return Ok(commands), // No reflog yet
+        };
+
+        for entry in reflog.iter().take(limit) {
+            let message = entry.message().unwrap_or("").to_string();
+            let command_type = CommandType::from_message(&message);
+
+            // Parse timestamp
+            let sig = entry.committer();
+            let timestamp = Local
+                .timestamp_opt(sig.when().seconds(), 0)
+                .single()
+                .unwrap_or_else(Local::now);
+
+            // Get short SHA
+            let sha = Some(format!("{:.7}", entry.id_new()));
+
+            commands.push(GitCommand {
+                timestamp,
+                command_type,
+                message,
+                sha,
+            });
+        }
+
+        Ok(commands)
     }
 
     /// Populate file statuses

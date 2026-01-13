@@ -6,11 +6,14 @@ use tracing::warn;
 
 use crate::{
     event::Event,
-    git::{GitRepo, GitStatus},
+    git::{GitCommand, GitRepo, GitStatus},
     tui::Tui,
     ui,
     watcher::{RepoWatcher, WatchEvent},
 };
+
+/// Maximum number of activity entries to keep
+const MAX_ACTIVITY: usize = 50;
 
 /// Active panel in the UI
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -47,6 +50,8 @@ pub struct App {
     repo: GitRepo,
     /// Current git status
     pub status: GitStatus,
+    /// Recent git activity
+    pub activity: Vec<GitCommand>,
     /// File watcher
     #[allow(dead_code)]
     watcher: Option<RepoWatcher>,
@@ -74,11 +79,13 @@ impl App {
             .unwrap_or_else(|| path.clone());
 
         let status = repo.status().unwrap_or_default();
+        let activity = repo.reflog(MAX_ACTIVITY).unwrap_or_default();
 
         Ok(Self {
             repo_path,
             repo,
             status,
+            activity,
             watcher: None,
             running: true,
             active_panel: Panel::default(),
@@ -112,7 +119,7 @@ impl App {
         Ok(())
     }
 
-    /// Refresh git status
+    /// Refresh git status and activity
     pub fn refresh_status(&mut self) {
         match self.repo.status() {
             Ok(status) => {
@@ -134,6 +141,11 @@ impl App {
                 warn!("Failed to refresh git status: {}", e);
                 self.error = Some(format!("Git error: {e}"));
             }
+        }
+
+        // Refresh activity log
+        if let Ok(activity) = self.repo.reflog(MAX_ACTIVITY) {
+            self.activity = activity;
         }
     }
 

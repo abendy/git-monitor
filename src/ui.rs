@@ -7,7 +7,7 @@ use ratatui::{
 
 use crate::{
     app::{App, Panel},
-    git::FileState,
+    git::{CommandType, FileState},
     tui::Frame,
 };
 
@@ -241,6 +241,26 @@ fn render_staged_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
     frame.render_widget(list, area);
 }
 
+/// Get color for command type
+const fn command_color(cmd: CommandType) -> Color {
+    match cmd {
+        CommandType::Commit => Color::Green,
+        CommandType::Checkout => Color::Cyan,
+        CommandType::Merge => Color::Magenta,
+        CommandType::Rebase => Color::Yellow,
+        CommandType::Pull => Color::Blue,
+        CommandType::Push => Color::Blue,
+        CommandType::Reset => Color::Red,
+        CommandType::CherryPick => Color::Magenta,
+        CommandType::Revert => Color::Red,
+        CommandType::Branch => Color::Cyan,
+        CommandType::Clone | CommandType::Init => Color::Green,
+        CommandType::Fetch => Color::Blue,
+        CommandType::Stash => Color::Yellow,
+        CommandType::Other => Color::DarkGray,
+    }
+}
+
 /// Render the activity log panel
 fn render_activity_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let is_active = app.active_panel == Panel::Activity;
@@ -250,17 +270,48 @@ fn render_activity_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         Style::default().fg(Color::DarkGray)
     };
 
-    // Placeholder - will be populated in Phase 4
-    let placeholder = vec![Line::from(Span::styled(
-        "  Activity log coming soon...",
-        Style::default().fg(Color::DarkGray).italic(),
-    ))];
+    // Calculate how many items fit in the area (minus borders)
+    let visible_height = area.height.saturating_sub(2) as usize;
 
-    let panel = Paragraph::new(placeholder).block(
+    let items: Vec<ListItem<'_>> = if app.activity.is_empty() {
+        vec![ListItem::new(Line::from(Span::styled(
+            "  No activity yet",
+            Style::default().fg(Color::DarkGray).italic(),
+        )))]
+    } else {
+        app.activity
+            .iter()
+            .take(visible_height)
+            .map(|cmd| {
+                let time_str = cmd.timestamp.format("%H:%M:%S").to_string();
+                let icon = cmd.command_type.icon();
+                let color = command_color(cmd.command_type);
+
+                // Truncate message if too long
+                let max_msg_len = area.width.saturating_sub(16) as usize;
+                let message = if cmd.message.len() > max_msg_len {
+                    format!("{}...", &cmd.message[..max_msg_len.saturating_sub(3)])
+                } else {
+                    cmd.message.clone()
+                };
+
+                ListItem::new(Line::from(vec![
+                    Span::styled(
+                        format!("  {time_str}  "),
+                        Style::default().fg(Color::DarkGray),
+                    ),
+                    Span::styled(format!("{icon} "), Style::default().fg(color)),
+                    Span::styled(message, Style::default().fg(Color::White)),
+                ]))
+            })
+            .collect()
+    };
+
+    let list = List::new(items).block(
         Block::default()
             .borders(Borders::ALL)
             .border_style(border_style)
-            .title(" Recent Activity ")
+            .title(format!(" Recent Activity ({}) ", app.activity.len()))
             .title_style(if is_active {
                 Style::default().fg(Color::Cyan).bold()
             } else {
@@ -268,7 +319,7 @@ fn render_activity_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             }),
     );
 
-    frame.render_widget(panel, area);
+    frame.render_widget(list, area);
 }
 
 /// Render the footer with keybindings

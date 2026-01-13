@@ -15,40 +15,19 @@ use crate::{
 pub fn render(frame: &mut Frame<'_>, app: &App) {
     let area = frame.area();
 
-    // Determine if we need command pane
-    let show_command_pane = app.command_mode || !app.command_output.is_empty();
-
-    // Main layout: header, body, [command], footer
-    let layout = if show_command_pane {
-        Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3), // Header
-                Constraint::Min(8),    // Body (reduced)
-                Constraint::Length(6), // Command pane
-                Constraint::Length(3), // Footer
-            ])
-            .split(area)
-    } else {
-        Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3), // Header
-                Constraint::Min(10),   // Body
-                Constraint::Length(3), // Footer
-            ])
-            .split(area)
-    };
+    // Main layout: header, body, footer
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Header
+            Constraint::Min(10),   // Body
+            Constraint::Length(3), // Footer
+        ])
+        .split(area);
 
     render_header(frame, app, layout[0]);
     render_body(frame, app, layout[1]);
-
-    if show_command_pane {
-        render_command_pane(frame, app, layout[2]);
-        render_footer(frame, app, layout[3]);
-    } else {
-        render_footer(frame, app, layout[2]);
-    }
+    render_footer(frame, app, layout[2]);
 
     // Overlays
     if app.show_help {
@@ -133,7 +112,7 @@ const fn state_color(state: FileState) -> Color {
     }
 }
 
-/// Render the unified main panel (staged + working + activity)
+/// Render the unified main panel (command + staged + working + activity)
 fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let staged_changes = app.status.staged_changes();
     let working_changes = app.status.working_changes();
@@ -144,6 +123,65 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
 
     let mut items: Vec<ListItem<'_>> = Vec::new();
 
+    // Command section (always at top, index 0)
+    let cmd_selected = app.selected == 0;
+    let cmd_prefix = if cmd_selected { "▸ " } else { "  " };
+
+    if app.command_mode {
+        // Active command input
+        items.push(ListItem::new(Line::from(vec![
+            Span::raw(cmd_prefix),
+            Span::styled(": ", Style::default().fg(Color::Cyan).bold()),
+            Span::styled(&app.command_input, Style::default().fg(Color::White)),
+            Span::styled("_", Style::default().fg(Color::Cyan)), // Cursor
+        ])));
+    } else if cmd_selected {
+        // Selected but not active
+        items.push(ListItem::new(Line::from(vec![
+            Span::raw(cmd_prefix),
+            Span::styled(": ", Style::default().fg(Color::Cyan).bold()),
+            Span::styled(
+                "press Enter or : to run command",
+                Style::default().fg(Color::DarkGray).italic(),
+            ),
+        ])));
+    } else {
+        // Not selected
+        items.push(ListItem::new(Line::from(vec![
+            Span::raw(cmd_prefix),
+            Span::styled(": ", Style::default().fg(Color::DarkGray)),
+            Span::styled("command", Style::default().fg(Color::DarkGray)),
+        ])));
+    }
+
+    // Command output (if any)
+    if !app.command_output.is_empty() {
+        let output_color = if app.command_success {
+            Color::White
+        } else {
+            Color::Red
+        };
+
+        for line in app.command_output.lines().take(4) {
+            items.push(ListItem::new(Line::from(vec![
+                Span::raw("  "),
+                Span::styled("> ", Style::default().fg(Color::DarkGray)),
+                Span::styled(line, Style::default().fg(output_color)),
+            ])));
+        }
+
+        let line_count = app.command_output.lines().count();
+        if line_count > 4 {
+            items.push(ListItem::new(Line::from(Span::styled(
+                format!("    ... ({} more lines)", line_count - 4),
+                Style::default().fg(Color::DarkGray).italic(),
+            ))));
+        }
+    }
+
+    // Spacer after command section
+    items.push(ListItem::new(Line::from("")));
+
     // Staged section
     if !staged_changes.is_empty() {
         items.push(ListItem::new(Line::from(Span::styled(
@@ -152,7 +190,9 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         ))));
 
         for (i, file) in staged_changes.iter().enumerate() {
-            let selected = i == app.selected;
+            // Index 0 is command, so files start at index 1
+            let global_idx = 1 + i;
+            let selected = global_idx == app.selected;
             let prefix = if selected { "▸ " } else { "  " };
             let status_char = file.staged.as_char();
             let color = state_color(file.staged);
@@ -185,7 +225,8 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         ))));
 
         for (i, file) in working_changes.iter().enumerate() {
-            let global_idx = staged_len + i;
+            // Index 0 is command, staged starts at 1, working starts at 1 + staged_len
+            let global_idx = 1 + staged_len + i;
             let selected = global_idx == app.selected;
             let prefix = if selected { "▸ " } else { "  " };
             let status_char = file.working.as_char();
@@ -219,7 +260,8 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         ))));
 
         for (i, cmd) in app.activity.iter().enumerate() {
-            let global_idx = files_total + i;
+            // Index 0 is command, files start at 1, history starts at 1 + files_total
+            let global_idx = 1 + files_total + i;
             let selected = global_idx == app.selected;
             let prefix = if selected { "▸ " } else { "  " };
 
@@ -250,8 +292,8 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         }
     }
 
-    // Empty state
-    if items.is_empty() {
+    // Empty state for files (command section is always shown)
+    if files_total == 0 && app.activity.is_empty() {
         items.push(ListItem::new(Line::from(Span::styled(
             "  No changes or activity",
             Style::default().fg(Color::DarkGray).italic(),
@@ -287,72 +329,6 @@ const fn command_color(cmd: CommandType) -> Color {
         CommandType::Stash => Color::Yellow,
         CommandType::Other => Color::DarkGray,
     }
-}
-
-/// Render the command input/output pane
-fn render_command_pane(frame: &mut Frame<'_>, app: &App, area: Rect) {
-    let border_color = if app.command_mode {
-        Color::Cyan
-    } else {
-        Color::DarkGray
-    };
-
-    // Build content lines
-    let mut lines: Vec<Line<'_>> = Vec::new();
-
-    // Command input line
-    if app.command_mode {
-        lines.push(Line::from(vec![
-            Span::styled(": ", Style::default().fg(Color::Cyan).bold()),
-            Span::styled(&app.command_input, Style::default().fg(Color::White)),
-            Span::styled("_", Style::default().fg(Color::Cyan)), // Cursor
-        ]));
-    } else if !app.command_output.is_empty() {
-        // Show last command hint when not in command mode
-        lines.push(Line::from(Span::styled(
-            "  Press : to enter command mode",
-            Style::default().fg(Color::DarkGray).italic(),
-        )));
-    }
-
-    // Command output (up to 4 lines to fit in pane)
-    if !app.command_output.is_empty() {
-        let output_color = if app.command_success {
-            Color::White
-        } else {
-            Color::Red
-        };
-
-        for line in app.command_output.lines().take(4) {
-            lines.push(Line::from(vec![
-                Span::styled("> ", Style::default().fg(Color::DarkGray)),
-                Span::styled(line, Style::default().fg(output_color)),
-            ]));
-        }
-
-        // Show truncation indicator if output is longer
-        let line_count = app.command_output.lines().count();
-        if line_count > 4 {
-            lines.push(Line::from(Span::styled(
-                format!("  ... ({} more lines)", line_count - 4),
-                Style::default().fg(Color::DarkGray).italic(),
-            )));
-        }
-    }
-
-    let command_block = Paragraph::new(lines).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(border_color))
-            .title(" Command ")
-            .title_style(if app.command_mode {
-                Style::default().fg(Color::Cyan).bold()
-            } else {
-                Style::default().fg(Color::White)
-            }),
-    );
-
-    frame.render_widget(command_block, area);
 }
 
 /// Render the footer with keybindings

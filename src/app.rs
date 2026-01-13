@@ -209,9 +209,19 @@ impl App {
                 self.toggle_stage();
             }
 
-            // Diff
-            KeyCode::Char('d') | KeyCode::Enter => {
+            // Diff or activate command mode
+            KeyCode::Char('d') => {
                 self.show_diff();
+            }
+            KeyCode::Enter => {
+                if self.selected == 0 {
+                    // Activate command mode when on command section
+                    self.command_mode = true;
+                    self.command_input.clear();
+                    self.history_index = None;
+                } else {
+                    self.show_diff();
+                }
             }
 
             // List navigation
@@ -277,26 +287,35 @@ impl App {
         }
     }
 
-    /// Total count of all items (staged + working + activity)
+    /// Total count of all items (command + staged + working + activity)
     pub fn total_count(&self) -> usize {
-        self.status.staged_changes().len()
+        1 // Command section at index 0
+            + self.status.staged_changes().len()
             + self.status.working_changes().len()
             + self.activity.len()
     }
 
     /// Get the selected file and whether it's staged
-    /// Returns (path, is_staged) or None if selection is on activity
+    /// Returns (path, is_staged) or None if selection is on command or activity
     fn selected_file_info(&self) -> Option<(PathBuf, bool)> {
+        // Index 0 is command section
+        if self.selected == 0 {
+            return None;
+        }
+
         let staged = self.status.staged_changes();
         let working = self.status.working_changes();
         let staged_len = staged.len();
 
-        if self.selected < staged_len {
+        // Adjust for command section at index 0
+        let file_idx = self.selected - 1;
+
+        if file_idx < staged_len {
             // Selected is in staged
-            staged.get(self.selected).map(|f| (f.path.clone(), true))
-        } else if self.selected < staged_len + working.len() {
+            staged.get(file_idx).map(|f| (f.path.clone(), true))
+        } else if file_idx < staged_len + working.len() {
             // Selected is in working
-            let working_idx = self.selected - staged_len;
+            let working_idx = file_idx - staged_len;
             working.get(working_idx).map(|f| (f.path.clone(), false))
         } else {
             // Selected is in activity

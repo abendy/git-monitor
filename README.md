@@ -78,6 +78,8 @@ git-monitor --tick-rate 100
 | `G` | Go to last item |
 | `s` | Stage / Unstage selected file |
 | `d` / `Enter` | Show diff for selected file |
+| `y` | Copy commit sha to clipboard |
+| `a` | Browse git aliases (when on command section) |
 | `r` | Refresh status |
 | `:` | Enter command mode |
 | `?` | Toggle help |

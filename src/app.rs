@@ -270,6 +270,14 @@ impl App {
                 self.select_last();
             }
 
+            // Copy sha to clipboard (for history items)
+            KeyCode::Char('y') => {
+                if let Some(sha) = self.selected_activity_sha() {
+                    self.copy_to_clipboard(&sha);
+                    self.error = Some(format!("Copied: {sha}"));
+                }
+            }
+
             _ => {}
         }
     }
@@ -428,6 +436,37 @@ impl App {
             // Selected is in activity
             None
         }
+    }
+
+    /// Get the selected activity item's SHA (if on a history item)
+    fn selected_activity_sha(&self) -> Option<String> {
+        let staged_len = self.status.staged_changes().len();
+        let working_len = self.status.working_changes().len();
+        let files_total = staged_len + working_len;
+
+        // Index 0 is command, files are 1..=files_total, activity starts after
+        if self.selected > files_total {
+            let activity_idx = self.selected - 1 - files_total;
+            self.activity
+                .get(activity_idx)
+                .and_then(|cmd| cmd.sha.clone())
+        } else {
+            None
+        }
+    }
+
+    /// Copy text to clipboard (macOS)
+    fn copy_to_clipboard(&self, text: &str) {
+        let _ = Command::new("pbcopy")
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+            .and_then(|mut child| {
+                use std::io::Write;
+                if let Some(stdin) = child.stdin.as_mut() {
+                    stdin.write_all(text.as_bytes())?;
+                }
+                child.wait()
+            });
     }
 
     /// Toggle stage/unstage for selected file

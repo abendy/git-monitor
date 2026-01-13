@@ -126,7 +126,6 @@ pub struct GitCommand {
     /// Command message/description
     pub message: String,
     /// Short SHA if available
-    #[allow(dead_code)]
     pub sha: Option<String>,
 }
 

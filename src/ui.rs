@@ -343,9 +343,10 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             let time_str = cmd.timestamp.format("%H:%M:%S").to_string();
             let icon = cmd.command_type.icon();
             let color = command_color(cmd.command_type);
+            let sha_str = cmd.sha.as_deref().unwrap_or("-------");
 
-            // Truncate message if too long
-            let max_msg_len = area.width.saturating_sub(20) as usize;
+            // Truncate message if too long (account for sha display)
+            let max_msg_len = area.width.saturating_sub(32) as usize;
             let message = if cmd.message.len() > max_msg_len {
                 format!("{}...", &cmd.message[..max_msg_len.saturating_sub(3)])
             } else {
@@ -360,6 +361,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
 
             items.push(ListItem::new(Line::from(vec![
                 Span::raw(prefix),
+                Span::styled(format!("{sha_str} "), style.fg(Color::Yellow)),
                 Span::styled(format!("{time_str}  "), style.fg(Color::DarkGray)),
                 Span::styled(format!("{icon} "), style.fg(color)),
                 Span::styled(message, style.fg(Color::White)),
@@ -474,6 +476,7 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
         )),
         Line::from("  s                  Stage/unstage file"),
         Line::from("  d / Enter          Show diff"),
+        Line::from("  y                  Copy commit sha"),
         Line::from("  r                  Refresh status"),
         Line::from(""),
         Line::from(Span::styled(

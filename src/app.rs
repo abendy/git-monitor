@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::mpsc::Sender};
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -9,6 +9,7 @@ use crate::{
     git::{GitRepo, GitStatus},
     tui::Tui,
     ui,
+    watcher::{RepoWatcher, WatchEvent},
 };
 
 /// Active panel in the UI
@@ -46,6 +47,9 @@ pub struct App {
     repo: GitRepo,
     /// Current git status
     pub status: GitStatus,
+    /// File watcher
+    #[allow(dead_code)]
+    watcher: Option<RepoWatcher>,
     /// Whether the application is running
     pub running: bool,
     /// Currently active panel
@@ -75,6 +79,7 @@ impl App {
             repo_path,
             repo,
             status,
+            watcher: None,
             running: true,
             active_panel: Panel::default(),
             working_selected: 0,
@@ -82,6 +87,29 @@ impl App {
             show_help: false,
             error: None,
         })
+    }
+
+    /// Set up file watcher
+    pub fn setup_watcher(&mut self, event_tx: Sender<Event>) -> Result<()> {
+        // Create a channel to receive watch events
+        let (watch_tx, watch_rx) = std::sync::mpsc::channel::<WatchEvent>();
+
+        // Spawn a thread to forward watch events to the main event loop
+        let tx = event_tx;
+        std::thread::spawn(move || {
+            while let Ok(_event) = watch_rx.recv() {
+                // Any file change triggers a refresh
+                if tx.send(Event::FileChanged).is_err() {
+                    break;
+                }
+            }
+        });
+
+        // Create the watcher
+        let watcher = RepoWatcher::new(&self.repo_path, watch_tx)?;
+        self.watcher = Some(watcher);
+
+        Ok(())
     }
 
     /// Refresh git status
@@ -119,6 +147,7 @@ impl App {
             match tui.events.next()? {
                 Event::Key(key) => self.handle_key(key),
                 Event::Tick => self.on_tick(),
+                Event::FileChanged => self.refresh_status(),
                 Event::Resize(_, _) => {}
                 Event::Mouse(_) => {}
             }
@@ -246,7 +275,7 @@ impl App {
 
     /// Handle tick events (periodic updates)
     fn on_tick(&mut self) {
-        // Refresh status periodically
-        self.refresh_status();
+        // Tick is now just for UI updates, not git status refresh
+        // Status is refreshed via file watcher events
     }
 }

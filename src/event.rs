@@ -20,12 +20,13 @@ pub enum Event {
     /// Terminal resize
     #[allow(dead_code)]
     Resize(u16, u16),
+    /// File system change detected
+    FileChanged,
 }
 
 /// Handles terminal events in a separate thread
 pub struct EventHandler {
     rx: mpsc::Receiver<Event>,
-    #[allow(dead_code)]
     tx: mpsc::Sender<Event>,
 }
 
@@ -77,6 +78,11 @@ impl EventHandler {
         });
 
         Self { rx, tx }
+    }
+
+    /// Get a sender for external events (file watcher, etc.)
+    pub fn sender(&self) -> mpsc::Sender<Event> {
+        self.tx.clone()
     }
 
     /// Get the next event, blocking until one is available

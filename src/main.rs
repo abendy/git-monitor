@@ -8,6 +8,7 @@ mod event;
 mod git;
 mod tui;
 mod ui;
+mod watcher;
 
 #[derive(Parser, Debug)]
 #[command(name = "git-monitor")]
@@ -40,6 +41,10 @@ fn main() -> Result<()> {
     let mut tui = tui::Tui::new(args.tick_rate)?;
 
     tui.enter()?;
+
+    // Set up file watcher
+    app.setup_watcher(tui.events.sender())?;
+
     let result = app.run(&mut tui);
     tui.exit()?;
 

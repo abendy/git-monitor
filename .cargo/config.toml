@@ -1,7 +1,4 @@
 [build]
-# Use all available cores
-jobs = -1
-
 # Uncomment if you have mold/lld installed for faster linking:
 # [target.x86_64-unknown-linux-gnu]
 # rustflags = ["-C", "link-arg=-fuse-ld=mold"]

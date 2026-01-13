@@ -67,5 +67,5 @@ missing_panics_doc = "allow"
 
 [profile.release]
 lto = true
-strip = true
+strip = "symbols"
 codegen-units = 1

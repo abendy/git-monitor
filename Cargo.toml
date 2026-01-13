@@ -1,0 +1,45 @@
+[package]
+name = "git-monitor"
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <you@example.com>"]
+description = "Real-time TUI for monitoring git repository activity"
+license = "MIT"
+repository = "https://github.com/yourusername/git-monitor"
+keywords = ["git", "tui", "terminal", "monitor"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+# TUI Framework
+ratatui = "0.28"
+crossterm = "0.28"
+
+# Git operations
+git2 = "0.19"
+
+# Async runtime & events
+tokio = { version = "1", features = ["full"] }
+notify = "6.1"
+notify-debouncer-mini = "0.4"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# CLI argument parsing
+clap = { version = "4", features = ["derive"] }
+
+# Time handling
+chrono = "0.4"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1

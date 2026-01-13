@@ -2,10 +2,14 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph},
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
 };
 
-use crate::{app::App, app::Panel, tui::Frame};
+use crate::{
+    app::{App, Panel},
+    git::FileState,
+    tui::Frame,
+};
 
 /// Main render function
 pub fn render(frame: &mut Frame<'_>, app: &App) {
@@ -23,7 +27,7 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
 
     render_header(frame, app, layout[0]);
     render_body(frame, app, layout[1]);
-    render_footer(frame, layout[2]);
+    render_footer(frame, app, layout[2]);
 
     // Help overlay
     if app.show_help {
@@ -33,20 +37,47 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
 
 /// Render the header bar
 fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    let branch_name = app
+        .status
+        .branch
+        .as_deref()
+        .unwrap_or("(no branch)");
+
+    let mut header_spans = vec![
+        Span::styled(" ⎇ ", Style::default().fg(Color::Cyan)),
+        Span::styled(branch_name, Style::default().fg(Color::Green).bold()),
+    ];
+
+    // Ahead/behind indicators
+    if app.status.ahead > 0 || app.status.behind > 0 {
+        header_spans.push(Span::raw(" "));
+        if app.status.ahead > 0 {
+            header_spans.push(Span::styled(
+                format!("↑{}", app.status.ahead),
+                Style::default().fg(Color::Green),
+            ));
+        }
+        if app.status.behind > 0 {
+            header_spans.push(Span::styled(
+                format!("↓{}", app.status.behind),
+                Style::default().fg(Color::Red),
+            ));
+        }
+    }
+
+    // Repo path
     let path_str = app
         .repo_path
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("unknown");
 
-    let header_text = Line::from(vec![
-        Span::styled(" ⎇ ", Style::default().fg(Color::Cyan)),
-        Span::styled("main", Style::default().fg(Color::Green).bold()),
-        Span::raw(" │ "),
-        Span::styled(path_str, Style::default().fg(Color::White)),
-        Span::raw(" │ "),
-        Span::styled("● watching", Style::default().fg(Color::Green)),
-    ]);
+    header_spans.push(Span::raw(" │ "));
+    header_spans.push(Span::styled(path_str, Style::default().fg(Color::White)));
+    header_spans.push(Span::raw(" │ "));
+    header_spans.push(Span::styled("● watching", Style::default().fg(Color::Green)));
+
+    let header_text = Line::from(header_spans);
 
     let header = Paragraph::new(header_text).block(
         Block::default()
@@ -81,6 +112,19 @@ fn render_body(frame: &mut Frame<'_>, app: &App, area: Rect) {
     render_activity_panel(frame, app, body_layout[1]);
 }
 
+/// Get color for file state
+const fn state_color(state: FileState) -> Color {
+    match state {
+        FileState::Modified => Color::Yellow,
+        FileState::Added => Color::Green,
+        FileState::Deleted => Color::Red,
+        FileState::Renamed => Color::Cyan,
+        FileState::Untracked => Color::DarkGray,
+        FileState::Conflicted => Color::Magenta,
+        FileState::Unmodified | FileState::Ignored => Color::White,
+    }
+}
+
 /// Render the working directory panel
 fn render_working_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let is_active = app.active_panel == Panel::Working;
@@ -90,22 +134,45 @@ fn render_working_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         Style::default().fg(Color::DarkGray)
     };
 
-    let placeholder = vec![
-        Line::from(Span::styled(
-            "  M src/main.rs",
-            Style::default().fg(Color::Yellow),
-        )),
-        Line::from(Span::styled(
-            "  ? untracked.txt",
-            Style::default().fg(Color::DarkGray),
-        )),
-    ];
+    let working_changes = app.status.working_changes();
+    let title = format!(" Working Directory ({}) ", working_changes.len());
 
-    let panel = Paragraph::new(placeholder).block(
+    let items: Vec<ListItem<'_>> = if working_changes.is_empty() {
+        vec![ListItem::new(Line::from(Span::styled(
+            "  No changes",
+            Style::default().fg(Color::DarkGray).italic(),
+        )))]
+    } else {
+        working_changes
+            .iter()
+            .enumerate()
+            .map(|(i, file)| {
+                let selected = is_active && i == app.working_selected;
+                let prefix = if selected { "▸ " } else { "  " };
+                let status_char = file.working.as_char();
+                let color = state_color(file.working);
+                let path = file.path.to_string_lossy();
+
+                let style = if selected {
+                    Style::default().fg(color).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(color)
+                };
+
+                ListItem::new(Line::from(vec![
+                    Span::raw(prefix),
+                    Span::styled(format!("{status_char} "), style),
+                    Span::styled(path.to_string(), style),
+                ]))
+            })
+            .collect()
+    };
+
+    let list = List::new(items).block(
         Block::default()
             .borders(Borders::ALL)
             .border_style(border_style)
-            .title(" Working Directory ")
+            .title(title)
             .title_style(if is_active {
                 Style::default().fg(Color::Cyan).bold()
             } else {
@@ -113,7 +180,7 @@ fn render_working_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             }),
     );
 
-    frame.render_widget(panel, area);
+    frame.render_widget(list, area);
 }
 
 /// Render the staged changes panel
@@ -125,16 +192,45 @@ fn render_staged_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         Style::default().fg(Color::DarkGray)
     };
 
-    let placeholder = vec![Line::from(Span::styled(
-        "  No staged changes",
-        Style::default().fg(Color::DarkGray).italic(),
-    ))];
+    let staged_changes = app.status.staged_changes();
+    let title = format!(" Staged ({}) ", staged_changes.len());
 
-    let panel = Paragraph::new(placeholder).block(
+    let items: Vec<ListItem<'_>> = if staged_changes.is_empty() {
+        vec![ListItem::new(Line::from(Span::styled(
+            "  No staged changes",
+            Style::default().fg(Color::DarkGray).italic(),
+        )))]
+    } else {
+        staged_changes
+            .iter()
+            .enumerate()
+            .map(|(i, file)| {
+                let selected = is_active && i == app.staged_selected;
+                let prefix = if selected { "▸ " } else { "  " };
+                let status_char = file.staged.as_char();
+                let color = state_color(file.staged);
+                let path = file.path.to_string_lossy();
+
+                let style = if selected {
+                    Style::default().fg(color).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(color)
+                };
+
+                ListItem::new(Line::from(vec![
+                    Span::raw(prefix),
+                    Span::styled(format!("{status_char} "), style),
+                    Span::styled(path.to_string(), style),
+                ]))
+            })
+            .collect()
+    };
+
+    let list = List::new(items).block(
         Block::default()
             .borders(Borders::ALL)
             .border_style(border_style)
-            .title(" Staged ")
+            .title(title)
             .title_style(if is_active {
                 Style::default().fg(Color::Cyan).bold()
             } else {
@@ -142,7 +238,7 @@ fn render_staged_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             }),
     );
 
-    frame.render_widget(panel, area);
+    frame.render_widget(list, area);
 }
 
 /// Render the activity log panel
@@ -154,18 +250,11 @@ fn render_activity_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         Style::default().fg(Color::DarkGray)
     };
 
-    let placeholder = vec![
-        Line::from(vec![
-            Span::styled("  12:34:56  ", Style::default().fg(Color::DarkGray)),
-            Span::styled("● ", Style::default().fg(Color::Green)),
-            Span::raw("commit: Initial commit"),
-        ]),
-        Line::from(vec![
-            Span::styled("  12:34:00  ", Style::default().fg(Color::DarkGray)),
-            Span::styled("⎇ ", Style::default().fg(Color::Cyan)),
-            Span::raw("checkout: main"),
-        ]),
-    ];
+    // Placeholder - will be populated in Phase 4
+    let placeholder = vec![Line::from(Span::styled(
+        "  Activity log coming soon...",
+        Style::default().fg(Color::DarkGray).italic(),
+    ))];
 
     let panel = Paragraph::new(placeholder).block(
         Block::default()
@@ -183,19 +272,33 @@ fn render_activity_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
 }
 
 /// Render the footer with keybindings
-fn render_footer(frame: &mut Frame<'_>, area: Rect) {
-    let keys = Line::from(vec![
-        Span::styled(" Tab ", Style::default().bg(Color::DarkGray).bold()),
-        Span::raw(" switch  "),
-        Span::styled(" q ", Style::default().bg(Color::DarkGray).bold()),
-        Span::raw(" quit  "),
-        Span::styled(" ? ", Style::default().bg(Color::DarkGray).bold()),
-        Span::raw(" help "),
-    ]);
+fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    // Show error if present, otherwise show keybindings
+    let content = if let Some(ref error) = app.error {
+        Line::from(Span::styled(
+            error.as_str(),
+            Style::default().fg(Color::Red),
+        ))
+    } else {
+        Line::from(vec![
+            Span::styled(" Tab ", Style::default().bg(Color::DarkGray).bold()),
+            Span::raw(" switch  "),
+            Span::styled(" j/k ", Style::default().bg(Color::DarkGray).bold()),
+            Span::raw(" navigate  "),
+            Span::styled(" r ", Style::default().bg(Color::DarkGray).bold()),
+            Span::raw(" refresh  "),
+            Span::styled(" ? ", Style::default().bg(Color::DarkGray).bold()),
+            Span::raw(" help  "),
+            Span::styled(" q ", Style::default().bg(Color::DarkGray).bold()),
+            Span::raw(" quit "),
+        ])
+    };
 
-    let footer = Paragraph::new(keys)
-        .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::DarkGray)));
+    let footer = Paragraph::new(content).alignment(Alignment::Center).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::DarkGray)),
+    );
 
     frame.render_widget(footer, area);
 }
@@ -203,7 +306,7 @@ fn render_footer(frame: &mut Frame<'_>, area: Rect) {
 /// Render help overlay
 fn render_help(frame: &mut Frame<'_>, area: Rect) {
     // Center the help box
-    let help_area = centered_rect(60, 60, area);
+    let help_area = centered_rect(60, 70, area);
 
     // Clear the area behind the popup
     frame.render_widget(Clear, help_area);
@@ -217,6 +320,8 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
         Line::from("  Tab / Shift+Tab    Switch panels"),
         Line::from("  j / ↓              Move down"),
         Line::from("  k / ↑              Move up"),
+        Line::from("  g                  Go to first"),
+        Line::from("  G                  Go to last"),
         Line::from(""),
         Line::from(Span::styled(
             "Actions",
@@ -224,7 +329,7 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
         )),
         Line::from("  s                  Stage/unstage file"),
         Line::from("  d                  Show diff"),
-        Line::from("  r                  Refresh"),
+        Line::from("  r                  Refresh status"),
         Line::from(""),
         Line::from(Span::styled(
             "General",
@@ -239,15 +344,13 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
         )),
     ];
 
-    let help = Paragraph::new(help_text)
-        .alignment(Alignment::Left)
-        .block(
-            Block::default()
-                .title(" Help ")
-                .title_style(Style::default().fg(Color::Cyan).bold())
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Cyan)),
-        );
+    let help = Paragraph::new(help_text).alignment(Alignment::Left).block(
+        Block::default()
+            .title(" Help ")
+            .title_style(Style::default().fg(Color::Cyan).bold())
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Cyan)),
+    );
 
     frame.render_widget(help, help_area);
 }

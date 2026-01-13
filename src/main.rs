@@ -5,6 +5,7 @@ use clap::Parser;
 
 mod app;
 mod event;
+mod git;
 mod tui;
 mod ui;
 

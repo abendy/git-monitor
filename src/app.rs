@@ -1,9 +1,15 @@
 use std::path::PathBuf;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use tracing::warn;
 
-use crate::{event::Event, tui::Tui, ui};
+use crate::{
+    event::Event,
+    git::{GitRepo, GitStatus},
+    tui::Tui,
+    ui,
+};
 
 /// Active panel in the UI
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -36,27 +42,71 @@ impl Panel {
 pub struct App {
     /// Path to the repository
     pub repo_path: PathBuf,
+    /// Git repository handle
+    repo: GitRepo,
+    /// Current git status
+    pub status: GitStatus,
     /// Whether the application is running
     pub running: bool,
     /// Currently active panel
     pub active_panel: Panel,
+    /// Selected index in working panel
+    pub working_selected: usize,
+    /// Selected index in staged panel
+    pub staged_selected: usize,
     /// Show help overlay
     pub show_help: bool,
+    /// Error message to display
+    pub error: Option<String>,
 }
 
 impl App {
     /// Create a new application instance
     pub fn new(path: PathBuf) -> Result<Self> {
-        let repo_path = path
-            .canonicalize()
-            .with_context(|| format!("Invalid path: {}", path.display()))?;
+        let repo = GitRepo::open(&path)?;
+        let repo_path = repo
+            .workdir()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| path.clone());
+
+        let status = repo.status().unwrap_or_default();
 
         Ok(Self {
             repo_path,
+            repo,
+            status,
             running: true,
             active_panel: Panel::default(),
+            working_selected: 0,
+            staged_selected: 0,
             show_help: false,
+            error: None,
         })
+    }
+
+    /// Refresh git status
+    pub fn refresh_status(&mut self) {
+        match self.repo.status() {
+            Ok(status) => {
+                self.status = status;
+                self.error = None;
+
+                // Clamp selection indices
+                let working_len = self.status.working_changes().len();
+                if self.working_selected >= working_len && working_len > 0 {
+                    self.working_selected = working_len - 1;
+                }
+
+                let staged_len = self.status.staged_changes().len();
+                if self.staged_selected >= staged_len && staged_len > 0 {
+                    self.staged_selected = staged_len - 1;
+                }
+            }
+            Err(e) => {
+                warn!("Failed to refresh git status: {}", e);
+                self.error = Some(format!("Git error: {e}"));
+            }
+        }
     }
 
     /// Run the main application loop
@@ -79,33 +129,124 @@ impl App {
 
     /// Handle keyboard input
     fn handle_key(&mut self, key: KeyEvent) {
-        // Global keys
+        // Help overlay captures all keys
+        if self.show_help {
+            self.show_help = false;
+            return;
+        }
+
         match key.code {
+            // Quit
             KeyCode::Char('q') | KeyCode::Esc => {
-                if self.show_help {
-                    self.show_help = false;
-                } else {
-                    self.running = false;
-                }
+                self.running = false;
             }
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.running = false;
             }
+
+            // Help
             KeyCode::Char('?') => {
-                self.show_help = !self.show_help;
+                self.show_help = true;
             }
+
+            // Refresh
+            KeyCode::Char('r') => {
+                self.refresh_status();
+            }
+
+            // Panel navigation
             KeyCode::Tab => {
                 self.active_panel = self.active_panel.next();
             }
             KeyCode::BackTab => {
                 self.active_panel = self.active_panel.prev();
             }
+
+            // List navigation
+            KeyCode::Char('j') | KeyCode::Down => {
+                self.select_next();
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                self.select_prev();
+            }
+            KeyCode::Char('g') => {
+                self.select_first();
+            }
+            KeyCode::Char('G') => {
+                self.select_last();
+            }
+
             _ => {}
+        }
+    }
+
+    /// Select next item in current panel
+    fn select_next(&mut self) {
+        match self.active_panel {
+            Panel::Working => {
+                let len = self.status.working_changes().len();
+                if len > 0 && self.working_selected < len - 1 {
+                    self.working_selected += 1;
+                }
+            }
+            Panel::Staged => {
+                let len = self.status.staged_changes().len();
+                if len > 0 && self.staged_selected < len - 1 {
+                    self.staged_selected += 1;
+                }
+            }
+            Panel::Activity => {}
+        }
+    }
+
+    /// Select previous item in current panel
+    fn select_prev(&mut self) {
+        match self.active_panel {
+            Panel::Working => {
+                if self.working_selected > 0 {
+                    self.working_selected -= 1;
+                }
+            }
+            Panel::Staged => {
+                if self.staged_selected > 0 {
+                    self.staged_selected -= 1;
+                }
+            }
+            Panel::Activity => {}
+        }
+    }
+
+    /// Select first item
+    fn select_first(&mut self) {
+        match self.active_panel {
+            Panel::Working => self.working_selected = 0,
+            Panel::Staged => self.staged_selected = 0,
+            Panel::Activity => {}
+        }
+    }
+
+    /// Select last item
+    fn select_last(&mut self) {
+        match self.active_panel {
+            Panel::Working => {
+                let len = self.status.working_changes().len();
+                if len > 0 {
+                    self.working_selected = len - 1;
+                }
+            }
+            Panel::Staged => {
+                let len = self.status.staged_changes().len();
+                if len > 0 {
+                    self.staged_selected = len - 1;
+                }
+            }
+            Panel::Activity => {}
         }
     }
 
     /// Handle tick events (periodic updates)
     fn on_tick(&mut self) {
-        // Future: refresh git status, update timestamps, etc.
+        // Refresh status periodically
+        self.refresh_status();
     }
 }

@@ -5,6 +5,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tracing::warn;
 
 use crate::{
+    config::GitConfig,
     event::Event,
     git::{GitCommand, GitRepo, GitStatus},
     tui::Tui,
@@ -28,12 +29,14 @@ pub struct App {
     pub status: GitStatus,
     /// Recent git activity
     pub activity: Vec<GitCommand>,
+    /// Git config with aliases
+    pub config: GitConfig,
     /// File watcher
     #[allow(dead_code)]
     watcher: Option<RepoWatcher>,
     /// Whether the application is running
     pub running: bool,
-    /// Selected index in main list (staged → working → activity)
+    /// Selected index in main list (command → staged → working → activity)
     pub selected: usize,
     /// Show help overlay
     pub show_help: bool,
@@ -57,6 +60,14 @@ pub struct App {
     pub command_history: Vec<String>,
     /// Current position in history (for navigation)
     pub history_index: Option<usize>,
+    /// Whether showing alias categories popup
+    pub show_aliases: bool,
+    /// Selected alias category index
+    pub alias_section_selected: usize,
+    /// Whether viewing aliases within a section
+    pub show_section_aliases: bool,
+    /// Selected alias within section
+    pub alias_selected: usize,
 }
 
 impl App {
@@ -70,12 +81,14 @@ impl App {
 
         let status = repo.status().unwrap_or_default();
         let activity = repo.reflog(MAX_ACTIVITY).unwrap_or_default();
+        let config = GitConfig::load(&repo_path).unwrap_or_default();
 
         Ok(Self {
             repo_path,
             repo,
             status,
             activity,
+            config,
             watcher: None,
             running: true,
             selected: 0,
@@ -90,6 +103,10 @@ impl App {
             command_success: true,
             command_history: Vec::new(),
             history_index: None,
+            show_aliases: false,
+            alias_section_selected: 0,
+            show_section_aliases: false,
+            alias_selected: 0,
         })
     }
 
@@ -162,6 +179,12 @@ impl App {
             return;
         }
 
+        // Alias browsing mode captures keys
+        if self.show_aliases {
+            self.handle_alias_mode_key(key);
+            return;
+        }
+
         // Overlays capture keys
         if self.show_help {
             self.show_help = false;
@@ -192,6 +215,15 @@ impl App {
                 self.command_mode = true;
                 self.command_input.clear();
                 self.history_index = None;
+            }
+
+            // Show aliases (when on command section)
+            KeyCode::Char('a') => {
+                if self.selected == 0 && !self.config.sections.is_empty() {
+                    self.show_aliases = true;
+                    self.alias_section_selected = 0;
+                    self.show_section_aliases = false;
+                }
             }
 
             // Help
@@ -285,6 +317,81 @@ impl App {
 
             _ => {}
         }
+    }
+
+    /// Handle keyboard input in alias browsing mode
+    fn handle_alias_mode_key(&mut self, key: KeyEvent) {
+        match key.code {
+            // Go back / close
+            KeyCode::Esc | KeyCode::Char('q') => {
+                if self.show_section_aliases {
+                    // Go back to category list
+                    self.show_section_aliases = false;
+                    self.alias_selected = 0;
+                } else {
+                    // Close alias browser
+                    self.show_aliases = false;
+                }
+            }
+
+            // Select category or run alias
+            KeyCode::Enter => {
+                if self.show_section_aliases {
+                    // Run selected alias
+                    self.run_selected_alias();
+                } else {
+                    // Enter category to show aliases
+                    self.show_section_aliases = true;
+                    self.alias_selected = 0;
+                }
+            }
+
+            // Navigation
+            KeyCode::Char('j') | KeyCode::Down => {
+                if self.show_section_aliases {
+                    // Navigate aliases within section
+                    if let Some(section) = self.config.sections.get(self.alias_section_selected) {
+                        if self.alias_selected < section.aliases.len().saturating_sub(1) {
+                            self.alias_selected += 1;
+                        }
+                    }
+                } else {
+                    // Navigate categories
+                    if self.alias_section_selected < self.config.sections.len().saturating_sub(1) {
+                        self.alias_section_selected += 1;
+                    }
+                }
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                if self.show_section_aliases {
+                    if self.alias_selected > 0 {
+                        self.alias_selected -= 1;
+                    }
+                } else if self.alias_section_selected > 0 {
+                    self.alias_section_selected -= 1;
+                }
+            }
+
+            _ => {}
+        }
+    }
+
+    /// Run the currently selected alias
+    fn run_selected_alias(&mut self) {
+        let Some(section) = self.config.sections.get(self.alias_section_selected) else {
+            return;
+        };
+        let Some(alias) = section.aliases.get(self.alias_selected) else {
+            return;
+        };
+
+        // Close alias browser
+        self.show_aliases = false;
+        self.show_section_aliases = false;
+
+        // Set up command and execute
+        self.command_input = format!("git {}", alias.name);
+        self.execute_command();
     }
 
     /// Total count of all items (command + staged + working + activity)

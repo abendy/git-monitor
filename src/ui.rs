@@ -15,19 +15,40 @@ use crate::{
 pub fn render(frame: &mut Frame<'_>, app: &App) {
     let area = frame.area();
 
-    // Main layout: header, body, footer
-    let layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3), // Header
-            Constraint::Min(10),   // Body
-            Constraint::Length(3), // Footer
-        ])
-        .split(area);
+    // Determine if we need command pane
+    let show_command_pane = app.command_mode || !app.command_output.is_empty();
+
+    // Main layout: header, body, [command], footer
+    let layout = if show_command_pane {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // Header
+                Constraint::Min(8),    // Body (reduced)
+                Constraint::Length(6), // Command pane
+                Constraint::Length(3), // Footer
+            ])
+            .split(area)
+    } else {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // Header
+                Constraint::Min(10),   // Body
+                Constraint::Length(3), // Footer
+            ])
+            .split(area)
+    };
 
     render_header(frame, app, layout[0]);
     render_body(frame, app, layout[1]);
-    render_footer(frame, app, layout[2]);
+
+    if show_command_pane {
+        render_command_pane(frame, app, layout[2]);
+        render_footer(frame, app, layout[3]);
+    } else {
+        render_footer(frame, app, layout[2]);
+    }
 
     // Overlays
     if app.show_help {
@@ -326,10 +347,85 @@ fn render_activity_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
     frame.render_widget(list, area);
 }
 
+/// Render the command input/output pane
+fn render_command_pane(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    let border_color = if app.command_mode {
+        Color::Cyan
+    } else {
+        Color::DarkGray
+    };
+
+    // Build content lines
+    let mut lines: Vec<Line<'_>> = Vec::new();
+
+    // Command input line
+    if app.command_mode {
+        lines.push(Line::from(vec![
+            Span::styled(": ", Style::default().fg(Color::Cyan).bold()),
+            Span::styled(&app.command_input, Style::default().fg(Color::White)),
+            Span::styled("_", Style::default().fg(Color::Cyan)), // Cursor
+        ]));
+    } else if !app.command_output.is_empty() {
+        // Show last command hint when not in command mode
+        lines.push(Line::from(Span::styled(
+            "  Press : to enter command mode",
+            Style::default().fg(Color::DarkGray).italic(),
+        )));
+    }
+
+    // Command output (up to 4 lines to fit in pane)
+    if !app.command_output.is_empty() {
+        let output_color = if app.command_success {
+            Color::White
+        } else {
+            Color::Red
+        };
+
+        for line in app.command_output.lines().take(4) {
+            lines.push(Line::from(vec![
+                Span::styled("> ", Style::default().fg(Color::DarkGray)),
+                Span::styled(line, Style::default().fg(output_color)),
+            ]));
+        }
+
+        // Show truncation indicator if output is longer
+        let line_count = app.command_output.lines().count();
+        if line_count > 4 {
+            lines.push(Line::from(Span::styled(
+                format!("  ... ({} more lines)", line_count - 4),
+                Style::default().fg(Color::DarkGray).italic(),
+            )));
+        }
+    }
+
+    let command_block = Paragraph::new(lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(border_color))
+            .title(" Command ")
+            .title_style(if app.command_mode {
+                Style::default().fg(Color::Cyan).bold()
+            } else {
+                Style::default().fg(Color::White)
+            }),
+    );
+
+    frame.render_widget(command_block, area);
+}
+
 /// Render the footer with keybindings
 fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
-    // Show error if present, otherwise show keybindings
-    let content = if let Some(ref error) = app.error {
+    // Show different hints based on mode
+    let content = if app.command_mode {
+        Line::from(vec![
+            Span::styled(" Enter ", Style::default().bg(Color::DarkGray).bold()),
+            Span::raw(" execute  "),
+            Span::styled(" Esc ", Style::default().bg(Color::DarkGray).bold()),
+            Span::raw(" cancel  "),
+            Span::styled(" Up/Down ", Style::default().bg(Color::DarkGray).bold()),
+            Span::raw(" history "),
+        ])
+    } else if let Some(ref error) = app.error {
         Line::from(Span::styled(
             error.as_str(),
             Style::default().fg(Color::Red),
@@ -344,6 +440,8 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Span::raw(" stage  "),
             Span::styled(" d ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" diff  "),
+            Span::styled(" : ", Style::default().bg(Color::DarkGray).bold()),
+            Span::raw(" cmd  "),
             Span::styled(" ? ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" help  "),
             Span::styled(" q ", Style::default().bg(Color::DarkGray).bold()),
@@ -387,6 +485,15 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
         Line::from("  s                  Stage/unstage file"),
         Line::from("  d                  Show diff"),
         Line::from("  r                  Refresh status"),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Command Mode",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Line::from("  :                  Enter command mode"),
+        Line::from("  Enter              Execute command"),
+        Line::from("  Esc / Ctrl+C       Cancel"),
+        Line::from("  Up / Down          Navigate history"),
         Line::from(""),
         Line::from(Span::styled(
             "General",

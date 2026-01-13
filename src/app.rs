@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::mpsc::Sender};
+use std::{path::PathBuf, process::Command, sync::mpsc::Sender};
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -14,6 +14,9 @@ use crate::{
 
 /// Maximum number of activity entries to keep
 const MAX_ACTIVITY: usize = 50;
+
+/// Maximum number of commands to keep in history
+const MAX_COMMAND_HISTORY: usize = 100;
 
 /// Active panel in the UI
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -73,6 +76,18 @@ pub struct App {
     pub diff_path: String,
     /// Error message to display
     pub error: Option<String>,
+    /// Whether in command input mode
+    pub command_mode: bool,
+    /// Current command input buffer
+    pub command_input: String,
+    /// Last command output (stdout/stderr combined)
+    pub command_output: String,
+    /// Whether last command succeeded
+    pub command_success: bool,
+    /// Command history
+    pub command_history: Vec<String>,
+    /// Current position in history (for navigation)
+    pub history_index: Option<usize>,
 }
 
 impl App {
@@ -102,6 +117,12 @@ impl App {
             diff_content: String::new(),
             diff_path: String::new(),
             error: None,
+            command_mode: false,
+            command_input: String::new(),
+            command_output: String::new(),
+            command_success: true,
+            command_history: Vec::new(),
+            history_index: None,
         })
     }
 
@@ -179,6 +200,12 @@ impl App {
 
     /// Handle keyboard input
     fn handle_key(&mut self, key: KeyEvent) {
+        // Command mode captures all input
+        if self.command_mode {
+            self.handle_command_mode_key(key);
+            return;
+        }
+
         // Overlays capture keys
         if self.show_help {
             self.show_help = false;
@@ -202,6 +229,13 @@ impl App {
             }
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.running = false;
+            }
+
+            // Enter command mode
+            KeyCode::Char(':') => {
+                self.command_mode = true;
+                self.command_input.clear();
+                self.history_index = None;
             }
 
             // Help
@@ -244,6 +278,51 @@ impl App {
             }
             KeyCode::Char('G') => {
                 self.select_last();
+            }
+
+            _ => {}
+        }
+    }
+
+    /// Handle keyboard input in command mode
+    fn handle_command_mode_key(&mut self, key: KeyEvent) {
+        match key.code {
+            // Cancel command mode
+            KeyCode::Esc => {
+                self.command_mode = false;
+                self.command_input.clear();
+                self.history_index = None;
+            }
+            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.command_mode = false;
+                self.command_input.clear();
+                self.history_index = None;
+            }
+
+            // Execute command
+            KeyCode::Enter => {
+                self.command_mode = false;
+                self.execute_command();
+            }
+
+            // Type characters
+            KeyCode::Char(c) => {
+                self.command_input.push(c);
+                self.history_index = None;
+            }
+
+            // Backspace
+            KeyCode::Backspace => {
+                self.command_input.pop();
+                self.history_index = None;
+            }
+
+            // History navigation
+            KeyCode::Up => {
+                self.history_prev();
+            }
+            KeyCode::Down => {
+                self.history_next();
             }
 
             _ => {}
@@ -385,5 +464,116 @@ impl App {
     fn on_tick(&mut self) {
         // Tick is now just for UI updates, not git status refresh
         // Status is refreshed via file watcher events
+    }
+
+    /// Execute a command (must start with "git")
+    fn execute_command(&mut self) {
+        let input = self.command_input.trim();
+        if input.is_empty() {
+            return;
+        }
+
+        // Parse command
+        let parts: Vec<&str> = input.split_whitespace().collect();
+        if parts.is_empty() {
+            return;
+        }
+
+        // Only allow git commands for safety
+        if parts[0] != "git" {
+            self.command_output = String::from("Error: Only git commands are allowed");
+            self.command_success = false;
+            return;
+        }
+
+        // Add to history (avoid duplicates of last command)
+        if self.command_history.last().map(String::as_str) != Some(input) {
+            self.command_history.push(input.to_string());
+            if self.command_history.len() > MAX_COMMAND_HISTORY {
+                self.command_history.remove(0);
+            }
+        }
+
+        // Execute the command
+        let result = Command::new("git")
+            .args(&parts[1..])
+            .current_dir(&self.repo_path)
+            .output();
+
+        match result {
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+
+                self.command_success = output.status.success();
+
+                if self.command_success {
+                    self.command_output = if stdout.is_empty() {
+                        String::from("(no output)")
+                    } else {
+                        stdout.to_string()
+                    };
+                } else {
+                    self.command_output = if stderr.is_empty() {
+                        stdout.to_string()
+                    } else {
+                        stderr.to_string()
+                    };
+                }
+
+                // Refresh status after any git command (it might have changed state)
+                self.refresh_status();
+            }
+            Err(e) => {
+                self.command_output = format!("Failed to execute: {e}");
+                self.command_success = false;
+            }
+        }
+
+        // Clear input and reset history navigation
+        self.command_input.clear();
+        self.history_index = None;
+    }
+
+    /// Navigate command history (older)
+    fn history_prev(&mut self) {
+        if self.command_history.is_empty() {
+            return;
+        }
+
+        match self.history_index {
+            None => {
+                // Start from most recent
+                self.history_index = Some(self.command_history.len() - 1);
+            }
+            Some(idx) if idx > 0 => {
+                self.history_index = Some(idx - 1);
+            }
+            _ => {}
+        }
+
+        if let Some(idx) = self.history_index {
+            self.command_input = self.command_history[idx].clone();
+        }
+    }
+
+    /// Navigate command history (newer)
+    fn history_next(&mut self) {
+        if self.command_history.is_empty() {
+            return;
+        }
+
+        match self.history_index {
+            Some(idx) if idx < self.command_history.len() - 1 => {
+                self.history_index = Some(idx + 1);
+                self.command_input = self.command_history[idx + 1].clone();
+            }
+            Some(_) => {
+                // Past end of history, clear input
+                self.history_index = None;
+                self.command_input.clear();
+            }
+            None => {}
+        }
     }
 }

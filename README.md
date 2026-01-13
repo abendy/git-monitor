@@ -29,7 +29,7 @@ A real-time TUI for monitoring git repository activity.
 │   14:28:45  ⎇ checkout: moving from main to feature            │
 │   14:25:12  ● commit: Fix bug in parser                        │
 ├────────────────────────────────────────────────────────────────┤
-│  Tab  switch   j/k  navigate   r  refresh   ?  help   q  quit │
+│  Tab  switch   j/k  nav   s  stage   d  diff   ?  help  q quit │
 └────────────────────────────────────────────────────────────────┘
 ```
 
@@ -66,9 +66,11 @@ git-monitor --tick-rate 100
 | `k` / `↑` | Move up |
 | `g` | Go to first item |
 | `G` | Go to last item |
+| `s` | Stage / Unstage selected file |
+| `d` / `Enter` | Show diff for selected file |
 | `r` | Refresh status |
 | `?` | Toggle help |
-| `q` / `Esc` | Quit |
+| `q` / `Esc` | Quit (or close overlay) |
 
 ## Requirements
 

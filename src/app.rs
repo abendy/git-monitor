@@ -22,26 +22,20 @@ const MAX_COMMAND_HISTORY: usize = 100;
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum Panel {
     #[default]
-    Working,
-    Staged,
+    Files,
     Activity,
 }
 
 impl Panel {
     pub const fn next(self) -> Self {
         match self {
-            Self::Working => Self::Staged,
-            Self::Staged => Self::Activity,
-            Self::Activity => Self::Working,
+            Self::Files => Self::Activity,
+            Self::Activity => Self::Files,
         }
     }
 
     pub const fn prev(self) -> Self {
-        match self {
-            Self::Working => Self::Activity,
-            Self::Staged => Self::Working,
-            Self::Activity => Self::Staged,
-        }
+        self.next() // Only two panels, so prev == next
     }
 }
 
@@ -62,10 +56,8 @@ pub struct App {
     pub running: bool,
     /// Currently active panel
     pub active_panel: Panel,
-    /// Selected index in working panel
-    pub working_selected: usize,
-    /// Selected index in staged panel
-    pub staged_selected: usize,
+    /// Selected index in files panel (staged files first, then working)
+    pub files_selected: usize,
     /// Show help overlay
     pub show_help: bool,
     /// Show diff overlay
@@ -110,8 +102,7 @@ impl App {
             watcher: None,
             running: true,
             active_panel: Panel::default(),
-            working_selected: 0,
-            staged_selected: 0,
+            files_selected: 0,
             show_help: false,
             show_diff: false,
             diff_content: String::new(),
@@ -156,15 +147,10 @@ impl App {
                 self.status = status;
                 self.error = None;
 
-                // Clamp selection indices
-                let working_len = self.status.working_changes().len();
-                if self.working_selected >= working_len && working_len > 0 {
-                    self.working_selected = working_len - 1;
-                }
-
-                let staged_len = self.status.staged_changes().len();
-                if self.staged_selected >= staged_len && staged_len > 0 {
-                    self.staged_selected = staged_len - 1;
+                // Clamp selection index (staged files first, then working)
+                let total_files = self.total_files_count();
+                if self.files_selected >= total_files && total_files > 0 {
+                    self.files_selected = total_files - 1;
                 }
             }
             Err(e) => {
@@ -329,30 +315,42 @@ impl App {
         }
     }
 
+    /// Total count of files (staged + working)
+    pub fn total_files_count(&self) -> usize {
+        self.status.staged_changes().len() + self.status.working_changes().len()
+    }
+
+    /// Get the selected file and whether it's staged
+    /// Returns (path, is_staged) or None if no selection
+    fn selected_file_info(&self) -> Option<(PathBuf, bool)> {
+        let staged = self.status.staged_changes();
+        let working = self.status.working_changes();
+        let staged_len = staged.len();
+
+        if self.files_selected < staged_len {
+            // Selected file is in staged
+            staged.get(self.files_selected).map(|f| (f.path.clone(), true))
+        } else {
+            // Selected file is in working
+            let working_idx = self.files_selected - staged_len;
+            working.get(working_idx).map(|f| (f.path.clone(), false))
+        }
+    }
+
     /// Toggle stage/unstage for selected file
     fn toggle_stage(&mut self) {
-        let result = match self.active_panel {
-            Panel::Working => {
-                // Stage the selected working file
-                let changes = self.status.working_changes();
-                if let Some(file) = changes.get(self.working_selected) {
-                    let path = file.path.clone();
-                    self.repo.stage(&path)
-                } else {
-                    return;
-                }
-            }
-            Panel::Staged => {
-                // Unstage the selected staged file
-                let changes = self.status.staged_changes();
-                if let Some(file) = changes.get(self.staged_selected) {
-                    let path = file.path.clone();
-                    self.repo.unstage(&path)
-                } else {
-                    return;
-                }
-            }
-            Panel::Activity => return,
+        if self.active_panel != Panel::Files {
+            return;
+        }
+
+        let Some((path, is_staged)) = self.selected_file_info() else {
+            return;
+        };
+
+        let result = if is_staged {
+            self.repo.unstage(&path)
+        } else {
+            self.repo.stage(&path)
         };
 
         if let Err(e) = result {
@@ -364,27 +362,15 @@ impl App {
 
     /// Show diff for selected file
     fn show_diff(&mut self) {
-        let (path, staged) = match self.active_panel {
-            Panel::Working => {
-                let changes = self.status.working_changes();
-                if let Some(file) = changes.get(self.working_selected) {
-                    (file.path.clone(), false)
-                } else {
-                    return;
-                }
-            }
-            Panel::Staged => {
-                let changes = self.status.staged_changes();
-                if let Some(file) = changes.get(self.staged_selected) {
-                    (file.path.clone(), true)
-                } else {
-                    return;
-                }
-            }
-            Panel::Activity => return,
+        if self.active_panel != Panel::Files {
+            return;
+        }
+
+        let Some((path, is_staged)) = self.selected_file_info() else {
+            return;
         };
 
-        match self.repo.diff_file(&path, staged) {
+        match self.repo.diff_file(&path, is_staged) {
             Ok(content) => {
                 self.diff_content = content;
                 self.diff_path = path.to_string_lossy().to_string();
@@ -399,16 +385,10 @@ impl App {
     /// Select next item in current panel
     fn select_next(&mut self) {
         match self.active_panel {
-            Panel::Working => {
-                let len = self.status.working_changes().len();
-                if len > 0 && self.working_selected < len - 1 {
-                    self.working_selected += 1;
-                }
-            }
-            Panel::Staged => {
-                let len = self.status.staged_changes().len();
-                if len > 0 && self.staged_selected < len - 1 {
-                    self.staged_selected += 1;
+            Panel::Files => {
+                let len = self.total_files_count();
+                if len > 0 && self.files_selected < len - 1 {
+                    self.files_selected += 1;
                 }
             }
             Panel::Activity => {}
@@ -418,14 +398,9 @@ impl App {
     /// Select previous item in current panel
     fn select_prev(&mut self) {
         match self.active_panel {
-            Panel::Working => {
-                if self.working_selected > 0 {
-                    self.working_selected -= 1;
-                }
-            }
-            Panel::Staged => {
-                if self.staged_selected > 0 {
-                    self.staged_selected -= 1;
+            Panel::Files => {
+                if self.files_selected > 0 {
+                    self.files_selected -= 1;
                 }
             }
             Panel::Activity => {}
@@ -435,8 +410,7 @@ impl App {
     /// Select first item
     fn select_first(&mut self) {
         match self.active_panel {
-            Panel::Working => self.working_selected = 0,
-            Panel::Staged => self.staged_selected = 0,
+            Panel::Files => self.files_selected = 0,
             Panel::Activity => {}
         }
     }
@@ -444,16 +418,10 @@ impl App {
     /// Select last item
     fn select_last(&mut self) {
         match self.active_panel {
-            Panel::Working => {
-                let len = self.status.working_changes().len();
+            Panel::Files => {
+                let len = self.total_files_count();
                 if len > 0 {
-                    self.working_selected = len - 1;
-                }
-            }
-            Panel::Staged => {
-                let len = self.status.staged_changes().len();
-                if len > 0 {
-                    self.staged_selected = len - 1;
+                    self.files_selected = len - 1;
                 }
             }
             Panel::Activity => {}

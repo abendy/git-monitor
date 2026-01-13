@@ -115,25 +115,18 @@ fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect) {
     frame.render_widget(header, area);
 }
 
-/// Render the main body with panels
+/// Render the main body with panels (single vertical layout)
 fn render_body(frame: &mut Frame<'_>, app: &App, area: Rect) {
-    // Split body into upper (file lists) and lower (activity)
+    // Single vertical layout: files panel, activity panel
     let body_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Percentage(60), // File panels
+            Constraint::Percentage(60), // Files (staged + working)
             Constraint::Percentage(40), // Activity log
         ])
         .split(area);
 
-    // Split upper into working and staged panels
-    let panels_layout = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(body_layout[0]);
-
-    render_working_panel(frame, app, panels_layout[0]);
-    render_staged_panel(frame, app, panels_layout[1]);
+    render_files_panel(frame, app, body_layout[0]);
     render_activity_panel(frame, app, body_layout[1]);
 }
 
@@ -150,67 +143,9 @@ const fn state_color(state: FileState) -> Color {
     }
 }
 
-/// Render the working directory panel
-fn render_working_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
-    let is_active = app.active_panel == Panel::Working;
-    let border_style = if is_active {
-        Style::default().fg(Color::Cyan)
-    } else {
-        Style::default().fg(Color::DarkGray)
-    };
-
-    let working_changes = app.status.working_changes();
-    let title = format!(" Working Directory ({}) ", working_changes.len());
-
-    let items: Vec<ListItem<'_>> = if working_changes.is_empty() {
-        vec![ListItem::new(Line::from(Span::styled(
-            "  No changes",
-            Style::default().fg(Color::DarkGray).italic(),
-        )))]
-    } else {
-        working_changes
-            .iter()
-            .enumerate()
-            .map(|(i, file)| {
-                let selected = is_active && i == app.working_selected;
-                let prefix = if selected { "▸ " } else { "  " };
-                let status_char = file.working.as_char();
-                let color = state_color(file.working);
-                let path = file.path.to_string_lossy();
-
-                let style = if selected {
-                    Style::default().fg(color).add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().fg(color)
-                };
-
-                ListItem::new(Line::from(vec![
-                    Span::raw(prefix),
-                    Span::styled(format!("{status_char} "), style),
-                    Span::styled(path.to_string(), style),
-                ]))
-            })
-            .collect()
-    };
-
-    let list = List::new(items).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_style(border_style)
-            .title(title)
-            .title_style(if is_active {
-                Style::default().fg(Color::Cyan).bold()
-            } else {
-                Style::default().fg(Color::White)
-            }),
-    );
-
-    frame.render_widget(list, area);
-}
-
-/// Render the staged changes panel
-fn render_staged_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
-    let is_active = app.active_panel == Panel::Staged;
+/// Render the combined files panel (staged + working)
+fn render_files_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    let is_active = app.active_panel == Panel::Files;
     let border_style = if is_active {
         Style::default().fg(Color::Cyan)
     } else {
@@ -218,19 +153,31 @@ fn render_staged_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
     };
 
     let staged_changes = app.status.staged_changes();
-    let title = format!(" Staged ({}) ", staged_changes.len());
+    let working_changes = app.status.working_changes();
+    let staged_len = staged_changes.len();
+    let working_len = working_changes.len();
+    let total = staged_len + working_len;
 
-    let items: Vec<ListItem<'_>> = if staged_changes.is_empty() {
-        vec![ListItem::new(Line::from(Span::styled(
-            "  No staged changes",
+    let title = format!(" Changes ({total}) ");
+
+    let mut items: Vec<ListItem<'_>> = Vec::new();
+
+    if total == 0 {
+        items.push(ListItem::new(Line::from(Span::styled(
+            "  No changes",
             Style::default().fg(Color::DarkGray).italic(),
-        )))]
+        ))));
     } else {
-        staged_changes
-            .iter()
-            .enumerate()
-            .map(|(i, file)| {
-                let selected = is_active && i == app.staged_selected;
+        // Staged section header (if there are staged files)
+        if !staged_changes.is_empty() {
+            items.push(ListItem::new(Line::from(Span::styled(
+                format!("── Staged ({staged_len}) ──"),
+                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+            ))));
+
+            // Staged files
+            for (i, file) in staged_changes.iter().enumerate() {
+                let selected = is_active && i == app.files_selected;
                 let prefix = if selected { "▸ " } else { "  " };
                 let status_char = file.staged.as_char();
                 let color = state_color(file.staged);
@@ -242,14 +189,51 @@ fn render_staged_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
                     Style::default().fg(color)
                 };
 
-                ListItem::new(Line::from(vec![
+                items.push(ListItem::new(Line::from(vec![
                     Span::raw(prefix),
+                    Span::styled("● ", Style::default().fg(Color::Green)),
                     Span::styled(format!("{status_char} "), style),
                     Span::styled(path.to_string(), style),
-                ]))
-            })
-            .collect()
-    };
+                ])));
+            }
+        }
+
+        // Working section header (if there are working files)
+        if !working_changes.is_empty() {
+            // Add spacing if we had staged files
+            if !staged_changes.is_empty() {
+                items.push(ListItem::new(Line::from("")));
+            }
+
+            items.push(ListItem::new(Line::from(Span::styled(
+                format!("── Working ({working_len}) ──"),
+                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            ))));
+
+            // Working files
+            for (i, file) in working_changes.iter().enumerate() {
+                let global_idx = staged_len + i;
+                let selected = is_active && global_idx == app.files_selected;
+                let prefix = if selected { "▸ " } else { "  " };
+                let status_char = file.working.as_char();
+                let color = state_color(file.working);
+                let path = file.path.to_string_lossy();
+
+                let style = if selected {
+                    Style::default().fg(color).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(color)
+                };
+
+                items.push(ListItem::new(Line::from(vec![
+                    Span::raw(prefix),
+                    Span::styled("○ ", Style::default().fg(Color::Yellow)),
+                    Span::styled(format!("{status_char} "), style),
+                    Span::styled(path.to_string(), style),
+                ])));
+            }
+        }
+    }
 
     let list = List::new(items).block(
         Block::default()

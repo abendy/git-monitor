@@ -18,27 +18,6 @@ const MAX_ACTIVITY: usize = 50;
 /// Maximum number of commands to keep in history
 const MAX_COMMAND_HISTORY: usize = 100;
 
-/// Active panel in the UI
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub enum Panel {
-    #[default]
-    Files,
-    Activity,
-}
-
-impl Panel {
-    pub const fn next(self) -> Self {
-        match self {
-            Self::Files => Self::Activity,
-            Self::Activity => Self::Files,
-        }
-    }
-
-    pub const fn prev(self) -> Self {
-        self.next() // Only two panels, so prev == next
-    }
-}
-
 /// Application state
 pub struct App {
     /// Path to the repository
@@ -54,10 +33,8 @@ pub struct App {
     watcher: Option<RepoWatcher>,
     /// Whether the application is running
     pub running: bool,
-    /// Currently active panel
-    pub active_panel: Panel,
-    /// Selected index in files panel (staged files first, then working)
-    pub files_selected: usize,
+    /// Selected index in main list (staged → working → activity)
+    pub selected: usize,
     /// Show help overlay
     pub show_help: bool,
     /// Show diff overlay
@@ -101,8 +78,7 @@ impl App {
             activity,
             watcher: None,
             running: true,
-            active_panel: Panel::default(),
-            files_selected: 0,
+            selected: 0,
             show_help: false,
             show_diff: false,
             diff_content: String::new(),
@@ -146,12 +122,6 @@ impl App {
             Ok(status) => {
                 self.status = status;
                 self.error = None;
-
-                // Clamp selection index (staged files first, then working)
-                let total_files = self.total_files_count();
-                if self.files_selected >= total_files && total_files > 0 {
-                    self.files_selected = total_files - 1;
-                }
             }
             Err(e) => {
                 warn!("Failed to refresh git status: {}", e);
@@ -244,14 +214,6 @@ impl App {
                 self.show_diff();
             }
 
-            // Panel navigation
-            KeyCode::Tab => {
-                self.active_panel = self.active_panel.next();
-            }
-            KeyCode::BackTab => {
-                self.active_panel = self.active_panel.prev();
-            }
-
             // List navigation
             KeyCode::Char('j') | KeyCode::Down => {
                 self.select_next();
@@ -315,36 +277,37 @@ impl App {
         }
     }
 
-    /// Total count of files (staged + working)
-    pub fn total_files_count(&self) -> usize {
-        self.status.staged_changes().len() + self.status.working_changes().len()
+    /// Total count of all items (staged + working + activity)
+    pub fn total_count(&self) -> usize {
+        self.status.staged_changes().len()
+            + self.status.working_changes().len()
+            + self.activity.len()
     }
 
     /// Get the selected file and whether it's staged
-    /// Returns (path, is_staged) or None if no selection
+    /// Returns (path, is_staged) or None if selection is on activity
     fn selected_file_info(&self) -> Option<(PathBuf, bool)> {
         let staged = self.status.staged_changes();
         let working = self.status.working_changes();
         let staged_len = staged.len();
 
-        if self.files_selected < staged_len {
-            // Selected file is in staged
-            staged.get(self.files_selected).map(|f| (f.path.clone(), true))
-        } else {
-            // Selected file is in working
-            let working_idx = self.files_selected - staged_len;
+        if self.selected < staged_len {
+            // Selected is in staged
+            staged.get(self.selected).map(|f| (f.path.clone(), true))
+        } else if self.selected < staged_len + working.len() {
+            // Selected is in working
+            let working_idx = self.selected - staged_len;
             working.get(working_idx).map(|f| (f.path.clone(), false))
+        } else {
+            // Selected is in activity
+            None
         }
     }
 
     /// Toggle stage/unstage for selected file
     fn toggle_stage(&mut self) {
-        if self.active_panel != Panel::Files {
-            return;
-        }
-
         let Some((path, is_staged)) = self.selected_file_info() else {
-            return;
+            return; // Can't stage/unstage activity items
         };
 
         let result = if is_staged {
@@ -362,12 +325,8 @@ impl App {
 
     /// Show diff for selected file
     fn show_diff(&mut self) {
-        if self.active_panel != Panel::Files {
-            return;
-        }
-
         let Some((path, is_staged)) = self.selected_file_info() else {
-            return;
+            return; // Can't show diff for activity items
         };
 
         match self.repo.diff_file(&path, is_staged) {
@@ -382,49 +341,31 @@ impl App {
         }
     }
 
-    /// Select next item in current panel
+    /// Select next item
     fn select_next(&mut self) {
-        match self.active_panel {
-            Panel::Files => {
-                let len = self.total_files_count();
-                if len > 0 && self.files_selected < len - 1 {
-                    self.files_selected += 1;
-                }
-            }
-            Panel::Activity => {}
+        let len = self.total_count();
+        if len > 0 && self.selected < len - 1 {
+            self.selected += 1;
         }
     }
 
-    /// Select previous item in current panel
+    /// Select previous item
     fn select_prev(&mut self) {
-        match self.active_panel {
-            Panel::Files => {
-                if self.files_selected > 0 {
-                    self.files_selected -= 1;
-                }
-            }
-            Panel::Activity => {}
+        if self.selected > 0 {
+            self.selected -= 1;
         }
     }
 
     /// Select first item
     fn select_first(&mut self) {
-        match self.active_panel {
-            Panel::Files => self.files_selected = 0,
-            Panel::Activity => {}
-        }
+        self.selected = 0;
     }
 
     /// Select last item
     fn select_last(&mut self) {
-        match self.active_panel {
-            Panel::Files => {
-                let len = self.total_files_count();
-                if len > 0 {
-                    self.files_selected = len - 1;
-                }
-            }
-            Panel::Activity => {}
+        let len = self.total_count();
+        if len > 0 {
+            self.selected = len - 1;
         }
     }
 

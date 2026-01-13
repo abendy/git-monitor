@@ -18,7 +18,7 @@ A real-time TUI for monitoring git repository activity.
 ```
 ┌─ git-monitor ──────────────────────────────────────────────────┐
 │ ⎇ main ↑2 ↓0 │ my-project │ ● watching                        │
-├─ Changes (4) ──────────────────────────────────────────────────┤
+├─ Repository ───────────────────────────────────────────────────┤
 │ ── Staged (1) ──                                               │
 │ ▸ ● A src/new_file.rs                                          │
 │                                                                │
@@ -26,20 +26,23 @@ A real-time TUI for monitoring git repository activity.
 │   ○ M src/main.rs                                              │
 │   ○ M src/lib.rs                                               │
 │   ○ ? untracked.txt                                            │
-├─ Recent Activity (12) ─────────────────────────────────────────┤
+│                                                                │
+│ ── History (12) ──                                             │
 │   14:32:01  ● commit: Add new feature                          │
 │   14:28:45  ⎇ checkout: moving from main to feature            │
 ├─ Command ──────────────────────────────────────────────────────┤
 │ : git status_                                                  │
 │ > On branch main                                               │
 ├────────────────────────────────────────────────────────────────┤
-│ Tab switch  j/k nav  s stage  d diff  : cmd  ? help  q quit    │
+│  j/k nav  s stage  d diff  : cmd  ? help  q quit               │
 └────────────────────────────────────────────────────────────────┘
 ```
 
 Visual indicators:
 - `●` (green) = staged for commit
 - `○` (yellow) = working directory changes
+
+Navigate through all items (files + history) with j/k keys.
 
 ## Installation
 
@@ -69,7 +72,6 @@ git-monitor --tick-rate 100
 
 | Key | Action |
 |-----|--------|
-| `Tab` / `Shift+Tab` | Switch panels |
 | `j` / `↓` | Move down |
 | `k` / `↑` | Move up |
 | `g` | Go to first item |

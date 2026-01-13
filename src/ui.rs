@@ -6,7 +6,7 @@ use ratatui::{
 };
 
 use crate::{
-    app::{App, Panel},
+    app::App,
     git::{CommandType, FileState},
     tui::Frame,
 };
@@ -115,19 +115,9 @@ fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect) {
     frame.render_widget(header, area);
 }
 
-/// Render the main body with panels (single vertical layout)
+/// Render the main body (single unified panel)
 fn render_body(frame: &mut Frame<'_>, app: &App, area: Rect) {
-    // Single vertical layout: files panel, activity panel
-    let body_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage(60), // Files (staged + working)
-            Constraint::Percentage(40), // Activity log
-        ])
-        .split(area);
-
-    render_files_panel(frame, app, body_layout[0]);
-    render_activity_panel(frame, app, body_layout[1]);
+    render_main_panel(frame, app, area);
 }
 
 /// Get color for file state
@@ -143,108 +133,137 @@ const fn state_color(state: FileState) -> Color {
     }
 }
 
-/// Render the combined files panel (staged + working)
-fn render_files_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
-    let is_active = app.active_panel == Panel::Files;
-    let border_style = if is_active {
-        Style::default().fg(Color::Cyan)
-    } else {
-        Style::default().fg(Color::DarkGray)
-    };
-
+/// Render the unified main panel (staged + working + activity)
+fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let staged_changes = app.status.staged_changes();
     let working_changes = app.status.working_changes();
     let staged_len = staged_changes.len();
     let working_len = working_changes.len();
-    let total = staged_len + working_len;
-
-    let title = format!(" Changes ({total}) ");
+    let files_total = staged_len + working_len;
+    let activity_len = app.activity.len();
 
     let mut items: Vec<ListItem<'_>> = Vec::new();
 
-    if total == 0 {
+    // Staged section
+    if !staged_changes.is_empty() {
         items.push(ListItem::new(Line::from(Span::styled(
-            "  No changes",
+            format!("── Staged ({staged_len}) ──"),
+            Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+        ))));
+
+        for (i, file) in staged_changes.iter().enumerate() {
+            let selected = i == app.selected;
+            let prefix = if selected { "▸ " } else { "  " };
+            let status_char = file.staged.as_char();
+            let color = state_color(file.staged);
+            let path = file.path.to_string_lossy();
+
+            let style = if selected {
+                Style::default().fg(color).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(color)
+            };
+
+            items.push(ListItem::new(Line::from(vec![
+                Span::raw(prefix),
+                Span::styled("● ", Style::default().fg(Color::Green)),
+                Span::styled(format!("{status_char} "), style),
+                Span::styled(path.to_string(), style),
+            ])));
+        }
+    }
+
+    // Working section
+    if !working_changes.is_empty() {
+        if !staged_changes.is_empty() {
+            items.push(ListItem::new(Line::from("")));
+        }
+
+        items.push(ListItem::new(Line::from(Span::styled(
+            format!("── Working ({working_len}) ──"),
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        ))));
+
+        for (i, file) in working_changes.iter().enumerate() {
+            let global_idx = staged_len + i;
+            let selected = global_idx == app.selected;
+            let prefix = if selected { "▸ " } else { "  " };
+            let status_char = file.working.as_char();
+            let color = state_color(file.working);
+            let path = file.path.to_string_lossy();
+
+            let style = if selected {
+                Style::default().fg(color).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(color)
+            };
+
+            items.push(ListItem::new(Line::from(vec![
+                Span::raw(prefix),
+                Span::styled("○ ", Style::default().fg(Color::Yellow)),
+                Span::styled(format!("{status_char} "), style),
+                Span::styled(path.to_string(), style),
+            ])));
+        }
+    }
+
+    // Activity section
+    if !app.activity.is_empty() {
+        if files_total > 0 {
+            items.push(ListItem::new(Line::from("")));
+        }
+
+        items.push(ListItem::new(Line::from(Span::styled(
+            format!("── History ({activity_len}) ──"),
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        ))));
+
+        for (i, cmd) in app.activity.iter().enumerate() {
+            let global_idx = files_total + i;
+            let selected = global_idx == app.selected;
+            let prefix = if selected { "▸ " } else { "  " };
+
+            let time_str = cmd.timestamp.format("%H:%M:%S").to_string();
+            let icon = cmd.command_type.icon();
+            let color = command_color(cmd.command_type);
+
+            // Truncate message if too long
+            let max_msg_len = area.width.saturating_sub(20) as usize;
+            let message = if cmd.message.len() > max_msg_len {
+                format!("{}...", &cmd.message[..max_msg_len.saturating_sub(3)])
+            } else {
+                cmd.message.clone()
+            };
+
+            let style = if selected {
+                Style::default().add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            };
+
+            items.push(ListItem::new(Line::from(vec![
+                Span::raw(prefix),
+                Span::styled(format!("{time_str}  "), style.fg(Color::DarkGray)),
+                Span::styled(format!("{icon} "), style.fg(color)),
+                Span::styled(message, style.fg(Color::White)),
+            ])));
+        }
+    }
+
+    // Empty state
+    if items.is_empty() {
+        items.push(ListItem::new(Line::from(Span::styled(
+            "  No changes or activity",
             Style::default().fg(Color::DarkGray).italic(),
         ))));
-    } else {
-        // Staged section header (if there are staged files)
-        if !staged_changes.is_empty() {
-            items.push(ListItem::new(Line::from(Span::styled(
-                format!("── Staged ({staged_len}) ──"),
-                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
-            ))));
-
-            // Staged files
-            for (i, file) in staged_changes.iter().enumerate() {
-                let selected = is_active && i == app.files_selected;
-                let prefix = if selected { "▸ " } else { "  " };
-                let status_char = file.staged.as_char();
-                let color = state_color(file.staged);
-                let path = file.path.to_string_lossy();
-
-                let style = if selected {
-                    Style::default().fg(color).add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().fg(color)
-                };
-
-                items.push(ListItem::new(Line::from(vec![
-                    Span::raw(prefix),
-                    Span::styled("● ", Style::default().fg(Color::Green)),
-                    Span::styled(format!("{status_char} "), style),
-                    Span::styled(path.to_string(), style),
-                ])));
-            }
-        }
-
-        // Working section header (if there are working files)
-        if !working_changes.is_empty() {
-            // Add spacing if we had staged files
-            if !staged_changes.is_empty() {
-                items.push(ListItem::new(Line::from("")));
-            }
-
-            items.push(ListItem::new(Line::from(Span::styled(
-                format!("── Working ({working_len}) ──"),
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
-            ))));
-
-            // Working files
-            for (i, file) in working_changes.iter().enumerate() {
-                let global_idx = staged_len + i;
-                let selected = is_active && global_idx == app.files_selected;
-                let prefix = if selected { "▸ " } else { "  " };
-                let status_char = file.working.as_char();
-                let color = state_color(file.working);
-                let path = file.path.to_string_lossy();
-
-                let style = if selected {
-                    Style::default().fg(color).add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().fg(color)
-                };
-
-                items.push(ListItem::new(Line::from(vec![
-                    Span::raw(prefix),
-                    Span::styled("○ ", Style::default().fg(Color::Yellow)),
-                    Span::styled(format!("{status_char} "), style),
-                    Span::styled(path.to_string(), style),
-                ])));
-            }
-        }
     }
 
     let list = List::new(items).block(
         Block::default()
             .borders(Borders::ALL)
-            .border_style(border_style)
-            .title(title)
-            .title_style(if is_active {
-                Style::default().fg(Color::Cyan).bold()
-            } else {
-                Style::default().fg(Color::White)
-            }),
+            .border_style(Style::default().fg(Color::Cyan))
+            .title(" Repository ")
+            .title_style(Style::default().fg(Color::Cyan).bold()),
     );
 
     frame.render_widget(list, area);
@@ -268,67 +287,6 @@ const fn command_color(cmd: CommandType) -> Color {
         CommandType::Stash => Color::Yellow,
         CommandType::Other => Color::DarkGray,
     }
-}
-
-/// Render the activity log panel
-fn render_activity_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
-    let is_active = app.active_panel == Panel::Activity;
-    let border_style = if is_active {
-        Style::default().fg(Color::Cyan)
-    } else {
-        Style::default().fg(Color::DarkGray)
-    };
-
-    // Calculate how many items fit in the area (minus borders)
-    let visible_height = area.height.saturating_sub(2) as usize;
-
-    let items: Vec<ListItem<'_>> = if app.activity.is_empty() {
-        vec![ListItem::new(Line::from(Span::styled(
-            "  No activity yet",
-            Style::default().fg(Color::DarkGray).italic(),
-        )))]
-    } else {
-        app.activity
-            .iter()
-            .take(visible_height)
-            .map(|cmd| {
-                let time_str = cmd.timestamp.format("%H:%M:%S").to_string();
-                let icon = cmd.command_type.icon();
-                let color = command_color(cmd.command_type);
-
-                // Truncate message if too long
-                let max_msg_len = area.width.saturating_sub(16) as usize;
-                let message = if cmd.message.len() > max_msg_len {
-                    format!("{}...", &cmd.message[..max_msg_len.saturating_sub(3)])
-                } else {
-                    cmd.message.clone()
-                };
-
-                ListItem::new(Line::from(vec![
-                    Span::styled(
-                        format!("  {time_str}  "),
-                        Style::default().fg(Color::DarkGray),
-                    ),
-                    Span::styled(format!("{icon} "), Style::default().fg(color)),
-                    Span::styled(message, Style::default().fg(Color::White)),
-                ]))
-            })
-            .collect()
-    };
-
-    let list = List::new(items).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_style(border_style)
-            .title(format!(" Recent Activity ({}) ", app.activity.len()))
-            .title_style(if is_active {
-                Style::default().fg(Color::Cyan).bold()
-            } else {
-                Style::default().fg(Color::White)
-            }),
-    );
-
-    frame.render_widget(list, area);
 }
 
 /// Render the command input/output pane
@@ -416,8 +374,6 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
         ))
     } else {
         Line::from(vec![
-            Span::styled(" Tab ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" switch  "),
             Span::styled(" j/k ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" nav  "),
             Span::styled(" s ", Style::default().bg(Color::DarkGray).bold()),
@@ -456,18 +412,17 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
             "Navigation",
             Style::default().add_modifier(Modifier::BOLD),
         )),
-        Line::from("  Tab / Shift+Tab    Switch panels"),
         Line::from("  j / ↓              Move down"),
         Line::from("  k / ↑              Move up"),
         Line::from("  g                  Go to first"),
         Line::from("  G                  Go to last"),
         Line::from(""),
         Line::from(Span::styled(
-            "Actions",
+            "File Actions",
             Style::default().add_modifier(Modifier::BOLD),
         )),
         Line::from("  s                  Stage/unstage file"),
-        Line::from("  d                  Show diff"),
+        Line::from("  d / Enter          Show diff"),
         Line::from("  r                  Refresh status"),
         Line::from(""),
         Line::from(Span::styled(

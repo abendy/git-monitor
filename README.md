@@ -12,6 +12,7 @@ A real-time TUI for monitoring git repository activity.
 - **Staged changes** - Track what's ready to commit
 - **Activity log** - Recent git commands from reflog
 - **Branch info** - Current branch with ahead/behind counts
+- **Command mode** - Run git commands with history navigation
 
 ## Screenshot
 
@@ -27,9 +28,12 @@ A real-time TUI for monitoring git repository activity.
 │ Recent Activity (12)                                           │
 │   14:32:01  ● commit: Add new feature                          │
 │   14:28:45  ⎇ checkout: moving from main to feature            │
-│   14:25:12  ● commit: Fix bug in parser                        │
+├─ Command ──────────────────────────────────────────────────────┤
+│ : git log --oneline -3_                                        │
+│ > abc1234 Add new feature                                      │
+│ > def5678 Fix bug in parser                                    │
 ├────────────────────────────────────────────────────────────────┤
-│  Tab  switch   j/k  nav   s  stage   d  diff   ?  help  q quit │
+│ Tab switch  j/k nav  s stage  d diff  : cmd  ? help  q quit    │
 └────────────────────────────────────────────────────────────────┘
 ```
 
@@ -69,8 +73,24 @@ git-monitor --tick-rate 100
 | `s` | Stage / Unstage selected file |
 | `d` / `Enter` | Show diff for selected file |
 | `r` | Refresh status |
+| `:` | Enter command mode |
 | `?` | Toggle help |
 | `q` / `Esc` | Quit (or close overlay) |
+
+### Command Mode
+
+Press `:` to enter command mode and run git commands directly:
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Execute command |
+| `Esc` / `Ctrl+C` | Cancel |
+| `Up` / `Down` | Navigate command history |
+
+Only `git` commands are allowed for safety. Examples:
+- `git status`
+- `git log --oneline -5`
+- `git branch -a`
 
 ## Requirements
 

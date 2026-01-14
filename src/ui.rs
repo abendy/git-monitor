@@ -872,6 +872,18 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
             ]);
         }
 
+        // Commit file hints (when viewing a file in expanded commit)
+        if app.expanded_file_idx.is_some() {
+            hints.extend([
+                Span::styled(" Space ", Style::default().bg(Color::DarkGray).bold()),
+                Span::raw(" pager  "),
+                Span::styled(" d ", Style::default().bg(Color::DarkGray).bold()),
+                Span::raw(" inline  "),
+                Span::styled(" M ", Style::default().bg(Color::DarkGray).bold()),
+                Span::raw(" difftool  "),
+            ]);
+        }
+
         // Branch-specific hints
         if on_branches {
             hints.extend([
@@ -937,7 +949,9 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
             Style::default().add_modifier(Modifier::BOLD),
         )),
         Line::from("  s                  Stage/unstage file"),
-        Line::from("  d / Enter          Show diff"),
+        Line::from("  d / Enter          Show diff (inline)"),
+        Line::from("  Space              Diff with pager (commit files)"),
+        Line::from("  M                  Diff with difftool (commit files)"),
         Line::from("  y                  Copy commit sha"),
         Line::from("  r                  Refresh status"),
         Line::from("  h                  Toggle history/reflog"),

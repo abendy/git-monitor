@@ -2,7 +2,7 @@ use std::{
     fs::File,
     io::{BufRead, BufReader, Write},
     path::PathBuf,
-    process::Command,
+    process::{Command, Stdio},
     sync::mpsc::Sender,
 };
 
@@ -76,6 +76,15 @@ pub enum HistoryMode {
     /// Show commit log
     #[default]
     CommitLog,
+}
+
+/// External command requiring TUI suspension
+#[derive(Debug, Clone)]
+pub enum ExternalCommand {
+    /// Show commit file diff with pager (uses core.pager from gitconfig)
+    PagerDiff { commit_sha: String, file_path: String },
+    /// Show commit file diff with difftool (uses diff.tool from gitconfig)
+    DiffTool { commit_sha: String, file_path: String },
 }
 
 /// Content displayed in the popup
@@ -237,6 +246,8 @@ pub struct App {
     pub expanded_branch: Option<String>,
     /// Cached commits for the expanded branch
     pub expanded_branch_commits: Vec<GitCommand>,
+    /// Pending external command (requires TUI suspension)
+    pub pending_external: Option<ExternalCommand>,
 }
 
 impl App {
@@ -284,6 +295,7 @@ impl App {
             history_collapsed: false,
             expanded_branch: None,
             expanded_branch_commits: Vec::new(),
+            pending_external: None,
         })
     }
 
@@ -549,6 +561,12 @@ impl App {
     /// Run the main application loop
     pub fn run(&mut self, tui: &mut Tui) -> Result<()> {
         while self.running {
+            // Handle pending external command (requires TUI suspension)
+            if let Some(cmd) = self.pending_external.take() {
+                self.run_external_command(tui, cmd)?;
+                continue;
+            }
+
             // Draw the UI
             tui.draw(|frame| ui::render(frame, self))?;
 
@@ -562,6 +580,58 @@ impl App {
             }
         }
 
+        Ok(())
+    }
+
+    /// Run an external command with TUI suspension
+    fn run_external_command(&mut self, tui: &mut Tui, cmd: ExternalCommand) -> Result<()> {
+        // Pause event handler so it doesn't consume input meant for the external command
+        tui.events.pause();
+        // Give the event thread time to finish any pending poll
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        tui.suspend()?;
+
+        let result = match &cmd {
+            ExternalCommand::PagerDiff { commit_sha, file_path } => {
+                // Use git show with --paginate to force pager usage
+                Command::new("git")
+                    .args(["--paginate", "show", commit_sha, "--", file_path])
+                    .current_dir(&self.repo_path)
+                    .stdin(Stdio::inherit())
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::inherit())
+                    .status()
+            }
+            ExternalCommand::DiffTool { commit_sha, file_path } => {
+                // Use git difftool which respects diff.tool from gitconfig
+                Command::new("git")
+                    .args([
+                        "difftool",
+                        "--no-prompt",
+                        &format!("{commit_sha}~1..{commit_sha}"),
+                        "--",
+                        file_path,
+                    ])
+                    .current_dir(&self.repo_path)
+                    .stdin(Stdio::inherit())
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::inherit())
+                    .status()
+            }
+        };
+
+        if let Err(e) = result {
+            self.error = Some(format!("Failed to run external command: {e}"));
+        }
+
+        // Wait for user to press Enter before resuming TUI
+        // See ADR-001 for rationale
+        use std::io::Read;
+        println!("\n[Press Enter to continue]");
+        let _ = std::io::stdin().read(&mut [0u8]);
+
+        tui.resume()?;
+        tui.events.resume();
         Ok(())
     }
 
@@ -661,9 +731,45 @@ impl App {
                 self.toggle_stage();
             }
 
-            // Diff or activate command mode
+            // Diff (inline popup)
             KeyCode::Char('d') => {
-                self.show_diff();
+                // Check if we're on a file in an expanded commit
+                if let (Some(sha), Some(file_idx)) =
+                    (self.expanded_commit.clone(), self.expanded_file_idx)
+                {
+                    let file_path = self
+                        .expanded_detail
+                        .as_ref()
+                        .and_then(|d| d.files.get(file_idx))
+                        .map(|f| f.path.clone());
+
+                    if let Some(path) = file_path {
+                        self.open_commit_file_diff(&sha, &path);
+                    }
+                } else {
+                    // Working directory file diff
+                    self.show_diff();
+                }
+            }
+
+            // External difftool (uses gitconfig diff.tool)
+            KeyCode::Char('M') => {
+                if let (Some(sha), Some(file_idx)) =
+                    (self.expanded_commit.clone(), self.expanded_file_idx)
+                {
+                    let file_path = self
+                        .expanded_detail
+                        .as_ref()
+                        .and_then(|d| d.files.get(file_idx))
+                        .map(|f| f.path.clone());
+
+                    if let Some(path) = file_path {
+                        self.pending_external = Some(ExternalCommand::DiffTool {
+                            commit_sha: sha,
+                            file_path: path,
+                        });
+                    }
+                }
             }
             KeyCode::Enter => {
                 if self.selected == Some(0) {
@@ -799,7 +905,7 @@ impl App {
                     if self.expanded_commit.as_ref() == Some(&sha) {
                         // Already expanded - check if we're on a file
                         if let Some(file_idx) = self.expanded_file_idx {
-                            // Open diff for this file - clone path to avoid borrow issues
+                            // Open external pager diff (uses gitconfig core.pager)
                             let file_path = self
                                 .expanded_detail
                                 .as_ref()
@@ -807,7 +913,10 @@ impl App {
                                 .map(|f| f.path.clone());
 
                             if let Some(path) = file_path {
-                                self.open_commit_file_diff(&sha, &path);
+                                self.pending_external = Some(ExternalCommand::PagerDiff {
+                                    commit_sha: sha,
+                                    file_path: path,
+                                });
                             }
                         } else {
                             // On commit header - collapse

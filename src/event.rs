@@ -1,5 +1,8 @@
 use std::{
-    sync::mpsc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc, Arc,
+    },
     thread,
     time::{Duration, Instant},
 };
@@ -28,6 +31,7 @@ pub enum Event {
 pub struct EventHandler {
     rx: mpsc::Receiver<Event>,
     tx: mpsc::Sender<Event>,
+    paused: Arc<AtomicBool>,
 }
 
 impl EventHandler {
@@ -35,11 +39,19 @@ impl EventHandler {
     pub fn new(tick_rate: Duration) -> Self {
         let (tx, rx) = mpsc::channel();
         let event_tx = tx.clone();
+        let paused = Arc::new(AtomicBool::new(false));
+        let paused_clone = paused.clone();
 
         thread::spawn(move || {
             let mut last_tick = Instant::now();
 
             loop {
+                // If paused, just sleep briefly and continue
+                if paused_clone.load(Ordering::Relaxed) {
+                    thread::sleep(Duration::from_millis(50));
+                    continue;
+                }
+
                 // Calculate timeout until next tick
                 let timeout = tick_rate
                     .checked_sub(last_tick.elapsed())
@@ -77,7 +89,17 @@ impl EventHandler {
             }
         });
 
-        Self { rx, tx }
+        Self { rx, tx, paused }
+    }
+
+    /// Pause event handling (for external commands)
+    pub fn pause(&self) {
+        self.paused.store(true, Ordering::Relaxed);
+    }
+
+    /// Resume event handling
+    pub fn resume(&self) {
+        self.paused.store(false, Ordering::Relaxed);
     }
 
     /// Get a sender for external events (file watcher, etc.)

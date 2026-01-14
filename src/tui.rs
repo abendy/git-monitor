@@ -71,4 +71,20 @@ impl Tui {
         self.terminal.draw(render)?;
         Ok(())
     }
+
+    /// Suspend the TUI to run an external command
+    pub fn suspend(&mut self) -> Result<()> {
+        Self::reset()?;
+        self.terminal.show_cursor()?;
+        Ok(())
+    }
+
+    /// Resume the TUI after an external command
+    pub fn resume(&mut self) -> Result<()> {
+        terminal::enable_raw_mode()?;
+        crossterm::execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
+        self.terminal.hide_cursor()?;
+        self.terminal.clear()?;
+        Ok(())
+    }
 }

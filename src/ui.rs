@@ -6,7 +6,7 @@ use ratatui::{
 };
 
 use crate::{
-    app::{App, HistoryMode, PopupContent},
+    app::{App, HistoryMode, PopupContent, ViewMode},
     git::{format_relative_time, CommandType, FileState, RefDecoration},
     tui::Frame,
 };
@@ -127,10 +127,10 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let mut items: Vec<ListItem<'_>> = Vec::new();
 
     // Command section (always at top, index 0)
-    let cmd_selected = app.selected == Some(0) && !app.show_aliases;
+    let cmd_selected = app.selected == Some(0) && !app.is_alias_mode();
     let cmd_prefix = if cmd_selected { "▸ " } else { "  " };
 
-    if app.command_mode {
+    if app.is_command_mode() {
         // Active command input
         items.push(ListItem::new(Line::from(vec![
             Span::raw(cmd_prefix),
@@ -159,7 +159,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
     }
 
     // Show alias categories when in alias browsing mode
-    if app.show_aliases && !app.show_section_aliases {
+    if let ViewMode::AliasSections { selected: section_selected } = app.view_mode {
         let section_count = app.config.sections.len();
         items.push(ListItem::new(Line::from(Span::styled(
             format!("── Aliases ({section_count} categories) ──"),
@@ -167,7 +167,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         ))));
 
         for (i, section) in app.config.sections.iter().enumerate() {
-            let selected = i == app.alias_section_selected;
+            let selected = i == section_selected;
             let prefix = if selected { "▸ " } else { "  " };
             let alias_count = section.aliases.len();
 
@@ -191,15 +191,15 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
     }
 
     // Show aliases within a section
-    if app.show_aliases && app.show_section_aliases {
-        if let Some(section) = app.config.sections.get(app.alias_section_selected) {
+    if let ViewMode::AliasItems { section_idx, selected: alias_selected } = app.view_mode {
+        if let Some(section) = app.config.sections.get(section_idx) {
             items.push(ListItem::new(Line::from(Span::styled(
                 format!("── {} ──", section.name),
                 Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
             ))));
 
             for (i, alias) in section.aliases.iter().enumerate() {
-                let selected = i == app.alias_selected;
+                let selected = i == alias_selected;
                 let prefix = if selected { "▸ " } else { "  " };
 
                 let style = if selected {
@@ -234,7 +234,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
     }
 
     // Command output (if any, and not in alias mode)
-    if !app.command_output.is_empty() && !app.show_aliases {
+    if !app.command_output.is_empty() && !app.is_alias_mode() {
         let output_color = if app.command_success {
             Color::White
         } else {
@@ -270,7 +270,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         // Check if selection is within staged section (indices 1 to staged_len)
         let in_staged = app
             .selected
-            .is_some_and(|s| s >= 1 && s < 1 + staged_len && !app.command_mode);
+            .is_some_and(|s| s >= 1 && s < 1 + staged_len && !app.is_command_mode());
         let arrow = if in_staged { "▾" } else { "▸" };
         items.push(ListItem::new(Line::from(Span::styled(
             format!("  {arrow} Staged ({staged_len})"),
@@ -281,7 +281,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             // Index 0 is command, so files start at index 1
             let global_idx = 1 + i;
             // Don't show selection when command mode is active (focus is on input)
-            let selected = Some(global_idx) == app.selected && !app.command_mode;
+            let selected = Some(global_idx) == app.selected && !app.is_command_mode();
             let prefix = if selected { "▸ " } else { "  " };
             let status_char = file.staged.as_char();
             let color = state_color(file.staged);
@@ -313,7 +313,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         let working_end = working_start + working_len;
         let in_working = app
             .selected
-            .is_some_and(|s| s >= working_start && s < working_end && !app.command_mode);
+            .is_some_and(|s| s >= working_start && s < working_end && !app.is_command_mode());
         let arrow = if in_working { "▾" } else { "▸" };
         items.push(ListItem::new(Line::from(Span::styled(
             format!("  {arrow} Working ({working_len})"),
@@ -324,7 +324,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             // Index 0 is command, staged starts at 1, working starts at 1 + staged_len
             let global_idx = working_start + i;
             // Don't show selection when command mode is active (focus is on input)
-            let selected = Some(global_idx) == app.selected && !app.command_mode;
+            let selected = Some(global_idx) == app.selected && !app.is_command_mode();
             let prefix = if selected { "▸ " } else { "  " };
             let status_char = file.working.as_char();
             let color = state_color(file.working);
@@ -360,7 +360,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         };
 
         // History header is selectable
-        let header_selected = Some(current_idx) == app.selected && !app.command_mode;
+        let header_selected = Some(current_idx) == app.selected && !app.is_command_mode();
         let collapse_indicator = if app.history_collapsed { "▸" } else { "▾" };
         let header_prefix = if header_selected { "▸ " } else { "  " };
 
@@ -395,7 +395,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
 
             let activity_count = app.activity.len();
             for (i, cmd) in app.activity.iter().enumerate() {
-                let selected = Some(current_idx) == app.selected && !app.command_mode;
+                let selected = Some(current_idx) == app.selected && !app.is_command_mode();
                 let is_last = i == activity_count - 1;
                 items.push(render_commit_line(cmd, selected, is_last, area.width, false));
                 current_idx += 1;
@@ -422,7 +422,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         let branches_start = current_idx;
         let in_branches = app
             .selected
-            .is_some_and(|s| s >= branches_start && !app.command_mode);
+            .is_some_and(|s| s >= branches_start && !app.is_command_mode());
         let arrow = if in_branches { "▾" } else { "▸" };
         items.push(ListItem::new(Line::from(Span::styled(
             format!("  {arrow} Branches ({})", other_branches.len()),
@@ -448,7 +448,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             if is_expanded {
                 let branch_commit_count = app.expanded_branch_commits.len();
                 for (i, cmd) in app.expanded_branch_commits.iter().enumerate() {
-                    let selected = Some(current_idx) == app.selected && !app.command_mode;
+                    let selected = Some(current_idx) == app.selected && !app.is_command_mode();
                     let is_last = i == branch_commit_count - 1;
                     items.push(render_commit_line(cmd, selected, is_last, area.width, true));
                     current_idx += 1;
@@ -810,7 +810,7 @@ fn format_decorations(decorations: &[RefDecoration]) -> Vec<Span<'static>> {
 /// Render the footer with keybindings
 fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
     // Show different hints based on mode
-    let content = if app.command_mode {
+    let content = if app.is_command_mode() {
         Line::from(vec![
             Span::styled(" Enter ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" execute  "),

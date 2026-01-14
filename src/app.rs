@@ -78,6 +78,28 @@ pub enum HistoryMode {
     CommitLog,
 }
 
+/// View mode for the application body
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum ViewMode {
+    /// Normal navigation mode (default)
+    #[default]
+    Normal,
+    /// Command input mode (typing git commands)
+    Command,
+    /// Alias browser showing section list
+    AliasSections {
+        /// Currently selected section index
+        selected: usize,
+    },
+    /// Alias browser showing aliases within a section
+    AliasItems {
+        /// Section being viewed
+        section_idx: usize,
+        /// Currently selected alias index within section
+        selected: usize,
+    },
+}
+
 /// External command requiring TUI suspension
 #[derive(Debug, Clone)]
 pub enum ExternalCommand {
@@ -206,10 +228,10 @@ pub struct App {
     pub selected: Option<usize>,
     /// Show help overlay
     pub show_help: bool,
+    /// Current view mode
+    pub view_mode: ViewMode,
     /// Error message to display
     pub error: Option<String>,
-    /// Whether in command input mode
-    pub command_mode: bool,
     /// Current command input buffer
     pub command_input: String,
     /// Last command output (stdout/stderr combined)
@@ -220,14 +242,6 @@ pub struct App {
     pub command_history: Vec<String>,
     /// Current position in history (for navigation)
     pub history_index: Option<usize>,
-    /// Whether showing alias categories popup
-    pub show_aliases: bool,
-    /// Selected alias category index
-    pub alias_section_selected: usize,
-    /// Whether viewing aliases within a section
-    pub show_section_aliases: bool,
-    /// Selected alias within section
-    pub alias_selected: usize,
     /// Current history display mode (reflog vs commit log)
     pub history_mode: HistoryMode,
     /// Popup state (for full-screen overlays: output, diff, etc.)
@@ -275,17 +289,13 @@ impl App {
             running: true,
             selected: None,
             show_help: false,
+            view_mode: ViewMode::default(),
             error: None,
-            command_mode: false,
             command_input: String::new(),
             command_output: String::new(),
             command_success: true,
             command_history: load_history(),
             history_index: None,
-            show_aliases: false,
-            alias_section_selected: 0,
-            show_section_aliases: false,
-            alias_selected: 0,
             history_mode: HistoryMode::default(),
             popup: PopupState::default(),
             expanded_commit: None,
@@ -298,6 +308,72 @@ impl App {
             pending_external: None,
         })
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ViewMode helper methods
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Check if in command mode
+    pub fn is_command_mode(&self) -> bool {
+        matches!(self.view_mode, ViewMode::Command)
+    }
+
+    /// Check if in any alias browsing mode
+    pub fn is_alias_mode(&self) -> bool {
+        matches!(
+            self.view_mode,
+            ViewMode::AliasSections { .. } | ViewMode::AliasItems { .. }
+        )
+    }
+
+    /// Enter command mode
+    pub fn enter_command_mode(&mut self) {
+        self.view_mode = ViewMode::Command;
+        self.command_input.clear();
+        self.history_index = None;
+    }
+
+    /// Exit command mode (return to normal)
+    pub fn exit_command_mode(&mut self) {
+        self.view_mode = ViewMode::Normal;
+        self.command_input.clear();
+        self.history_index = None;
+    }
+
+    /// Enter alias browser at section list
+    pub fn enter_alias_browser(&mut self) {
+        if !self.config.sections.is_empty() {
+            self.view_mode = ViewMode::AliasSections { selected: 0 };
+        }
+    }
+
+    /// Drill into an alias section
+    pub fn enter_alias_section(&mut self) {
+        if let ViewMode::AliasSections { selected } = self.view_mode {
+            self.view_mode = ViewMode::AliasItems {
+                section_idx: selected,
+                selected: 0,
+            };
+        }
+    }
+
+    /// Go back from alias items to sections
+    pub fn back_to_alias_sections(&mut self) {
+        if let ViewMode::AliasItems { section_idx, .. } = self.view_mode {
+            self.view_mode = ViewMode::AliasSections {
+                selected: section_idx,
+            };
+        }
+    }
+
+    /// Exit alias mode entirely
+    pub fn exit_alias_mode(&mut self) {
+        self.view_mode = ViewMode::Normal;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Watcher and refresh methods
+    // ─────────────────────────────────────────────────────────────────────────
 
     /// Set up file watcher
     pub fn setup_watcher(&mut self, event_tx: Sender<Event>) -> Result<()> {
@@ -637,16 +713,17 @@ impl App {
 
     /// Handle keyboard input
     fn handle_key(&mut self, key: KeyEvent) {
-        // Command mode captures all input
-        if self.command_mode {
-            self.handle_command_mode_key(key);
-            return;
-        }
-
-        // Alias browsing mode captures keys
-        if self.show_aliases {
-            self.handle_alias_mode_key(key);
-            return;
+        // ViewMode-based dispatch (command and alias modes capture all input)
+        match &self.view_mode {
+            ViewMode::Command => {
+                self.handle_command_mode_key(key);
+                return;
+            }
+            ViewMode::AliasSections { .. } | ViewMode::AliasItems { .. } => {
+                self.handle_alias_mode_key(key);
+                return;
+            }
+            ViewMode::Normal => {}
         }
 
         // Popup mode captures keys (full-screen overlays)
@@ -666,9 +743,7 @@ impl App {
         if self.selected == Some(0) {
             if let KeyCode::Char(c) = key.code {
                 if !matches!(c, 'q' | '?' | ':' | 'o') && !key.modifiers.contains(KeyModifiers::CONTROL) {
-                    self.command_mode = true;
-                    self.command_input.clear();
-                    self.history_index = None;
+                    self.enter_command_mode();
                     self.command_input.push(c);
                     return;
                 }
@@ -686,18 +761,12 @@ impl App {
 
             // Enter command mode
             KeyCode::Char(':') => {
-                self.command_mode = true;
-                self.command_input.clear();
-                self.history_index = None;
+                self.enter_command_mode();
             }
 
             // Show aliases (universal shortcut)
             KeyCode::Char('a') => {
-                if !self.config.sections.is_empty() {
-                    self.show_aliases = true;
-                    self.alias_section_selected = 0;
-                    self.show_section_aliases = false;
-                }
+                self.enter_alias_browser();
             }
 
             // Help
@@ -774,9 +843,7 @@ impl App {
             KeyCode::Enter => {
                 if self.selected == Some(0) {
                     // Activate command mode when on command section
-                    self.command_mode = true;
-                    self.command_input.clear();
-                    self.history_index = None;
+                    self.enter_command_mode();
                 } else if self.is_in_branches() {
                     // Checkout selected branch
                     self.checkout_selected_branch();
@@ -817,7 +884,7 @@ impl App {
             KeyCode::Char('k') | KeyCode::Up => {
                 if self.selected == Some(0) && !self.command_history.is_empty() {
                     // On command section - enter command mode and show history
-                    self.command_mode = true;
+                    self.enter_command_mode();
                     self.history_prev();
                 } else if self.is_on_expanded_commit() {
                     // Navigate within expanded commit
@@ -947,19 +1014,15 @@ impl App {
         match key.code {
             // Cancel command mode
             KeyCode::Esc => {
-                self.command_mode = false;
-                self.command_input.clear();
-                self.history_index = None;
+                self.exit_command_mode();
             }
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.command_mode = false;
-                self.command_input.clear();
-                self.history_index = None;
+                self.exit_command_mode();
             }
 
             // Execute command
             KeyCode::Enter => {
-                self.command_mode = false;
+                self.view_mode = ViewMode::Normal;
                 self.execute_command();
             }
 
@@ -992,51 +1055,61 @@ impl App {
         match key.code {
             // Go back / close
             KeyCode::Esc | KeyCode::Char('q') => {
-                if self.show_section_aliases {
-                    // Go back to category list
-                    self.show_section_aliases = false;
-                    self.alias_selected = 0;
-                } else {
-                    // Close alias browser
-                    self.show_aliases = false;
+                match &self.view_mode {
+                    ViewMode::AliasItems { .. } => {
+                        self.back_to_alias_sections();
+                    }
+                    ViewMode::AliasSections { .. } => {
+                        self.exit_alias_mode();
+                    }
+                    _ => {}
                 }
             }
 
             // Select category or run alias
             KeyCode::Enter => {
-                if self.show_section_aliases {
-                    // Run selected alias
-                    self.run_selected_alias();
-                } else {
-                    // Enter category to show aliases
-                    self.show_section_aliases = true;
-                    self.alias_selected = 0;
+                match &self.view_mode {
+                    ViewMode::AliasItems { .. } => {
+                        self.run_selected_alias();
+                    }
+                    ViewMode::AliasSections { .. } => {
+                        self.enter_alias_section();
+                    }
+                    _ => {}
                 }
             }
 
             // Navigation
             KeyCode::Char('j') | KeyCode::Down => {
-                if self.show_section_aliases {
-                    // Navigate aliases within section
-                    if let Some(section) = self.config.sections.get(self.alias_section_selected) {
-                        if self.alias_selected < section.aliases.len().saturating_sub(1) {
-                            self.alias_selected += 1;
+                match &mut self.view_mode {
+                    ViewMode::AliasItems { section_idx, selected } => {
+                        if let Some(section) = self.config.sections.get(*section_idx) {
+                            if *selected < section.aliases.len().saturating_sub(1) {
+                                *selected += 1;
+                            }
                         }
                     }
-                } else {
-                    // Navigate categories
-                    if self.alias_section_selected < self.config.sections.len().saturating_sub(1) {
-                        self.alias_section_selected += 1;
+                    ViewMode::AliasSections { selected } => {
+                        if *selected < self.config.sections.len().saturating_sub(1) {
+                            *selected += 1;
+                        }
                     }
+                    _ => {}
                 }
             }
             KeyCode::Char('k') | KeyCode::Up => {
-                if self.show_section_aliases {
-                    if self.alias_selected > 0 {
-                        self.alias_selected -= 1;
+                match &mut self.view_mode {
+                    ViewMode::AliasItems { selected, .. } => {
+                        if *selected > 0 {
+                            *selected -= 1;
+                        }
                     }
-                } else if self.alias_section_selected > 0 {
-                    self.alias_section_selected -= 1;
+                    ViewMode::AliasSections { selected } => {
+                        if *selected > 0 {
+                            *selected -= 1;
+                        }
+                    }
+                    _ => {}
                 }
             }
 
@@ -1115,19 +1188,29 @@ impl App {
 
     /// Run the currently selected alias
     fn run_selected_alias(&mut self) {
-        let Some(section) = self.config.sections.get(self.alias_section_selected) else {
-            return;
+        // Get section and alias indices from view_mode
+        let (section_idx, alias_idx) = match self.view_mode {
+            ViewMode::AliasItems { section_idx, selected } => (section_idx, selected),
+            _ => return,
         };
-        let Some(alias) = section.aliases.get(self.alias_selected) else {
+
+        // Get the alias name before exiting alias mode (to avoid borrow issues)
+        let alias_name = self
+            .config
+            .sections
+            .get(section_idx)
+            .and_then(|s| s.aliases.get(alias_idx))
+            .map(|a| a.name.clone());
+
+        let Some(name) = alias_name else {
             return;
         };
 
-        // Close alias browser
-        self.show_aliases = false;
-        self.show_section_aliases = false;
+        // Exit alias mode
+        self.exit_alias_mode();
 
         // Set up command and execute
-        self.command_input = format!("git {}", alias.name);
+        self.command_input = format!("git {name}");
         self.execute_command();
     }
 

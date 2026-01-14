@@ -11,6 +11,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tracing::warn;
 
 use crate::{
+    actions::{ActionRegistry, Context},
     config::GitConfig,
     event::Event,
     git::{BranchInfo, CommitDetail, FileState, GitCommand, GitRepo, GitStatus},
@@ -277,6 +278,8 @@ pub struct App {
     pub expanded_branch_commits: Vec<GitCommand>,
     /// Pending external command (requires TUI suspension)
     pub pending_external: Option<ExternalCommand>,
+    /// Action registry for contextual actions
+    pub action_registry: ActionRegistry,
 }
 
 impl App {
@@ -293,6 +296,15 @@ impl App {
         let activity = repo.commit_log(0, PAGE_SIZE).unwrap_or_default();
         let config = GitConfig::load(&repo_path).unwrap_or_default();
         let branches = repo.list_branches().unwrap_or_default();
+
+        // Initialize action registry with aliases
+        let mut action_registry = ActionRegistry::new();
+        let all_aliases: Vec<_> = config
+            .sections
+            .iter()
+            .flat_map(|s| s.aliases.iter().cloned())
+            .collect();
+        action_registry.add_alias_actions(&all_aliases);
 
         Ok(Self {
             repo_path,
@@ -322,6 +334,7 @@ impl App {
             expanded_branch: None,
             expanded_branch_commits: Vec::new(),
             pending_external: None,
+            action_registry,
         })
     }
 
@@ -562,6 +575,56 @@ impl App {
             }
         }
         false
+    }
+
+    /// Determine the current context based on selection and state
+    #[must_use]
+    pub fn current_context(&self) -> Context {
+        // Handle special modes first
+        if self.is_command_mode() {
+            return Context::Command;
+        }
+
+        let Some(selected) = self.selected else {
+            return Context::Global;
+        };
+
+        // Index 0 is command section
+        if selected == 0 {
+            return Context::Command;
+        }
+
+        // Check if in expanded commit files
+        if self.expanded_commit.is_some() && self.expanded_file_idx.is_some() {
+            return Context::CommitFiles;
+        }
+
+        // Check files section
+        if self.selected_file_info().is_some() {
+            let staged_len = self.status.staged_changes().len();
+            let file_idx = selected - 1;
+            if file_idx < staged_len {
+                return Context::StagedFiles;
+            }
+            return Context::WorkingFiles;
+        }
+
+        // Check history header
+        if self.is_on_history_header() {
+            return Context::HistoryHeader;
+        }
+
+        // Check history commits
+        if self.is_in_history() {
+            return Context::HistoryCommits;
+        }
+
+        // Check branch commits
+        if self.is_in_branches() {
+            return Context::BranchCommits;
+        }
+
+        Context::Global
     }
 
     /// Open diff popup for a file in a specific commit

@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::Parser;
 
+mod actions;
 mod app;
 mod config;
 mod event;

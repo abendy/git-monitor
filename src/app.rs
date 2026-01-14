@@ -79,6 +79,18 @@ pub enum HistoryMode {
 }
 
 /// View mode for the application body
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConfirmAction {
+    Push {
+        branch: String,
+        remote: String,
+        has_upstream: bool,
+        ahead: usize,
+        force: bool,
+    },
+}
+
+/// View mode for the application body
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum ViewMode {
     /// Normal navigation mode (default)
@@ -86,19 +98,8 @@ pub enum ViewMode {
     Normal,
     /// Command input mode (typing git commands)
     Command,
-    /// Push confirmation mode (prompt in footer)
-    PushConfirm {
-        /// Branch to push
-        branch: String,
-        /// Remote name (e.g., "origin")
-        remote: String,
-        /// Whether upstream is set
-        has_upstream: bool,
-        /// Number of commits ahead
-        ahead: usize,
-        /// Force push mode
-        force: bool,
-    },
+    /// Generic confirmation mode (prompt in footer)
+    Confirm(ConfirmAction),
     /// Alias browser showing section list
     AliasSections {
         /// Currently selected section index
@@ -801,8 +802,8 @@ impl App {
                 self.handle_command_mode_key(key);
                 return;
             }
-            ViewMode::PushConfirm { .. } => {
-                self.handle_push_confirm_key(key);
+            ViewMode::Confirm(_) => {
+                self.handle_confirm_key(key);
                 return;
             }
             ViewMode::AliasSections { .. } | ViewMode::AliasItems { .. } => {
@@ -913,11 +914,9 @@ impl App {
                 self.toggle_stage();
             }
 
-            // Push current branch (from files section)
+            // Push current branch (universal shortcut in normal mode)
             KeyCode::Char('P') => {
-                if self.is_in_files_section() {
-                    self.show_push_confirm(false);
-                }
+                self.show_push_confirm(false);
             }
 
             // Diff (inline popup)
@@ -1170,6 +1169,10 @@ impl App {
     /// Handle keyboard input in alias browsing mode
     fn handle_alias_mode_key(&mut self, key: KeyEvent) {
         match key.code {
+            // Universal push shortcut
+            KeyCode::Char('P') => {
+                self.show_push_confirm(false);
+            }
             // Go back / close
             KeyCode::Esc | KeyCode::Char('q') => {
                 match &self.view_mode {
@@ -1234,12 +1237,14 @@ impl App {
         }
     }
 
-    /// Handle keyboard input in push confirmation mode
-    fn handle_push_confirm_key(&mut self, key: KeyEvent) {
-        // Extract values from view_mode before matching
+    /// Handle keyboard input in confirmation mode
+    fn handle_confirm_key(&mut self, key: KeyEvent) {
+        // Snapshot flags we need for Enter handling
         let (has_upstream, force) = match &self.view_mode {
-            ViewMode::PushConfirm { has_upstream, force, .. } => (*has_upstream, *force),
-            _ => return,
+            ViewMode::Confirm(ConfirmAction::Push { has_upstream, force, .. }) => {
+                (*has_upstream, *force)
+            }
+            _ => (false, false),
         };
 
         match key.code {
@@ -1247,14 +1252,16 @@ impl App {
             KeyCode::Esc | KeyCode::Char('q') => {
                 self.view_mode = ViewMode::Normal;
             }
-            // Execute push
+            // Execute confirmation
             KeyCode::Enter => {
+                // Exit confirm mode first to restore normal routing
                 self.view_mode = ViewMode::Normal;
+                // Currently only Push is implemented
                 self.execute_push(force, !has_upstream);
             }
-            // Toggle force push mode
+            // Toggle options (per action)
             KeyCode::Char('f') | KeyCode::Char('F') => {
-                if let ViewMode::PushConfirm { force, .. } = &mut self.view_mode {
+                if let ViewMode::Confirm(ConfirmAction::Push { force, .. }) = &mut self.view_mode {
                     *force = !*force;
                 }
             }
@@ -1350,13 +1357,13 @@ impl App {
             None => ("origin".to_string(), false),
         };
 
-        self.view_mode = ViewMode::PushConfirm {
+        self.view_mode = ViewMode::Confirm(ConfirmAction::Push {
             branch,
             remote,
             has_upstream,
             ahead: self.status.ahead,
             force,
-        };
+        });
     }
 
     /// Execute git push
@@ -1390,6 +1397,15 @@ impl App {
             args.push(&branch);
         }
 
+        // Build a display string for the popup title/history
+        let mut display_cmd = String::from("git push");
+        if force {
+            display_cmd.push_str(" --force-with-lease");
+        }
+        if set_upstream {
+            display_cmd.push_str(&format!(" -u {} {}", remote, branch));
+        }
+
         // Execute push
         let result = Command::new("git")
             .args(&args)
@@ -1416,7 +1432,24 @@ impl App {
                         .map(|u| format!(" → {u}"))
                         .unwrap_or_else(|| format!(" → {remote}/{branch}"));
 
-                    self.error = Some(format!("Pushed {branch}{upstream_msg}{commits}"));
+                    // Capture output for popup
+                    self.command_success = true;
+                    self.command_output = if stdout.is_empty() {
+                        String::from("(no output)")
+                    } else {
+                        stdout.to_string()
+                    };
+                    // Record in history (dedupe last)
+                    if self.command_history.last().map(String::as_str) != Some(display_cmd.as_str()) {
+                        self.command_history.push(display_cmd.clone());
+                        if self.command_history.len() > MAX_COMMAND_HISTORY {
+                            self.command_history.remove(0);
+                        }
+                    }
+                    // Auto-open popup on long output (do not show footer notice)
+                    if self.command_output.lines().count() > AUTO_POPUP_LINE_THRESHOLD {
+                        self.open_output_popup();
+                    }
                     self.refresh_status();
                 } else {
                     // Show error
@@ -1425,11 +1458,36 @@ impl App {
                     } else {
                         stderr.to_string()
                     };
-                    self.error = Some(format!("Push failed: {}", error_msg.trim()));
+                    // Capture output for popup and always open on failure
+                    self.command_success = false;
+                    self.command_output = error_msg;
+                    if self.command_history.last().map(String::as_str) != Some(display_cmd.as_str()) {
+                        self.command_history.push(display_cmd.clone());
+                        if self.command_history.len() > MAX_COMMAND_HISTORY {
+                            self.command_history.remove(0);
+                        }
+                    }
+                    self.open_output_popup();
                 }
             }
             Err(e) => {
-                self.error = Some(format!("Failed to execute push: {e}"));
+                // Capture output for popup and open
+                self.command_success = false;
+                self.command_output = e.to_string();
+                let mut display_cmd = String::from("git push");
+                if force {
+                    display_cmd.push_str(" --force-with-lease");
+                }
+                if set_upstream {
+                    display_cmd.push_str(&format!(" -u {} {}", remote, branch));
+                }
+                if self.command_history.last().map(String::as_str) != Some(display_cmd.as_str()) {
+                    self.command_history.push(display_cmd);
+                    if self.command_history.len() > MAX_COMMAND_HISTORY {
+                        self.command_history.remove(0);
+                    }
+                }
+                self.open_output_popup();
             }
         }
     }

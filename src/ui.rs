@@ -6,7 +6,7 @@ use ratatui::{
 };
 
 use crate::{
-    app::{App, HistoryMode, PopupContent, ViewMode},
+    app::{App, HistoryMode, PopupContent, ViewMode, ConfirmAction},
     git::{format_relative_time, CommandType, FileState, RefDecoration},
     tui::Frame,
 };
@@ -441,6 +441,12 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
                         Style::default().fg(Color::DarkGray),
                     ));
                 }
+
+                // Contextual hint: p push
+                branch_spans.push(Span::styled(
+                    "  · p  push",
+                    Style::default().fg(Color::DarkGray).italic(),
+                ));
 
                 items.push(ListItem::new(Line::from(branch_spans)));
             }
@@ -894,43 +900,8 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Span::styled(" Up/Down ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" history "),
         ])
-    } else if let ViewMode::PushConfirm { branch, remote, has_upstream, ahead, force } = &app.view_mode {
-        // Push confirmation prompt in footer
-        let mut spans = vec![];
-
-        if !*has_upstream {
-            spans.push(Span::raw("Set upstream and push "));
-            spans.push(Span::styled(branch, Style::default().fg(Color::Yellow).bold()));
-            spans.push(Span::raw(" → "));
-            spans.push(Span::styled(format!("{remote}/{branch}"), Style::default().fg(Color::Cyan)));
-            spans.push(Span::raw("? "));
-        } else {
-            let action = if *force { "Force push " } else { "Push " };
-            spans.push(Span::raw(action));
-            spans.push(Span::styled(branch, Style::default().fg(Color::Yellow).bold()));
-            spans.push(Span::raw(" → "));
-            spans.push(Span::styled(format!("{remote}/{branch}"), Style::default().fg(Color::Cyan)));
-            if *ahead > 0 {
-                spans.push(Span::styled(
-                    format!(" ({}↑)", ahead),
-                    Style::default().fg(Color::Green),
-                ));
-            }
-            spans.push(Span::raw("? "));
-        }
-
-        if *force {
-            spans.push(Span::styled("⚠ ", Style::default().fg(Color::Yellow)));
-        }
-
-        spans.push(Span::styled(" Enter ", Style::default().bg(Color::DarkGray).bold()));
-        spans.push(Span::raw(" yes  "));
-        spans.push(Span::styled(" f ", Style::default().bg(Color::DarkGray).bold()));
-        spans.push(Span::raw(if *force { " normal  " } else { " force  " }));
-        spans.push(Span::styled(" Esc ", Style::default().bg(Color::DarkGray).bold()));
-        spans.push(Span::raw(" cancel "));
-
-        Line::from(spans)
+    } else if let ViewMode::Confirm(action) = &app.view_mode {
+        Line::from(render_confirm_footer_spans(action))
     } else if let Some(ref error) = app.error {
         Line::from(Span::styled(
             error.as_str(),
@@ -967,6 +938,45 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
     );
 
     frame.render_widget(footer, area);
+}
+
+/// Build footer spans for confirmation prompts
+fn render_confirm_footer_spans(action: &ConfirmAction) -> Vec<Span<'static>> {
+    match action {
+        ConfirmAction::Push { branch, remote, has_upstream, ahead, force } => {
+            let mut spans: Vec<Span<'static>> = vec![];
+
+            if !*has_upstream {
+                spans.push(Span::raw("Set upstream and push "));
+                spans.push(Span::styled(branch.clone(), Style::default().fg(Color::Yellow).bold()));
+                spans.push(Span::raw(" → "));
+                spans.push(Span::styled(format!("{remote}/{branch}"), Style::default().fg(Color::Cyan)));
+                spans.push(Span::raw("? "));
+            } else {
+                let action_text = if *force { "Force push " } else { "Push " };
+                spans.push(Span::raw(action_text));
+                spans.push(Span::styled(branch.clone(), Style::default().fg(Color::Yellow).bold()));
+                spans.push(Span::raw(" → "));
+                spans.push(Span::styled(format!("{remote}/{branch}"), Style::default().fg(Color::Cyan)));
+                if *ahead > 0 {
+                    spans.push(Span::styled(format!(" ({}↑)", ahead), Style::default().fg(Color::Green)));
+                }
+                spans.push(Span::raw("? "));
+            }
+
+            if *force {
+                spans.push(Span::styled("⚠ ", Style::default().fg(Color::Yellow)));
+            }
+
+            spans.push(Span::styled(" Enter ", Style::default().bg(Color::DarkGray).bold()));
+            spans.push(Span::raw(" yes  "));
+            spans.push(Span::styled(" f ", Style::default().bg(Color::DarkGray).bold()));
+            spans.push(Span::raw(if *force { " normal  " } else { " force  " }));
+            spans.push(Span::styled(" Esc ", Style::default().bg(Color::DarkGray).bold()));
+            spans.push(Span::raw(" cancel "));
+            spans
+        }
+    }
 }
 
 /// Render help overlay

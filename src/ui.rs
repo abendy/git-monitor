@@ -458,7 +458,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
 
         // Hint for actions
         items.push(ListItem::new(Line::from(Span::styled(
-            "  space expand · c copy hash",
+            "  Enter checkout · space expand · c copy hash",
             Style::default().fg(Color::DarkGray).italic(),
         ))));
 
@@ -869,90 +869,27 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Style::default().fg(Color::Red),
         ))
     } else {
-        // Determine what section we're in for contextual hints
-        let staged_len = app.status.staged_changes().len();
-        let working_len = app.status.working_changes().len();
-        let activity_len = app.activity.len();
-        let files_total = staged_len + working_len;
-
-        let selected = app.selected.unwrap_or(usize::MAX);
-        let on_command = selected == 0;
-        let on_file = selected >= 1 && selected <= files_total;
-        let history_start = 1 + files_total;
-        let history_end = history_start + activity_len;
-        let on_history = selected >= history_start && selected < history_end;
-        let branches_start = history_end;
-        let on_branches = selected >= branches_start
-            && selected < branches_start + app.branches.len();
-
-        let mut hints = vec![
+        // Universal hints: nav top/btm | : cmd  w files  h history  b branches | help quit
+        Line::from(vec![
             Span::styled(" j/k ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" nav  "),
-        ];
-
-        // File-specific hints
-        if on_file {
-            hints.extend([
-                Span::styled(" s ", Style::default().bg(Color::DarkGray).bold()),
-                Span::raw(" stage  "),
-                Span::styled(" d ", Style::default().bg(Color::DarkGray).bold()),
-                Span::raw(" diff  "),
-            ]);
-        }
-
-        // Command section hints
-        if on_command && !app.command_output.is_empty() {
-            hints.extend([
-                Span::styled(" o ", Style::default().bg(Color::DarkGray).bold()),
-                Span::raw(" output  "),
-            ]);
-        }
-
-        // History section hints
-        if on_history {
-            hints.extend([
-                Span::styled(" h ", Style::default().bg(Color::DarkGray).bold()),
-                Span::raw(" log/reflog  "),
-            ]);
-        }
-
-        // Commit file hints (when viewing a file in expanded commit)
-        if app.expanded_file_idx.is_some() {
-            hints.extend([
-                Span::styled(" Space ", Style::default().bg(Color::DarkGray).bold()),
-                Span::raw(" pager  "),
-                Span::styled(" d ", Style::default().bg(Color::DarkGray).bold()),
-                Span::raw(" inline  "),
-                Span::styled(" M ", Style::default().bg(Color::DarkGray).bold()),
-                Span::raw(" difftool  "),
-            ]);
-        }
-
-        // Branch-specific hints
-        if on_branches {
-            hints.extend([
-                Span::styled(" Enter ", Style::default().bg(Color::DarkGray).bold()),
-                Span::raw(" checkout  "),
-            ]);
-        }
-
-        // Universal hints
-        hints.extend([
             Span::styled(" g/G ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" top/btm  "),
-            Span::styled(" w ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" files  "),
-            Span::styled(" b ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" branches  "),
+            Span::raw(" top/btm "),
+            Span::styled(" │ ", Style::default().fg(Color::DarkGray)),
             Span::styled(" : ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" cmd  "),
+            Span::styled(" w ", Style::default().bg(Color::DarkGray).bold()),
+            Span::raw(" files  "),
+            Span::styled(" h ", Style::default().bg(Color::DarkGray).bold()),
+            Span::raw(" history  "),
+            Span::styled(" b ", Style::default().bg(Color::DarkGray).bold()),
+            Span::raw(" branches "),
+            Span::styled(" │ ", Style::default().fg(Color::DarkGray)),
             Span::styled(" ? ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" help  "),
+            Span::raw(" help "),
             Span::styled(" q ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" quit "),
-        ]);
-
-        Line::from(hints)
+        ])
     };
 
     let footer = Paragraph::new(content).alignment(Alignment::Center).block(

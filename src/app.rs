@@ -16,7 +16,7 @@ use crate::{
     config::GitConfig,
     event::Event,
     git::{BranchInfo, CommitDetail, FileState, GitCommand, GitRepo, GitStatus},
-    menu::{ActionMenu, AliasSectionMenu, MenuResult, MenuStack},
+    menu::{ActionMenu, AliasSectionMenu, MenuResult, MenuStack, PushConfirmMenu},
     tui::Tui,
     ui,
     watcher::{RepoWatcher, WatchEvent},
@@ -82,18 +82,6 @@ pub enum HistoryMode {
 }
 
 /// View mode for the application body
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ConfirmAction {
-    Push {
-        branch: String,
-        remote: String,
-        has_upstream: bool,
-        ahead: usize,
-        force: bool,
-    },
-}
-
-/// View mode for the application body
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum ViewMode {
     /// Normal navigation mode (default)
@@ -101,8 +89,6 @@ pub enum ViewMode {
     Normal,
     /// Command input mode (typing git commands)
     Command,
-    /// Generic confirmation mode (prompt in footer)
-    Confirm(ConfirmAction),
 }
 
 /// External command requiring TUI suspension
@@ -867,10 +853,6 @@ impl App {
                 self.handle_command_mode_key(key);
                 return;
             }
-            ViewMode::Confirm(_) => {
-                self.handle_confirm_key(key);
-                return;
-            }
             ViewMode::Normal => {}
         }
 
@@ -1362,38 +1344,6 @@ impl App {
         }
     }
 
-    /// Handle keyboard input in confirmation mode
-    fn handle_confirm_key(&mut self, key: KeyEvent) {
-        // Snapshot flags we need for Enter handling
-        let (has_upstream, force) = match &self.view_mode {
-            ViewMode::Confirm(ConfirmAction::Push { has_upstream, force, .. }) => {
-                (*has_upstream, *force)
-            }
-            _ => (false, false),
-        };
-
-        match key.code {
-            // Cancel
-            KeyCode::Esc | KeyCode::Char('q') => {
-                self.view_mode = ViewMode::Normal;
-            }
-            // Execute confirmation
-            KeyCode::Enter => {
-                // Exit confirm mode first to restore normal routing
-                self.view_mode = ViewMode::Normal;
-                // Currently only Push is implemented
-                self.execute_push(force, !has_upstream);
-            }
-            // Toggle options (per action)
-            KeyCode::Char('f') | KeyCode::Char('F') => {
-                if let ViewMode::Confirm(ConfirmAction::Push { force, .. }) = &mut self.view_mode {
-                    *force = !*force;
-                }
-            }
-            _ => {}
-        }
-    }
-
     /// Handle keyboard input in popup mode
     fn handle_popup_key(&mut self, key: KeyEvent) {
         // Use visible height from last render (defaults to 20 if not yet rendered)
@@ -1506,7 +1456,7 @@ impl App {
         });
     }
 
-    /// Enter push confirmation mode (prompt shown in footer)
+    /// Show push confirmation menu
     fn show_push_confirm(&mut self, force: bool) {
         let branch = match &self.status.branch {
             Some(b) => b.clone(),
@@ -1525,69 +1475,14 @@ impl App {
             None => ("origin".to_string(), false),
         };
 
-        self.view_mode = ViewMode::Confirm(ConfirmAction::Push {
+        let menu = PushConfirmMenu::new(
             branch,
             remote,
             has_upstream,
-            ahead: self.status.ahead,
+            self.status.ahead,
             force,
-        });
-    }
-
-    /// Execute git push
-    fn execute_push(&mut self, force: bool, set_upstream: bool) {
-        let branch = match &self.status.branch {
-            Some(b) => b.clone(),
-            None => {
-                self.error = Some("No branch checked out".to_string());
-                return;
-            }
-        };
-
-        // Determine remote
-        let remote = self
-            .status
-            .upstream
-            .as_ref()
-            .and_then(|u| u.split('/').next())
-            .unwrap_or("origin")
-            .to_string();
-
-        // Build push command arguments
-        let mut args: Vec<String> = vec!["push".to_string()];
-
-        if force {
-            args.push("--force-with-lease".to_string());
-        }
-
-        if set_upstream {
-            args.push("-u".to_string());
-            args.push(remote.clone());
-            args.push(branch.clone());
-        }
-
-        // Build display name for history/popup
-        let mut display_name = String::from("git push");
-        if force {
-            display_name.push_str(" --force-with-lease");
-        }
-        if set_upstream {
-            display_name.push_str(&format!(" -u {} {}", remote, branch));
-        }
-
-        // Execute using unified framework
-        // Push from keyboard shortcut - use Keyboard source (popup on failure or long output)
-        let request = CommandRequest {
-            program: "git".to_string(),
-            args,
-            display_name,
-            cwd: None,
-            source: CommandSource::Keyboard,
-            feedback: FeedbackPolicy::Default,
-            refresh_after: true,
-        };
-
-        self.run_command(request);
+        );
+        self.menu_stack.push(Box::new(menu));
     }
 
     /// Execute git pull

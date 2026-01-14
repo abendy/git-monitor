@@ -5,12 +5,14 @@
 mod action;
 mod alias;
 mod confirm;
+mod push;
 mod select;
 mod stack;
 
 pub use action::ActionMenu;
 pub use alias::{AliasItemsMenu, AliasSectionMenu};
 pub use confirm::{Checkbox, ConfirmMenu};
+pub use push::PushConfirmMenu;
 pub use select::{SelectItem, SelectMenu};
 pub use stack::MenuStack;
 

@@ -277,6 +277,12 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
         ))));
 
+        // Hint for file actions
+        items.push(ListItem::new(Line::from(Span::styled(
+            "  s stage/unstage · d diff",
+            Style::default().fg(Color::DarkGray).italic(),
+        ))));
+
         for (i, file) in staged_changes.iter().enumerate() {
             // Index 0 is command, so files start at index 1
             let global_idx = 1 + i;
@@ -319,6 +325,14 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             format!("  {arrow} Working ({working_len})"),
             Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
         ))));
+
+        // Hint for file actions (only if no staged section to avoid duplication)
+        if staged_changes.is_empty() {
+            items.push(ListItem::new(Line::from(Span::styled(
+                "  s stage/unstage · d diff",
+                Style::default().fg(Color::DarkGray).italic(),
+            ))));
+        }
 
         for (i, file) in working_changes.iter().enumerate() {
             // Index 0 is command, staged starts at 1, working starts at 1 + staged_len
@@ -701,6 +715,12 @@ fn render_commit_detail<'a>(
             ),
         ])));
 
+        // Hint for commit file actions
+        items.push(ListItem::new(Line::from(Span::styled(
+            "    Space pager · d inline · M difftool",
+            Style::default().fg(Color::DarkGray).italic(),
+        ))));
+
         for (file_idx, file) in detail.files.iter().enumerate() {
             let is_file_selected = app.expanded_file_idx == Some(file_idx);
             let (status_char, color) = match file.status {
@@ -923,22 +943,35 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
         Line::from("  b                  Jump to branches"),
         Line::from(""),
         Line::from(Span::styled(
+            "Staged/Working Files",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Line::from("  s                  Stage/unstage file"),
+        Line::from("  d / Enter          Show diff"),
+        Line::from(""),
+        Line::from(Span::styled(
+            "History",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Line::from("  h                  Toggle log/reflog"),
+        Line::from("  Space              Expand commit details"),
+        Line::from("  c                  Copy commit hash"),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Commit Files",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Line::from("  Space              Diff with pager"),
+        Line::from("  d                  Diff inline"),
+        Line::from("  M                  Diff with difftool"),
+        Line::from(""),
+        Line::from(Span::styled(
             "Branches",
             Style::default().add_modifier(Modifier::BOLD),
         )),
         Line::from("  Enter              Checkout branch"),
-        Line::from(""),
-        Line::from(Span::styled(
-            "File Actions",
-            Style::default().add_modifier(Modifier::BOLD),
-        )),
-        Line::from("  s                  Stage/unstage file"),
-        Line::from("  d / Enter          Show diff (inline)"),
-        Line::from("  Space              Diff with pager (commit files)"),
-        Line::from("  M                  Diff with difftool (commit files)"),
-        Line::from("  y                  Copy commit sha"),
-        Line::from("  r                  Refresh status"),
-        Line::from("  h                  Toggle history/reflog"),
+        Line::from("  Space              Expand branch commits"),
+        Line::from("  c                  Copy commit hash"),
         Line::from(""),
         Line::from(Span::styled(
             "Command & Aliases",
@@ -955,6 +988,7 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
             "General",
             Style::default().add_modifier(Modifier::BOLD),
         )),
+        Line::from("  r                  Refresh status"),
         Line::from("  ?                  Toggle help"),
         Line::from("  q / Esc            Quit"),
         Line::from(""),

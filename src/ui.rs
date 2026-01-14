@@ -6,11 +6,38 @@ use ratatui::{
 };
 
 use crate::{
-    actions::ActionType,
+    actions::{ActionRegistry, ActionType, Context},
     app::{App, HistoryMode, PopupContent, ViewMode, ConfirmAction},
     git::{format_relative_time, CommandType, FileState, RefDecoration},
     tui::Frame,
 };
+
+/// Render context-specific hints as a Line
+fn render_context_hint(registry: &ActionRegistry, context: Context) -> Line<'static> {
+    let actions = registry.hint_actions_for_context(context);
+
+    if actions.is_empty() {
+        return Line::from("");
+    }
+
+    let mut spans = vec![Span::raw("  ")];
+
+    for (i, action) in actions.iter().take(5).enumerate() {
+        if i > 0 {
+            spans.push(Span::styled(" · ", Style::default().fg(Color::DarkGray)));
+        }
+        spans.push(Span::styled(
+            format!("{} ", action.key),
+            Style::default().fg(Color::Cyan),
+        ));
+        spans.push(Span::styled(
+            action.label.clone(),
+            Style::default().fg(Color::DarkGray).italic(),
+        ));
+    }
+
+    Line::from(spans)
+}
 
 /// Main render function
 pub fn render(frame: &mut Frame<'_>, app: &mut App) {
@@ -283,11 +310,10 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
         ))));
 
-        // Hint for file actions
-        items.push(ListItem::new(Line::from(Span::styled(
-            "  s stage/unstage · d diff",
-            Style::default().fg(Color::DarkGray).italic(),
-        ))));
+        // Hint for file actions (only show when in staged section)
+        if in_staged {
+            items.push(ListItem::new(render_context_hint(&app.action_registry, app.current_context())));
+        }
 
         for (i, file) in staged_changes.iter().enumerate() {
             // Index 0 is command, so files start at index 1
@@ -332,12 +358,9 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
         ))));
 
-        // Hint for file actions (only if no staged section to avoid duplication)
-        if staged_changes.is_empty() {
-            items.push(ListItem::new(Line::from(Span::styled(
-                "  s stage/unstage · d diff",
-                Style::default().fg(Color::DarkGray).italic(),
-            ))));
+        // Hint for file actions (only show when in working section)
+        if in_working {
+            items.push(ListItem::new(render_context_hint(&app.action_registry, Context::WorkingFiles)));
         }
 
         for (i, file) in working_changes.iter().enumerate() {
@@ -410,11 +433,11 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
 
         // Only show commits if not collapsed
         if !app.history_collapsed {
-            // Hint for switching modes and actions
-            items.push(ListItem::new(Line::from(Span::styled(
-                "  h toggle reflog/history · space expand · [/] page · c copy hash",
-                Style::default().fg(Color::DarkGray).italic(),
-            ))));
+            // Hint for history actions (only show when in history section)
+            let in_history = matches!(app.current_context(), Context::HistoryCommits | Context::HistoryHeader);
+            if in_history {
+                items.push(ListItem::new(render_context_hint(&app.action_registry, Context::HistoryCommits)));
+            }
 
             // Show current branch name with upstream tracking info
             if let Some(current_branch) = app.branches.iter().find(|b| b.is_current) {
@@ -493,11 +516,10 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
         ))));
 
-        // Hint for actions
-        items.push(ListItem::new(Line::from(Span::styled(
-            "  Enter checkout · space expand · c copy hash",
-            Style::default().fg(Color::DarkGray).italic(),
-        ))));
+        // Hint for branch actions (only show when in branches section)
+        if in_branches {
+            items.push(ListItem::new(render_context_hint(&app.action_registry, Context::BranchCommits)));
+        }
 
         for branch in other_branches.iter() {
             let is_expanded = app.expanded_branch.as_deref() == Some(&branch.name);
@@ -738,11 +760,14 @@ fn render_commit_detail<'a>(
             ),
         ])));
 
-        // Hint for commit file actions
-        items.push(ListItem::new(Line::from(Span::styled(
-            "    Space pager · d inline · M difftool",
-            Style::default().fg(Color::DarkGray).italic(),
-        ))));
+        // Hint for commit file actions (only show when a file is selected)
+        if matches!(app.current_context(), Context::CommitFiles) {
+            // Use extra indent for commit files hints
+            let hint = render_context_hint(&app.action_registry, Context::CommitFiles);
+            let mut spans = vec![Span::raw("  ")]; // Extra indent
+            spans.extend(hint.spans);
+            items.push(ListItem::new(Line::from(spans)));
+        }
 
         for (file_idx, file) in detail.files.iter().enumerate() {
             let is_file_selected = app.expanded_file_idx == Some(file_idx);

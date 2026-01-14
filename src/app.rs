@@ -466,26 +466,19 @@ impl App {
         }
     }
 
-    /// Jump to first branch item
+    /// Jump to first branch and expand it
     fn jump_to_branches(&mut self) {
         let other_branches = self.other_branches();
         if other_branches.is_empty() {
             return;
         }
 
-        let staged_len = self.status.staged_changes().len();
-        let working_len = self.status.working_changes().len();
-        let files_total = staged_len + working_len;
+        // Get first branch name and expand it
+        let first_branch_name = other_branches[0].name.clone();
+        self.expand_branch(&first_branch_name);
 
-        // History section: 1 header + commits (if not collapsed)
-        let history_items = if self.history_collapsed {
-            1 // Just the header
-        } else {
-            1 + self.activity.len() // Header + commits
-        };
-
-        // First branch is right after history section
-        self.selected = Some(1 + files_total + history_items);
+        // Select the first branch header
+        self.selected = Some(self.branches_start_index());
         self.close_expanded_commit();
     }
 

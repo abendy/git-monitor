@@ -852,6 +852,8 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
 
         // Universal hints
         hints.extend([
+            Span::styled(" g/G ", Style::default().bg(Color::DarkGray).bold()),
+            Span::raw(" top/btm  "),
             Span::styled(" b ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" branches  "),
             Span::styled(" : ", Style::default().bg(Color::DarkGray).bold()),

@@ -12,7 +12,7 @@ use crate::{
 };
 
 /// Main render function
-pub fn render(frame: &mut Frame<'_>, app: &App) {
+pub fn render(frame: &mut Frame<'_>, app: &mut App) {
     let area = frame.area();
 
     // Main layout: header, body, footer
@@ -30,7 +30,7 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
     // Conditional rendering: popup replaces body, not overlays it
     if app.popup.is_open() {
         render_popup(frame, app, layout[1]);
-        render_popup_footer(frame, app, layout[2]);
+        render_popup_footer(frame, layout[2]);
     } else {
         render_body(frame, app, layout[1]);
         render_footer(frame, app, layout[2]);
@@ -626,20 +626,54 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
     frame.render_widget(help, help_area);
 }
 
+/// Style a command output line with tab replacement
+fn style_output_line(line: &str, success: bool) -> Line<'static> {
+    let color = if success { Color::White } else { Color::Red };
+    let line = line.replace('\t', "    ");
+    Line::from(Span::styled(
+        format!(" {line}"),
+        Style::default().fg(color).bg(Color::Reset),
+    ))
+}
+
+/// Style a diff line with syntax highlighting and tab replacement
+fn style_diff_line(line: &str) -> Line<'static> {
+    let line = line.replace('\t', "    ");
+    let style = if line.starts_with('+') && !line.starts_with("+++") {
+        Style::default().fg(Color::Green).bg(Color::Reset)
+    } else if line.starts_with('-') && !line.starts_with("---") {
+        Style::default().fg(Color::Red).bg(Color::Reset)
+    } else if line.starts_with("@@") {
+        Style::default().fg(Color::Cyan).bg(Color::Reset)
+    } else if line.starts_with("diff") || line.starts_with("index") {
+        Style::default().fg(Color::Yellow).bg(Color::Reset)
+    } else {
+        Style::default().fg(Color::White).bg(Color::Reset)
+    };
+    Line::from(Span::styled(format!(" {line}"), style))
+}
+
 /// Render the full-screen popup (replaces body when active)
-fn render_popup(frame: &mut Frame<'_>, app: &App, area: Rect) {
+fn render_popup(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
     // Clear the area first to remove any artifacts from previous frame
     frame.render_widget(Clear, area);
 
     let title = app.popup.content.title();
-    let total_lines = app.popup.content.lines().len();
+    let total_lines = app.popup.content.line_count();
     let visible_height = area.height.saturating_sub(2) as usize; // Account for borders
+
+    // Store visible height for scroll calculations in key handler
+    app.popup.visible_height = visible_height;
+
+    // Clamp scroll offset to valid range
+    let max_offset = total_lines.saturating_sub(visible_height);
+    if app.popup.scroll_offset > max_offset {
+        app.popup.scroll_offset = max_offset;
+    }
 
     // Build scroll indicator
     let scroll_info = if total_lines > visible_height {
-        let max_offset = total_lines.saturating_sub(visible_height);
-        let current_pos = app.popup.scroll_offset.min(max_offset);
-        format!(" [{}/{}] ", current_pos + 1, max_offset + 1)
+        format!(" [{}/{}] ", app.popup.scroll_offset + 1, max_offset + 1)
     } else {
         String::new()
     };
@@ -647,44 +681,18 @@ fn render_popup(frame: &mut Frame<'_>, app: &App, area: Rect) {
     // Get lines for display based on content type
     let lines: Vec<Line<'_>> = match &app.popup.content {
         PopupContent::None => vec![],
-
-        PopupContent::CommandOutput { output, success, .. } => {
-            let color = if *success { Color::White } else { Color::Red };
-            output
-                .lines()
-                .skip(app.popup.scroll_offset)
-                .take(visible_height)
-                .map(|line| {
-                    // Replace tabs with spaces to avoid rendering gaps
-                    let line = line.replace('\t', "    ");
-                    Line::from(Span::styled(format!(" {line}"), Style::default().fg(color).bg(Color::Reset)))
-                })
-                .collect()
-        }
-
-        PopupContent::Diff { content, .. } => {
-            content
-                .lines()
-                .skip(app.popup.scroll_offset)
-                .take(visible_height)
-                .map(|line| {
-                    // Replace tabs with spaces to avoid rendering gaps
-                    let line = line.replace('\t', "    ");
-                    let style = if line.starts_with('+') && !line.starts_with("+++") {
-                        Style::default().fg(Color::Green).bg(Color::Reset)
-                    } else if line.starts_with('-') && !line.starts_with("---") {
-                        Style::default().fg(Color::Red).bg(Color::Reset)
-                    } else if line.starts_with("@@") {
-                        Style::default().fg(Color::Cyan).bg(Color::Reset)
-                    } else if line.starts_with("diff") || line.starts_with("index") {
-                        Style::default().fg(Color::Yellow).bg(Color::Reset)
-                    } else {
-                        Style::default().fg(Color::White).bg(Color::Reset)
-                    };
-                    Line::from(Span::styled(format!(" {line}"), style))
-                })
-                .collect()
-        }
+        PopupContent::CommandOutput { output, success, .. } => output
+            .lines()
+            .skip(app.popup.scroll_offset)
+            .take(visible_height)
+            .map(|line| style_output_line(line, *success))
+            .collect(),
+        PopupContent::Diff { content, .. } => content
+            .lines()
+            .skip(app.popup.scroll_offset)
+            .take(visible_height)
+            .map(style_diff_line)
+            .collect(),
     };
 
     let block = Block::default()
@@ -706,7 +714,7 @@ fn render_popup(frame: &mut Frame<'_>, app: &App, area: Rect) {
 }
 
 /// Render footer when popup is active
-fn render_popup_footer(frame: &mut Frame<'_>, _app: &App, area: Rect) {
+fn render_popup_footer(frame: &mut Frame<'_>, area: Rect) {
     let content = Line::from(vec![
         Span::styled(" j/k ", Style::default().bg(Color::DarkGray).bold()),
         Span::raw(" scroll  "),

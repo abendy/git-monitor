@@ -604,3 +604,176 @@ fn staged_state_from_git2(status: Status) -> FileState {
         FileState::Unmodified
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod file_state {
+        use super::*;
+
+        #[test]
+        fn as_char_returns_correct_characters() {
+            assert_eq!(FileState::Unmodified.as_char(), ' ');
+            assert_eq!(FileState::Modified.as_char(), 'M');
+            assert_eq!(FileState::Added.as_char(), 'A');
+            assert_eq!(FileState::Deleted.as_char(), 'D');
+            assert_eq!(FileState::Renamed.as_char(), 'R');
+            assert_eq!(FileState::Untracked.as_char(), '?');
+            assert_eq!(FileState::Ignored.as_char(), '!');
+            assert_eq!(FileState::Conflicted.as_char(), 'U');
+        }
+
+        #[test]
+        fn is_changed_returns_false_for_unchanged_states() {
+            assert!(!FileState::Unmodified.is_changed());
+            assert!(!FileState::Ignored.is_changed());
+        }
+
+        #[test]
+        fn is_changed_returns_true_for_changed_states() {
+            assert!(FileState::Modified.is_changed());
+            assert!(FileState::Added.is_changed());
+            assert!(FileState::Deleted.is_changed());
+            assert!(FileState::Renamed.is_changed());
+            assert!(FileState::Untracked.is_changed());
+            assert!(FileState::Conflicted.is_changed());
+        }
+    }
+
+    mod command_type {
+        use super::*;
+
+        #[test]
+        fn from_message_parses_commit() {
+            assert_eq!(CommandType::from_message("commit: initial commit"), CommandType::Commit);
+            assert_eq!(CommandType::from_message("Commit (amend): fix typo"), CommandType::Commit);
+        }
+
+        #[test]
+        fn from_message_parses_checkout() {
+            assert_eq!(CommandType::from_message("checkout: moving from main to feature"), CommandType::Checkout);
+        }
+
+        #[test]
+        fn from_message_parses_merge() {
+            assert_eq!(CommandType::from_message("merge feature-branch: Fast-forward"), CommandType::Merge);
+        }
+
+        #[test]
+        fn from_message_parses_rebase() {
+            assert_eq!(CommandType::from_message("rebase (finish): refs/heads/main onto abc123"), CommandType::Rebase);
+        }
+
+        #[test]
+        fn from_message_parses_pull() {
+            assert_eq!(CommandType::from_message("pull: Fast-forward"), CommandType::Pull);
+        }
+
+        #[test]
+        fn from_message_parses_reset() {
+            assert_eq!(CommandType::from_message("reset: moving to HEAD~1"), CommandType::Reset);
+        }
+
+        #[test]
+        fn from_message_parses_cherry_pick() {
+            assert_eq!(CommandType::from_message("cherry-pick: picked commit abc123"), CommandType::CherryPick);
+        }
+
+        #[test]
+        fn from_message_parses_revert() {
+            assert_eq!(CommandType::from_message("revert: reverting abc123"), CommandType::Revert);
+        }
+
+        #[test]
+        fn from_message_parses_branch() {
+            assert_eq!(CommandType::from_message("branch: created from HEAD"), CommandType::Branch);
+        }
+
+        #[test]
+        fn from_message_parses_clone() {
+            assert_eq!(CommandType::from_message("clone: from https://github.com/user/repo"), CommandType::Clone);
+        }
+
+        #[test]
+        fn from_message_parses_init() {
+            // "initial" anywhere in the message (that doesn't start with other keywords)
+            assert_eq!(CommandType::from_message("initial commit"), CommandType::Init);
+        }
+
+        #[test]
+        fn from_message_returns_other_for_unknown() {
+            assert_eq!(CommandType::from_message("unknown operation"), CommandType::Other);
+            assert_eq!(CommandType::from_message(""), CommandType::Other);
+        }
+
+        #[test]
+        fn icon_returns_non_empty_string() {
+            let types = [
+                CommandType::Commit,
+                CommandType::Checkout,
+                CommandType::Merge,
+                CommandType::Rebase,
+                CommandType::Pull,
+                CommandType::Push,
+                CommandType::Fetch,
+                CommandType::Reset,
+                CommandType::CherryPick,
+                CommandType::Revert,
+                CommandType::Branch,
+                CommandType::Clone,
+                CommandType::Init,
+                CommandType::Stash,
+                CommandType::Other,
+            ];
+            for cmd_type in types {
+                assert!(!cmd_type.icon().is_empty(), "{cmd_type:?} should have non-empty icon");
+            }
+        }
+    }
+
+    mod git_status {
+        use super::*;
+        use std::path::PathBuf;
+
+        fn make_file(path: &str, working: FileState, staged: FileState) -> FileStatus {
+            FileStatus {
+                path: PathBuf::from(path),
+                working,
+                staged,
+            }
+        }
+
+        #[test]
+        fn working_changes_filters_modified_files() {
+            let status = GitStatus {
+                files: vec![
+                    make_file("changed.txt", FileState::Modified, FileState::Unmodified),
+                    make_file("unchanged.txt", FileState::Unmodified, FileState::Unmodified),
+                    make_file("added.txt", FileState::Added, FileState::Unmodified),
+                ],
+                ..Default::default()
+            };
+            let changes = status.working_changes();
+            assert_eq!(changes.len(), 2);
+            assert_eq!(changes[0].path, PathBuf::from("changed.txt"));
+            assert_eq!(changes[1].path, PathBuf::from("added.txt"));
+        }
+
+        #[test]
+        fn staged_changes_filters_staged_files() {
+            let status = GitStatus {
+                files: vec![
+                    make_file("staged.txt", FileState::Unmodified, FileState::Modified),
+                    make_file("unstaged.txt", FileState::Modified, FileState::Unmodified),
+                    make_file("both.txt", FileState::Modified, FileState::Added),
+                ],
+                ..Default::default()
+            };
+            let staged = status.staged_changes();
+            assert_eq!(staged.len(), 2);
+            assert_eq!(staged[0].path, PathBuf::from("staged.txt"));
+            assert_eq!(staged[1].path, PathBuf::from("both.txt"));
+        }
+    }
+}

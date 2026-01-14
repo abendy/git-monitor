@@ -26,6 +26,9 @@ notify-debouncer-mini = "0.4"
 anyhow = "1.0"
 thiserror = "1.0"
 
+# Clipboard
+arboard = "3"
+
 # CLI argument parsing
 clap = { version = "4", features = ["derive"] }
 

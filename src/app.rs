@@ -57,12 +57,12 @@ impl PopupContent {
         !matches!(self, PopupContent::None)
     }
 
-    /// Get the content as lines for display
-    pub fn lines(&self) -> Vec<&str> {
+    /// Get the number of lines without allocating
+    pub fn line_count(&self) -> usize {
         match self {
-            PopupContent::None => vec![],
-            PopupContent::CommandOutput { output, .. } => output.lines().collect(),
-            PopupContent::Diff { content, .. } => content.lines().collect(),
+            PopupContent::None => 0,
+            PopupContent::CommandOutput { output, .. } => output.lines().count(),
+            PopupContent::Diff { content, .. } => content.lines().count(),
         }
     }
 
@@ -83,6 +83,8 @@ pub struct PopupState {
     pub content: PopupContent,
     /// Scroll offset (line number at top of view)
     pub scroll_offset: usize,
+    /// Visible height from last render (for scroll calculations)
+    pub visible_height: usize,
 }
 
 impl PopupState {
@@ -425,8 +427,11 @@ impl App {
             // Copy sha to clipboard (for history items)
             KeyCode::Char('y') => {
                 if let Some(sha) = self.selected_activity_sha() {
-                    self.copy_to_clipboard(&sha);
-                    self.error = Some(format!("Copied: {sha}"));
+                    if self.copy_to_clipboard(&sha) {
+                        self.error = Some(format!("Copied: {sha}"));
+                    } else {
+                        self.error = Some("Failed to copy to clipboard".to_string());
+                    }
                 }
             }
 
@@ -545,10 +550,13 @@ impl App {
 
     /// Handle keyboard input in popup mode
     fn handle_popup_key(&mut self, key: KeyEvent) {
-        // Calculate visible height for scroll calculations
-        // This is approximate; actual height comes from render
-        let visible_height = 20_usize; // Will be refined in render
-        let max_lines = self.popup.content.lines().len();
+        // Use visible height from last render (defaults to 20 if not yet rendered)
+        let visible_height = if self.popup.visible_height > 0 {
+            self.popup.visible_height
+        } else {
+            20
+        };
+        let max_lines = self.popup.content.line_count();
 
         match key.code {
             // Close popup
@@ -680,18 +688,11 @@ impl App {
         }
     }
 
-    /// Copy text to clipboard (macOS)
-    fn copy_to_clipboard(&self, text: &str) {
-        let _ = Command::new("pbcopy")
-            .stdin(std::process::Stdio::piped())
-            .spawn()
-            .and_then(|mut child| {
-                use std::io::Write;
-                if let Some(stdin) = child.stdin.as_mut() {
-                    stdin.write_all(text.as_bytes())?;
-                }
-                child.wait()
-            });
+    /// Copy text to clipboard (cross-platform)
+    fn copy_to_clipboard(&self, text: &str) -> bool {
+        arboard::Clipboard::new()
+            .and_then(|mut clipboard| clipboard.set_text(text))
+            .is_ok()
     }
 
     /// Toggle stage/unstage for selected file

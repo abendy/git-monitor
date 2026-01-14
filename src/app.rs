@@ -1178,7 +1178,7 @@ impl App {
             None => {
                 self.selected = Some(0);
             }
-            Some(idx) if idx < len - 1 => {
+            Some(idx) => {
                 self.close_expanded_commit();
 
                 let files_total = self.status.staged_changes().len() + self.status.working_changes().len();
@@ -1198,6 +1198,11 @@ impl App {
                         self.selected = Some(self.branches_start_index());
                         return;
                     }
+                }
+
+                // Don't go past the last item if no branches to expand
+                if idx >= len - 1 {
+                    return;
                 }
 
                 // Check if we're on an expanded branch's last commit
@@ -1239,7 +1244,6 @@ impl App {
                     self.selected = Some(new_idx + 1);
                 }
             }
-            _ => {}
         }
     }
 

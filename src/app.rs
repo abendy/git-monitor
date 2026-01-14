@@ -1284,7 +1284,18 @@ impl App {
                 }
 
                 // Normal navigation
-                self.selected = Some(idx + 1);
+                let new_idx = idx + 1;
+                self.selected = Some(new_idx);
+
+                // Skip history header - auto-expand and go to first commit
+                let files_total_check = self.status.staged_changes().len() + self.status.working_changes().len();
+                let history_header_check = 1 + files_total_check;
+                if new_idx == history_header_check && !self.activity.is_empty() {
+                    self.expand_history();
+                    // Skip header, go to first commit (header + 1 for hint line + 1 for first commit...
+                    // actually just +1 since hint line is not in the index count)
+                    self.selected = Some(new_idx + 1);
+                }
             }
             _ => {}
         }
@@ -1309,11 +1320,11 @@ impl App {
                 if self.history_collapsed {
                     let branches_start = self.branches_start_index();
                     if idx == branches_start {
-                        // Moving from first branch header to history header
+                        // Moving from first branch header to history
                         // Expand history (which collapses the branch)
                         self.expand_history();
-                        // Now select the history header
-                        self.selected = Some(history_header_idx);
+                        // Select last history commit (skip header)
+                        self.selected = Some(history_header_idx + self.activity.len());
                         return;
                     }
                 }
@@ -1362,7 +1373,13 @@ impl App {
                 }
 
                 // Normal navigation
-                self.selected = Some(idx - 1);
+                let new_idx = idx - 1;
+                self.selected = Some(new_idx);
+
+                // Skip history header - go to previous item (last file or command)
+                if new_idx == history_header_idx {
+                    self.selected = Some(new_idx - 1);
+                }
             }
             _ => {}
         }

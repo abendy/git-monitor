@@ -454,16 +454,23 @@ impl App {
         }
     }
 
-    /// Jump to first history item
+    /// Jump to history and expand it, landing on most recent commit
     fn jump_to_history(&mut self) {
+        if self.activity.is_empty() {
+            return;
+        }
+
+        // Expand history (collapses any expanded branch)
+        self.expand_history();
+
         let staged_len = self.status.staged_changes().len();
         let working_len = self.status.working_changes().len();
         let files_total = staged_len + working_len;
 
-        // First history item is at index files_total + 1
-        if !self.activity.is_empty() {
-            self.selected = Some(files_total + 1);
-        }
+        // Select first commit (skip header)
+        let history_header_idx = 1 + files_total;
+        self.selected = Some(history_header_idx + 1);
+        self.close_expanded_commit();
     }
 
     /// Jump to first branch and expand it

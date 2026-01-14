@@ -169,6 +169,10 @@ pub struct CommitDetail {
     pub gpg_status: Option<String>,
     /// Files changed in this commit
     pub files: Vec<CommitFile>,
+    /// Total lines added
+    pub insertions: usize,
+    /// Total lines deleted
+    pub deletions: usize,
 }
 
 /// A file changed in a commit
@@ -178,6 +182,10 @@ pub struct CommitFile {
     pub path: String,
     /// Change status
     pub status: FileState,
+    /// Lines added in this file
+    pub insertions: usize,
+    /// Lines deleted in this file
+    pub deletions: usize,
 }
 
 /// Types of git commands
@@ -635,7 +643,17 @@ impl GitRepo {
             .diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None)
             .context("Failed to diff trees")?;
 
-        let mut files = Vec::new();
+        // Get overall stats
+        let stats = diff.stats().context("Failed to get diff stats")?;
+        let insertions = stats.insertions();
+        let deletions = stats.deletions();
+
+        // Collect files with per-file stats using RefCell for interior mutability
+        use std::cell::RefCell;
+        use std::collections::HashMap;
+        let file_stats: RefCell<HashMap<String, (FileState, usize, usize)>> =
+            RefCell::new(HashMap::new());
+
         diff.foreach(
             &mut |delta, _progress| {
                 let path = delta
@@ -654,15 +672,41 @@ impl GitRepo {
                     _ => FileState::Modified,
                 };
 
-                files.push(CommitFile { path, status });
+                file_stats.borrow_mut().insert(path, (status, 0, 0));
                 true
             },
             None,
             None,
-            None,
+            Some(&mut |delta, _hunk, line| {
+                if let Some(path) = delta
+                    .new_file()
+                    .path()
+                    .or_else(|| delta.old_file().path())
+                    .map(|p| p.to_string_lossy().to_string())
+                {
+                    if let Some(entry) = file_stats.borrow_mut().get_mut(&path) {
+                        match line.origin() {
+                            '+' => entry.1 += 1,
+                            '-' => entry.2 += 1,
+                            _ => {}
+                        }
+                    }
+                }
+                true
+            }),
         )?;
 
-        // Sort files by path
+        // Convert to Vec and sort
+        let mut files: Vec<CommitFile> = file_stats
+            .into_inner()
+            .into_iter()
+            .map(|(path, (status, ins, del))| CommitFile {
+                path,
+                status,
+                insertions: ins,
+                deletions: del,
+            })
+            .collect();
         files.sort_by(|a, b| a.path.cmp(&b.path));
 
         Ok(CommitDetail {
@@ -676,6 +720,8 @@ impl GitRepo {
             message,
             gpg_status,
             files,
+            insertions,
+            deletions,
         })
     }
 

@@ -462,13 +462,24 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
                         ])));
                     }
 
-                    // Files section
+                    // Files section with stats
                     if !detail.files.is_empty() {
                         items.push(ListItem::new(Line::raw("")));
-                        items.push(ListItem::new(Line::from(Span::styled(
-                            format!("    {} file(s) changed:", detail.files.len()),
-                            Style::default().fg(Color::DarkGray),
-                        ))));
+                        items.push(ListItem::new(Line::from(vec![
+                            Span::styled(
+                                format!("    {} file(s) changed  ", detail.files.len()),
+                                Style::default().fg(Color::DarkGray),
+                            ),
+                            Span::styled(
+                                format!("+{}", detail.insertions),
+                                Style::default().fg(Color::Green),
+                            ),
+                            Span::styled(" / ", Style::default().fg(Color::DarkGray)),
+                            Span::styled(
+                                format!("-{}", detail.deletions),
+                                Style::default().fg(Color::Red),
+                            ),
+                        ])));
 
                         for file in &detail.files {
                             let (status_char, color) = match file.status {
@@ -478,15 +489,35 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
                                 FileState::Renamed => ('R', Color::Cyan),
                                 _ => ('?', Color::White),
                             };
-                            items.push(ListItem::new(Line::from(vec![
+
+                            let mut spans = vec![
                                 Span::raw("    "),
-                                Span::styled(
-                                    format!("{status_char}"),
-                                    Style::default().fg(color),
-                                ),
+                                Span::styled(format!("{status_char}"), Style::default().fg(color)),
                                 Span::raw("  "),
                                 Span::raw(&file.path),
-                            ])));
+                            ];
+
+                            // Add per-file stats if there are changes
+                            if file.insertions > 0 || file.deletions > 0 {
+                                spans.push(Span::raw("  "));
+                                if file.insertions > 0 {
+                                    spans.push(Span::styled(
+                                        format!("+{}", file.insertions),
+                                        Style::default().fg(Color::Green),
+                                    ));
+                                }
+                                if file.insertions > 0 && file.deletions > 0 {
+                                    spans.push(Span::raw("/"));
+                                }
+                                if file.deletions > 0 {
+                                    spans.push(Span::styled(
+                                        format!("-{}", file.deletions),
+                                        Style::default().fg(Color::Red),
+                                    ));
+                                }
+                            }
+
+                            items.push(ListItem::new(Line::from(spans)));
                         }
                     }
 

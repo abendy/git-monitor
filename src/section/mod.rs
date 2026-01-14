@@ -38,7 +38,6 @@ impl SectionId {
 }
 
 /// Action returned by section key handling
-#[derive(Debug)]
 pub enum SectionAction {
     /// Execute a command
     Command(crate::command::CommandRequest),
@@ -52,6 +51,19 @@ pub enum SectionAction {
     Navigate(NavigateAction),
     /// No action taken
     None,
+}
+
+impl std::fmt::Debug for SectionAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Command(req) => f.debug_tuple("Command").field(req).finish(),
+            Self::Feedback(_) => f.debug_tuple("Feedback").field(&"...").finish(),
+            Self::OpenMenu(_) => f.debug_tuple("OpenMenu").field(&"<menu>").finish(),
+            Self::AppAction(action) => f.debug_tuple("AppAction").field(action).finish(),
+            Self::Navigate(nav) => f.debug_tuple("Navigate").field(nav).finish(),
+            Self::None => write!(f, "None"),
+        }
+    }
 }
 
 /// Navigation actions within or between sections

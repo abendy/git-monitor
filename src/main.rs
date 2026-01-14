@@ -5,9 +5,13 @@ use clap::Parser;
 
 mod actions;
 mod app;
+mod command;
 mod config;
 mod event;
+mod feedback;
 mod git;
+mod menu;
+mod section;
 mod tui;
 mod ui;
 mod watcher;

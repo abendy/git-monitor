@@ -161,7 +161,10 @@ pub trait Menu: Send {
     fn handle_key(&mut self, key: KeyEvent) -> MenuResult;
 
     /// Render the menu (default implementation provided)
-    fn render(&self, frame: &mut Frame, area: Rect) {
+    fn render(&self, frame: &mut Frame<'_>, area: Rect)
+    where
+        Self: Sized,
+    {
         default_render(self, frame, area);
     }
 
@@ -195,7 +198,7 @@ pub trait Menu: Send {
 }
 
 /// Default menu rendering
-fn default_render(menu: &dyn Menu, frame: &mut Frame, area: Rect) {
+fn default_render(menu: &dyn Menu, frame: &mut Frame<'_>, area: Rect) {
     use ratatui::{
         style::{Color, Modifier, Style},
         text::{Line, Span},
@@ -207,7 +210,7 @@ fn default_render(menu: &dyn Menu, frame: &mut Frame, area: Rect) {
     let items = menu.items();
     let selected = menu.selected();
 
-    let list_items: Vec<ListItem> = items
+    let list_items: Vec<ListItem<'_>> = items
         .iter()
         .enumerate()
         .map(|(i, item)| {

@@ -473,7 +473,7 @@ impl App {
         self.close_expanded_commit();
     }
 
-    /// Jump to first branch and expand it
+    /// Jump to first branch and expand it, landing on first commit
     fn jump_to_branches(&mut self) {
         let other_branches = self.other_branches();
         if other_branches.is_empty() {
@@ -484,8 +484,13 @@ impl App {
         let first_branch_name = other_branches[0].name.clone();
         self.expand_branch(&first_branch_name);
 
-        // Select the first branch header
-        self.selected = Some(self.branches_start_index());
+        // Select first commit in the branch (skip header)
+        let branches_start = self.branches_start_index();
+        if !self.expanded_branch_commits.is_empty() {
+            self.selected = Some(branches_start + 1);
+        } else {
+            self.selected = Some(branches_start);
+        }
         self.close_expanded_commit();
     }
 

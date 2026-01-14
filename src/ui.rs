@@ -416,26 +416,10 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 Style::default().fg(Color::White)
             };
 
-            // Relative time
-            let relative_time = format_relative_time(branch.tip_time);
-
-            // Truncate message if needed
-            let max_msg_len = 40;
-            let message = if branch.tip_message.len() > max_msg_len {
-                format!("{}...", &branch.tip_message[..max_msg_len.saturating_sub(3)])
-            } else {
-                branch.tip_message.clone()
-            };
-
             items.push(ListItem::new(Line::from(vec![
                 Span::raw(prefix),
                 Span::styled(format!("{collapse_indicator} "), name_style),
-                Span::styled(format!("{:<18}", branch.name), name_style),
-                Span::styled(
-                    format!("{:<12}", relative_time),
-                    Style::default().fg(Color::DarkGray),
-                ),
-                Span::styled(message, Style::default().fg(Color::DarkGray)),
+                Span::styled(branch.name.clone(), name_style),
             ])));
             current_idx += 1;
 

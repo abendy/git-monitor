@@ -630,8 +630,8 @@ impl GitRepo {
         Ok(commands)
     }
 
-    /// Get commit history for a specific branch (not necessarily the current one)
-    pub fn commit_log_for_branch(&self, branch_name: &str, limit: usize) -> Result<Vec<GitCommand>> {
+    /// Get commits unique to a branch (not in main/master/develop)
+    pub fn commit_log_for_branch(&self, branch_name: &str) -> Result<Vec<GitCommand>> {
         let mut commands = Vec::new();
 
         // Find the branch
@@ -646,15 +646,29 @@ impl GitRepo {
             None => return Ok(commands),
         };
 
+        // Find the default branch to exclude its commits
+        let default_branch_oid = ["main", "master", "develop"]
+            .iter()
+            .filter(|&&name| name != branch_name)
+            .find_map(|&name| {
+                self.repo
+                    .find_branch(name, git2::BranchType::Local)
+                    .ok()
+                    .and_then(|b| b.get().target())
+            });
+
         // Collect refs for decorations
         let refs_map = self.collect_refs();
 
-        // Walk commits from the branch tip
+        // Walk commits from the branch tip, excluding default branch
         let mut revwalk = self.repo.revwalk().context("Failed to create revwalk")?;
         revwalk.push(branch_oid).context("Failed to push branch OID")?;
+        if let Some(default_oid) = default_branch_oid {
+            let _ = revwalk.hide(default_oid); // Exclude commits reachable from default branch
+        }
         revwalk.set_sorting(git2::Sort::TIME)?;
 
-        for oid_result in revwalk.take(limit) {
+        for oid_result in revwalk {
             let oid = match oid_result {
                 Ok(oid) => oid,
                 Err(_) => continue,

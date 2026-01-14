@@ -504,8 +504,8 @@ impl App {
             return; // Already expanded
         }
 
-        // Fetch commits for this branch
-        match self.repo.commit_log_for_branch(branch_name, MAX_ACTIVITY) {
+        // Fetch commits unique to this branch
+        match self.repo.commit_log_for_branch(branch_name) {
             Ok(commits) => {
                 self.expanded_branch = Some(branch_name.to_string());
                 self.expanded_branch_commits = commits;

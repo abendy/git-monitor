@@ -377,7 +377,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             for (i, cmd) in app.activity.iter().enumerate() {
                 let selected = Some(current_idx) == app.selected && !app.command_mode;
                 let is_last = i == activity_count - 1;
-                items.push(render_commit_line(cmd, selected, is_last, area.width));
+                items.push(render_commit_line(cmd, selected, is_last, area.width, false));
                 current_idx += 1;
 
                 // If this commit is expanded, render detail lines
@@ -445,7 +445,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 for (i, cmd) in app.expanded_branch_commits.iter().enumerate() {
                     let selected = Some(current_idx) == app.selected && !app.command_mode;
                     let is_last = i == branch_commit_count - 1;
-                    items.push(render_commit_line(cmd, selected, is_last, area.width));
+                    items.push(render_commit_line(cmd, selected, is_last, area.width, true));
                     current_idx += 1;
 
                     // If this commit is expanded, render detail lines
@@ -480,14 +480,22 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
 
 /// Render a single commit line (used for both History and branch commits)
 /// `is_last` indicates if this is the last (oldest) commit in the section
+/// `use_tree_style` uses tree connectors (├─/└─) for branch hierarchy vs simple (│/╵) for history
 fn render_commit_line<'a>(
     cmd: &'a crate::git::GitCommand,
     selected: bool,
     is_last: bool,
     area_width: u16,
+    use_tree_style: bool,
 ) -> ListItem<'a> {
     let selection_prefix = if selected { "▸" } else { " " };
-    let graph_char = if is_last { "╵" } else { "│" };
+    // Tree style: indent + tree chars to show nesting under branch header
+    // Simple style: just vertical line for history
+    let (indent, graph_char) = if use_tree_style {
+        ("   ", if is_last { "└─" } else { "├─" })
+    } else {
+        ("", if is_last { "╵" } else { "│" })
+    };
 
     let time_str = cmd.timestamp.format("%H:%M:%S").to_string();
     let icon = cmd.command_type.icon();
@@ -498,8 +506,10 @@ fn render_commit_line<'a>(
     let decoration_spans = format_decorations(&cmd.decorations);
     let decoration_width: usize = decoration_spans.iter().map(|s| s.content.len()).sum();
 
-    // Truncate message if too long (account for sha, time, decorations, graph)
-    let base_width = 35 + decoration_width;
+    // Truncate message if too long (account for sha, time, decorations, graph, indent)
+    // Tree style uses 3-char indent + 2-char graph (├─/└─), simple uses 1-char (│/╵)
+    let extra_width = if use_tree_style { 4 } else { 0 };
+    let base_width = 35 + decoration_width + extra_width;
     let max_msg_len = area_width.saturating_sub(base_width as u16) as usize;
     let message = if cmd.message.len() > max_msg_len && max_msg_len > 3 {
         format!("{}...", &cmd.message[..max_msg_len.saturating_sub(3)])
@@ -516,7 +526,7 @@ fn render_commit_line<'a>(
     };
 
     let mut spans = vec![
-        Span::raw(format!("{selection_prefix} ")),
+        Span::raw(format!("{selection_prefix} {indent}")),
         Span::styled(format!("{graph_char} "), Style::default().fg(Color::DarkGray)),
         Span::styled(format!("{sha_str} "), style.fg(Color::Yellow)),
         Span::styled(format!("{time_str}  "), style.fg(Color::DarkGray)),

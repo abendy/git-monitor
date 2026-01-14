@@ -268,7 +268,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
     // Staged section
     if !staged_changes.is_empty() {
         items.push(ListItem::new(Line::from(Span::styled(
-            format!("── Staged ({staged_len}) ──"),
+            format!("  Staged ({staged_len})"),
             Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
         ))));
 
@@ -304,7 +304,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         }
 
         items.push(ListItem::new(Line::from(Span::styled(
-            format!("── Working ({working_len}) ──"),
+            format!("  Working ({working_len})"),
             Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
         ))));
 
@@ -399,7 +399,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         }
 
         items.push(ListItem::new(Line::from(Span::styled(
-            format!("── Branches ({}) ──", other_branches.len()),
+            format!("  Branches ({})", other_branches.len()),
             Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
         ))));
 

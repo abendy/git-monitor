@@ -11,7 +11,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tracing::warn;
 
 use crate::{
-    actions::{ActionRegistry, Context},
+    actions::{Action, ActionRegistry, AppAction, ActionType, Context},
     config::GitConfig,
     event::Event,
     git::{BranchInfo, CommitDetail, FileState, GitCommand, GitRepo, GitStatus},
@@ -112,6 +112,15 @@ pub enum ViewMode {
         section_idx: usize,
         /// Currently selected alias index within section
         selected: usize,
+    },
+    /// Action menu showing available actions for current context
+    ActionMenu {
+        /// Context when menu was opened
+        context: Context,
+        /// Selected action index
+        selected: usize,
+        /// Cached actions for the context
+        actions: Vec<Action>,
     },
 }
 
@@ -397,6 +406,37 @@ impl App {
 
     /// Exit alias mode entirely
     pub fn exit_alias_mode(&mut self) {
+        self.view_mode = ViewMode::Normal;
+    }
+
+    /// Check if in action menu mode
+    pub fn is_action_menu_mode(&self) -> bool {
+        matches!(self.view_mode, ViewMode::ActionMenu { .. })
+    }
+
+    /// Open action menu for current context
+    pub fn open_action_menu(&mut self) {
+        let context = self.current_context();
+        let actions: Vec<Action> = self
+            .action_registry
+            .actions_for_context(context)
+            .into_iter()
+            .cloned()
+            .collect();
+
+        if actions.is_empty() {
+            return;
+        }
+
+        self.view_mode = ViewMode::ActionMenu {
+            context,
+            selected: 0,
+            actions,
+        };
+    }
+
+    /// Close action menu
+    pub fn close_action_menu(&mut self) {
         self.view_mode = ViewMode::Normal;
     }
 
@@ -859,6 +899,10 @@ impl App {
                 self.handle_alias_mode_key(key);
                 return;
             }
+            ViewMode::ActionMenu { .. } => {
+                self.handle_action_menu_key(key);
+                return;
+            }
             ViewMode::Normal => {}
         }
 
@@ -903,6 +947,11 @@ impl App {
             // Show aliases (universal shortcut)
             KeyCode::Char('a') => {
                 self.enter_alias_browser();
+            }
+
+            // Open action menu for current context
+            KeyCode::Char('m') => {
+                self.open_action_menu();
             }
 
             // Help
@@ -1283,6 +1332,184 @@ impl App {
             }
 
             _ => {}
+        }
+    }
+
+    /// Handle keyboard input in action menu mode
+    fn handle_action_menu_key(&mut self, key: KeyEvent) {
+        match key.code {
+            // Close menu
+            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('m') => {
+                self.close_action_menu();
+            }
+
+            // Navigate down
+            KeyCode::Char('j') | KeyCode::Down => {
+                if let ViewMode::ActionMenu { selected, actions, .. } = &mut self.view_mode {
+                    if *selected < actions.len().saturating_sub(1) {
+                        *selected += 1;
+                    }
+                }
+            }
+
+            // Navigate up
+            KeyCode::Char('k') | KeyCode::Up => {
+                if let ViewMode::ActionMenu { selected, .. } = &mut self.view_mode {
+                    if *selected > 0 {
+                        *selected -= 1;
+                    }
+                }
+            }
+
+            // Execute selected action
+            KeyCode::Enter => {
+                self.execute_selected_action();
+            }
+
+            _ => {}
+        }
+    }
+
+    /// Execute the currently selected action from the action menu
+    fn execute_selected_action(&mut self) {
+        let action = match &self.view_mode {
+            ViewMode::ActionMenu { selected, actions, .. } => actions.get(*selected).cloned(),
+            _ => None,
+        };
+
+        // Close menu first
+        self.close_action_menu();
+
+        if let Some(action) = action {
+            match &action.action_type {
+                ActionType::App(app_action) => self.execute_app_action(*app_action),
+                ActionType::Cli(cmd) => {
+                    self.command_input = cmd.clone();
+                    self.execute_command();
+                }
+                ActionType::Alias(alias) => {
+                    self.command_input = format!("git {}", alias.name);
+                    self.execute_command();
+                }
+            }
+        }
+    }
+
+    /// Execute a built-in app action
+    fn execute_app_action(&mut self, action: AppAction) {
+        match action {
+            // File actions
+            AppAction::ToggleStage => self.toggle_stage(),
+            AppAction::ShowDiff => self.show_diff(),
+
+            // History actions
+            AppAction::ToggleHistoryMode => self.toggle_history_mode(),
+            AppAction::ExpandCommit => {
+                // Handled via space key behavior
+                if let Some(sha) = self.selected_activity_sha() {
+                    self.expanded_commit = Some(sha.clone());
+                    self.expanded_detail = self.repo.commit_detail(&sha).ok();
+                    self.expanded_file_idx = None;
+                }
+            }
+            AppAction::CopyShortSha => {
+                if let Some(sha) = self.selected_activity_sha() {
+                    if self.copy_to_clipboard(&sha) {
+                        self.error = Some(format!("Copied: {sha}"));
+                    }
+                }
+            }
+            AppAction::CopyFullSha => {
+                if let Some(sha) = self.selected_activity_sha() {
+                    if let Some(detail) = &self.expanded_detail {
+                        if self.expanded_commit.as_ref() == Some(&sha) {
+                            if self.copy_to_clipboard(&detail.full_sha) {
+                                self.error = Some(format!("Copied: {}", detail.full_sha));
+                            }
+                            return;
+                        }
+                    }
+                    if self.copy_to_clipboard(&sha) {
+                        self.error = Some(format!("Copied: {sha}"));
+                    }
+                }
+            }
+            AppAction::NextPage => self.next_history_page(),
+            AppAction::PrevPage => self.prev_history_page(),
+
+            // Commit file actions
+            AppAction::PagerDiff => {
+                if let (Some(sha), Some(file_idx)) =
+                    (self.expanded_commit.clone(), self.expanded_file_idx)
+                {
+                    let file_path = self
+                        .expanded_detail
+                        .as_ref()
+                        .and_then(|d| d.files.get(file_idx))
+                        .map(|f| f.path.clone());
+
+                    if let Some(path) = file_path {
+                        self.pending_external = Some(ExternalCommand::PagerDiff {
+                            commit_sha: sha,
+                            file_path: path,
+                        });
+                    }
+                }
+            }
+            AppAction::InlineDiff => {
+                if let (Some(sha), Some(file_idx)) =
+                    (self.expanded_commit.clone(), self.expanded_file_idx)
+                {
+                    let file_path = self
+                        .expanded_detail
+                        .as_ref()
+                        .and_then(|d| d.files.get(file_idx))
+                        .map(|f| f.path.clone());
+
+                    if let Some(path) = file_path {
+                        self.open_commit_file_diff(&sha, &path);
+                    }
+                }
+            }
+            AppAction::DiffTool => {
+                if let (Some(sha), Some(file_idx)) =
+                    (self.expanded_commit.clone(), self.expanded_file_idx)
+                {
+                    let file_path = self
+                        .expanded_detail
+                        .as_ref()
+                        .and_then(|d| d.files.get(file_idx))
+                        .map(|f| f.path.clone());
+
+                    if let Some(path) = file_path {
+                        self.pending_external = Some(ExternalCommand::DiffTool {
+                            commit_sha: sha,
+                            file_path: path,
+                        });
+                    }
+                }
+            }
+
+            // Branch actions
+            AppAction::Checkout => self.checkout_selected_branch(),
+            AppAction::ExpandBranch => {
+                if let Some(branch_name) = self.is_on_branch_header() {
+                    self.expand_branch(&branch_name);
+                }
+            }
+
+            // Global actions
+            AppAction::Push => self.show_push_confirm(false),
+            AppAction::Refresh => self.refresh_status(),
+            AppAction::EnterCommandMode => self.enter_command_mode(),
+            AppAction::BrowseAliases => self.enter_alias_browser(),
+            AppAction::ShowHelp => self.show_help = true,
+            AppAction::Quit => self.running = false,
+
+            // Navigation
+            AppAction::JumpToWorking => self.jump_to_working(),
+            AppAction::JumpToHistory => self.jump_to_history(),
+            AppAction::JumpToBranches => self.jump_to_branches(),
         }
     }
 

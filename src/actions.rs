@@ -44,7 +44,7 @@ impl Context {
 }
 
 /// Type of action
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ActionType {
     /// Built-in application action (e.g., stage, diff)
     App(AppAction),
@@ -115,7 +115,7 @@ pub enum AppAction {
 }
 
 /// A single action definition
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Action {
     /// Keyboard shortcut (e.g., "s", "Space", "Ctrl+d")
     pub key: String,

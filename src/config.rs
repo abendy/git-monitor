@@ -5,7 +5,7 @@ use std::process::Command;
 use anyhow::Result;
 
 /// A single git alias
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Alias {
     /// Alias name (e.g., "co")
     pub name: String,

@@ -382,6 +382,20 @@ impl App {
             return;
         }
 
+        // Auto-enter command mode when typing on command section
+        // (except for quit, help, and special keys)
+        if self.selected == 0 {
+            if let KeyCode::Char(c) = key.code {
+                if !matches!(c, 'q' | '?' | ':' | 'o') && !key.modifiers.contains(KeyModifiers::CONTROL) {
+                    self.command_mode = true;
+                    self.command_input.clear();
+                    self.history_index = None;
+                    self.command_input.push(c);
+                    return;
+                }
+            }
+        }
+
         match key.code {
             // Quit
             KeyCode::Char('q') | KeyCode::Esc => {
@@ -478,7 +492,11 @@ impl App {
                 }
             }
             KeyCode::Char('k') | KeyCode::Up => {
-                if self.is_on_expanded_commit() {
+                if self.selected == 0 && !self.command_history.is_empty() {
+                    // On command section - enter command mode and show history
+                    self.command_mode = true;
+                    self.history_prev();
+                } else if self.is_on_expanded_commit() {
                     // Navigate within expanded commit
                     match self.expanded_file_idx {
                         Some(0) => {

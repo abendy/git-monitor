@@ -18,7 +18,9 @@
 |-----|--------|
 | `s` | Stage/unstage |
 | `d` / `Enter` | Show diff |
-| `P` | Push current branch |
+| `P` | Push (when ahead) |
+| `p` | Pull (when behind) |
+| `f` | Fetch |
 
 ## History
 

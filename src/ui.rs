@@ -1039,7 +1039,9 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
         )),
         Line::from("  s                  Stage/unstage file"),
         Line::from("  d / Enter          Show diff"),
-        Line::from("  P                  Push current branch"),
+        Line::from("  P                  Push (when ahead)"),
+        Line::from("  p                  Pull (when behind)"),
+        Line::from("  f                  Fetch"),
         Line::from(""),
         Line::from(Span::styled(
             "History",

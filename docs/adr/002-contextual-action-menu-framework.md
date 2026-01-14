@@ -24,6 +24,8 @@ Implement a centralized contextual action framework consisting of:
 
 4. **Action menu popup** - A discoverable overlay (triggered by `m`) showing all available actions for the current context
 
+5. **Conditional actions** - Actions can specify conditions (e.g., `BranchAhead`, `BranchBehind`) that are evaluated against current app state. Push only appears when ahead, Pull only when behind.
+
 ## Rationale
 
 1. **Single source of truth**: Actions defined once in the registry, used for both hints and the menu popup. No risk of hints diverging from actual keybindings.
@@ -63,6 +65,6 @@ Implement a centralized contextual action framework consisting of:
 ## Implementation
 
 Key files:
-- `src/actions.rs` - Context, Action, ActionType, AppAction, ActionRegistry
-- `src/app.rs` - ViewMode::ActionMenu, current_context(), execute_app_action()
+- `src/actions.rs` - Context, Action, ActionType, AppAction, ActionCondition, AppState, ActionRegistry
+- `src/app.rs` - ViewMode::ActionMenu, current_context(), app_state(), execute_app_action()
 - `src/ui.rs` - render_action_menu(), render_context_hint()

@@ -403,6 +403,12 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
         ))));
 
+        // Hint for actions
+        items.push(ListItem::new(Line::from(Span::styled(
+            "  space expand · c copy hash",
+            Style::default().fg(Color::DarkGray).italic(),
+        ))));
+
         for branch in other_branches.iter() {
             let is_expanded = app.expanded_branch.as_deref() == Some(&branch.name);
             let header_selected = Some(current_idx) == app.selected && !app.command_mode;
@@ -481,7 +487,7 @@ fn render_commit_line<'a>(
         ("", if is_last { "╵" } else { "│" })
     };
 
-    let time_str = cmd.timestamp.format("%H:%M:%S").to_string();
+    let time_str = format_relative_time(cmd.timestamp);
     let icon = cmd.command_type.icon();
     let color = command_color(cmd.command_type);
     let sha_str = cmd.sha.as_deref().unwrap_or("-------");

@@ -630,6 +630,69 @@ impl GitRepo {
         Ok(commands)
     }
 
+    /// Get commit history for a specific branch (not necessarily the current one)
+    pub fn commit_log_for_branch(&self, branch_name: &str, limit: usize) -> Result<Vec<GitCommand>> {
+        let mut commands = Vec::new();
+
+        // Find the branch
+        let branch = self
+            .repo
+            .find_branch(branch_name, git2::BranchType::Local)
+            .context(format!("Failed to find branch '{branch_name}'"))?;
+
+        let branch_ref = branch.get();
+        let branch_oid = match branch_ref.target() {
+            Some(oid) => oid,
+            None => return Ok(commands),
+        };
+
+        // Collect refs for decorations
+        let refs_map = self.collect_refs();
+
+        // Walk commits from the branch tip
+        let mut revwalk = self.repo.revwalk().context("Failed to create revwalk")?;
+        revwalk.push(branch_oid).context("Failed to push branch OID")?;
+        revwalk.set_sorting(git2::Sort::TIME)?;
+
+        for oid_result in revwalk.take(limit) {
+            let oid = match oid_result {
+                Ok(oid) => oid,
+                Err(_) => continue,
+            };
+
+            let commit = match self.repo.find_commit(oid) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+
+            // Get commit message (first line)
+            let message = commit.summary().unwrap_or("").to_string();
+
+            // Parse timestamp
+            let time = commit.time();
+            let timestamp = Local
+                .timestamp_opt(time.seconds(), 0)
+                .single()
+                .unwrap_or_else(Local::now);
+
+            // Get short SHA
+            let short_sha = format!("{:.7}", oid);
+
+            // Look up decorations
+            let decorations = refs_map.get(&short_sha).cloned().unwrap_or_default();
+
+            commands.push(GitCommand {
+                timestamp,
+                command_type: CommandType::Commit,
+                message,
+                sha: Some(short_sha),
+                decorations,
+            });
+        }
+
+        Ok(commands)
+    }
+
     /// List all local branches with their tip commit info
     pub fn list_branches(&self) -> Result<Vec<BranchInfo>> {
         let mut branches = Vec::new();

@@ -333,8 +333,11 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         }
     }
 
-    // Activity section
-    if !app.activity.is_empty() {
+    // Track current index for selection (after files)
+    let mut current_idx = 1 + files_total;
+
+    // History section (current branch commits) - always show header
+    if !app.activity.is_empty() || !app.history_collapsed {
         if files_total > 0 {
             items.push(ListItem::new(Line::from("")));
         }
@@ -344,229 +347,69 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             HistoryMode::CommitLog => "History",
         };
 
-        items.push(ListItem::new(Line::from(Span::styled(
-            format!("── {history_label} ({activity_len}) ──"),
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
-        ))));
+        // History header is selectable
+        let header_selected = Some(current_idx) == app.selected && !app.command_mode;
+        let collapse_indicator = if app.history_collapsed { "▸" } else { "▾" };
+        let header_prefix = if header_selected { "▸ " } else { "  " };
 
-        // Hint for switching modes and actions
-        items.push(ListItem::new(Line::from(Span::styled(
-            "  h toggle reflog/history · space expand · c copy hash",
-            Style::default().fg(Color::DarkGray).italic(),
-        ))));
+        let header_style = if header_selected {
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+        };
 
-        for (i, cmd) in app.activity.iter().enumerate() {
-            // Index 0 is command, files start at 1, history starts at 1 + files_total
-            let global_idx = 1 + files_total + i;
-            // Don't show selection when command mode is active (focus is on input)
-            let selected = Some(global_idx) == app.selected && !app.command_mode;
-            let prefix = if selected { "▸ " } else { "  " };
+        items.push(ListItem::new(Line::from(vec![
+            Span::raw(header_prefix),
+            Span::styled(format!("{collapse_indicator} "), header_style),
+            Span::styled(format!("{history_label} ({activity_len})"), header_style),
+        ])));
+        current_idx += 1;
 
-            let time_str = cmd.timestamp.format("%H:%M:%S").to_string();
-            let icon = cmd.command_type.icon();
-            let color = command_color(cmd.command_type);
-            let sha_str = cmd.sha.as_deref().unwrap_or("-------");
+        // Only show commits if not collapsed
+        if !app.history_collapsed {
+            // Hint for switching modes and actions
+            items.push(ListItem::new(Line::from(Span::styled(
+                "  h toggle reflog/history · space expand · c copy hash",
+                Style::default().fg(Color::DarkGray).italic(),
+            ))));
 
-            // Build decoration spans
-            let decoration_spans = format_decorations(&cmd.decorations);
-            let decoration_width: usize = decoration_spans.iter().map(|s| s.content.len()).sum();
+            for cmd in app.activity.iter() {
+                let selected = Some(current_idx) == app.selected && !app.command_mode;
+                items.push(render_commit_line(cmd, selected, area.width));
+                current_idx += 1;
 
-            // Truncate message if too long (account for sha, time, decorations)
-            let base_width = 32 + decoration_width;
-            let max_msg_len = area.width.saturating_sub(base_width as u16) as usize;
-            let message = if cmd.message.len() > max_msg_len && max_msg_len > 3 {
-                format!("{}...", &cmd.message[..max_msg_len.saturating_sub(3)])
-            } else if max_msg_len <= 3 {
-                String::new()
-            } else {
-                cmd.message.clone()
-            };
-
-            let style = if selected {
-                Style::default().add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-            };
-
-            let mut spans = vec![
-                Span::raw(prefix),
-                Span::styled(format!("{sha_str} "), style.fg(Color::Yellow)),
-                Span::styled(format!("{time_str}  "), style.fg(Color::DarkGray)),
-                Span::styled(format!("{icon} "), style.fg(color)),
-                Span::styled(message, style.fg(Color::White)),
-            ];
-
-            // Add decorations if any
-            if !decoration_spans.is_empty() {
-                spans.push(Span::raw(" "));
-                spans.extend(decoration_spans);
-            }
-
-            items.push(ListItem::new(Line::from(spans)));
-
-            // If this commit is expanded, render detail lines
-            if app.expanded_commit.as_ref() == cmd.sha.as_ref() {
-                if let Some(detail) = &app.expanded_detail {
-                    // Empty line
-                    items.push(ListItem::new(Line::raw("")));
-
-                    // Author
-                    items.push(ListItem::new(Line::from(vec![
-                        Span::raw("    Author:    "),
-                        Span::styled(&detail.author_name, Style::default().fg(Color::Green)),
-                        Span::raw(" <"),
-                        Span::styled(&detail.author_email, Style::default().fg(Color::Cyan)),
-                        Span::raw(">"),
-                    ])));
-
-                    // Committer (if different from author)
-                    if detail.committer_name != detail.author_name
-                        || detail.committer_email != detail.author_email
-                    {
-                        items.push(ListItem::new(Line::from(vec![
-                            Span::raw("    Committer: "),
-                            Span::styled(&detail.committer_name, Style::default().fg(Color::Green)),
-                            Span::raw(" <"),
-                            Span::styled(&detail.committer_email, Style::default().fg(Color::Cyan)),
-                            Span::raw(">"),
-                        ])));
+                // If this commit is expanded, render detail lines
+                if app.expanded_commit.as_ref() == cmd.sha.as_ref() {
+                    if let Some(detail) = &app.expanded_detail {
+                        render_commit_detail(&mut items, app, detail);
                     }
-
-                    // Date
-                    items.push(ListItem::new(Line::from(vec![
-                        Span::raw("    Date:      "),
-                        Span::styled(
-                            detail.author_time.format("%Y-%m-%d %H:%M:%S %z").to_string(),
-                            Style::default().fg(Color::Yellow),
-                        ),
-                    ])));
-
-                    // Full SHA
-                    items.push(ListItem::new(Line::from(vec![
-                        Span::raw("    Commit:    "),
-                        Span::styled(&detail.full_sha, Style::default().fg(Color::Yellow)),
-                    ])));
-
-                    // GPG info (if present)
-                    if let Some(gpg) = &detail.gpg_status {
-                        items.push(ListItem::new(Line::from(vec![
-                            Span::raw("    GPG:       "),
-                            Span::styled(gpg, Style::default().fg(Color::Magenta)),
-                        ])));
-                    }
-
-                    // Empty line before message
-                    items.push(ListItem::new(Line::raw("")));
-
-                    // Commit message (indented, may be multi-line)
-                    for msg_line in detail.message.lines() {
-                        items.push(ListItem::new(Line::from(vec![
-                            Span::raw("    "),
-                            Span::raw(msg_line),
-                        ])));
-                    }
-
-                    // Files section with stats
-                    if !detail.files.is_empty() {
-                        items.push(ListItem::new(Line::raw("")));
-                        items.push(ListItem::new(Line::from(vec![
-                            Span::styled(
-                                format!("    {} file(s) changed  ", detail.files.len()),
-                                Style::default().fg(Color::DarkGray),
-                            ),
-                            Span::styled(
-                                format!("+{}", detail.insertions),
-                                Style::default().fg(Color::Green),
-                            ),
-                            Span::styled(" / ", Style::default().fg(Color::DarkGray)),
-                            Span::styled(
-                                format!("-{}", detail.deletions),
-                                Style::default().fg(Color::Red),
-                            ),
-                        ])));
-
-                        for (file_idx, file) in detail.files.iter().enumerate() {
-                            let is_file_selected = app.expanded_file_idx == Some(file_idx);
-                            let (status_char, color) = match file.status {
-                                FileState::Added => ('A', Color::Green),
-                                FileState::Modified => ('M', Color::Yellow),
-                                FileState::Deleted => ('D', Color::Red),
-                                FileState::Renamed => ('R', Color::Cyan),
-                                _ => ('?', Color::White),
-                            };
-
-                            let file_prefix = if is_file_selected { "  ▸ " } else { "    " };
-                            let file_style = if is_file_selected {
-                                Style::default().add_modifier(Modifier::BOLD)
-                            } else {
-                                Style::default()
-                            };
-
-                            let mut spans = vec![
-                                Span::styled(file_prefix, file_style),
-                                Span::styled(format!("{status_char}"), file_style.fg(color)),
-                                Span::raw("  "),
-                                Span::styled(file.path.clone(), file_style),
-                            ];
-
-                            // Add per-file stats if there are changes
-                            if file.insertions > 0 || file.deletions > 0 {
-                                spans.push(Span::raw("  "));
-                                if file.insertions > 0 {
-                                    spans.push(Span::styled(
-                                        format!("+{}", file.insertions),
-                                        file_style.fg(Color::Green),
-                                    ));
-                                }
-                                if file.insertions > 0 && file.deletions > 0 {
-                                    spans.push(Span::raw("/"));
-                                }
-                                if file.deletions > 0 {
-                                    spans.push(Span::styled(
-                                        format!("-{}", file.deletions),
-                                        file_style.fg(Color::Red),
-                                    ));
-                                }
-                            }
-
-                            items.push(ListItem::new(Line::from(spans)));
-                        }
-                    }
-
-                    // Separator line
-                    items.push(ListItem::new(Line::raw("")));
                 }
             }
         }
     }
 
-    // Branches section
-    if !app.branches.is_empty() {
+    // Branches section (other branches, excluding current)
+    let other_branches: Vec<_> = app.branches.iter().filter(|b| !b.is_current).collect();
+    if !other_branches.is_empty() {
         // Add spacer if there's content above
         if files_total > 0 || !app.activity.is_empty() {
             items.push(ListItem::new(Line::from("")));
         }
 
-        let branch_count = app.branches.len();
         items.push(ListItem::new(Line::from(Span::styled(
-            format!("── Branches ({branch_count}) ──"),
+            format!("── Branches ({}) ──", other_branches.len()),
             Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
         ))));
 
-        for (i, branch) in app.branches.iter().enumerate() {
-            // Calculate global index: command(1) + files + activity + branch index
-            let global_idx = 1 + files_total + activity_len + i;
-            let selected = Some(global_idx) == app.selected && !app.command_mode;
-            let prefix = if selected { "▸ " } else { "  " };
-
-            // Current branch indicator
-            let current_indicator = if branch.is_current { "* " } else { "  " };
+        for branch in other_branches.iter() {
+            let is_expanded = app.expanded_branch.as_deref() == Some(&branch.name);
+            let header_selected = Some(current_idx) == app.selected && !app.command_mode;
+            let collapse_indicator = if is_expanded { "▾" } else { "▸" };
+            let prefix = if header_selected { "▸ " } else { "  " };
 
             // Branch name styling
-            let name_style = if selected {
+            let name_style = if header_selected {
                 Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)
-            } else if branch.is_current {
-                Style::default().fg(Color::Green).bold()
             } else {
                 Style::default().fg(Color::White)
             };
@@ -574,7 +417,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             // Relative time
             let relative_time = format_relative_time(branch.tip_time);
 
-            // Truncate message if needed (rough estimate for available space)
+            // Truncate message if needed
             let max_msg_len = 40;
             let message = if branch.tip_message.len() > max_msg_len {
                 format!("{}...", &branch.tip_message[..max_msg_len.saturating_sub(3)])
@@ -584,7 +427,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
 
             items.push(ListItem::new(Line::from(vec![
                 Span::raw(prefix),
-                Span::styled(current_indicator, Style::default().fg(Color::Green)),
+                Span::styled(format!("{collapse_indicator} "), name_style),
                 Span::styled(format!("{:<18}", branch.name), name_style),
                 Span::styled(
                     format!("{:<12}", relative_time),
@@ -592,6 +435,23 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 ),
                 Span::styled(message, Style::default().fg(Color::DarkGray)),
             ])));
+            current_idx += 1;
+
+            // If this branch is expanded, show its commits
+            if is_expanded {
+                for cmd in app.expanded_branch_commits.iter() {
+                    let selected = Some(current_idx) == app.selected && !app.command_mode;
+                    items.push(render_commit_line(cmd, selected, area.width));
+                    current_idx += 1;
+
+                    // If this commit is expanded, render detail lines
+                    if app.expanded_commit.as_ref() == cmd.sha.as_ref() {
+                        if let Some(detail) = &app.expanded_detail {
+                            render_commit_detail(&mut items, app, detail);
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -612,6 +472,193 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
     );
 
     frame.render_widget(list, area);
+}
+
+/// Render a single commit line (used for both History and branch commits)
+fn render_commit_line<'a>(
+    cmd: &'a crate::git::GitCommand,
+    selected: bool,
+    area_width: u16,
+) -> ListItem<'a> {
+    let prefix = if selected { "▸ " } else { "  " };
+
+    let time_str = cmd.timestamp.format("%H:%M:%S").to_string();
+    let icon = cmd.command_type.icon();
+    let color = command_color(cmd.command_type);
+    let sha_str = cmd.sha.as_deref().unwrap_or("-------");
+
+    // Build decoration spans
+    let decoration_spans = format_decorations(&cmd.decorations);
+    let decoration_width: usize = decoration_spans.iter().map(|s| s.content.len()).sum();
+
+    // Truncate message if too long (account for sha, time, decorations)
+    let base_width = 32 + decoration_width;
+    let max_msg_len = area_width.saturating_sub(base_width as u16) as usize;
+    let message = if cmd.message.len() > max_msg_len && max_msg_len > 3 {
+        format!("{}...", &cmd.message[..max_msg_len.saturating_sub(3)])
+    } else if max_msg_len <= 3 {
+        String::new()
+    } else {
+        cmd.message.clone()
+    };
+
+    let style = if selected {
+        Style::default().add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+    };
+
+    let mut spans = vec![
+        Span::raw(prefix.to_string()),
+        Span::styled(format!("{sha_str} "), style.fg(Color::Yellow)),
+        Span::styled(format!("{time_str}  "), style.fg(Color::DarkGray)),
+        Span::styled(format!("{icon} "), style.fg(color)),
+        Span::styled(message, style.fg(Color::White)),
+    ];
+
+    // Add decorations if any
+    if !decoration_spans.is_empty() {
+        spans.push(Span::raw(" "));
+        spans.extend(decoration_spans);
+    }
+
+    ListItem::new(Line::from(spans))
+}
+
+/// Render expanded commit detail (author, date, files, etc.)
+fn render_commit_detail<'a>(
+    items: &mut Vec<ListItem<'a>>,
+    app: &'a App,
+    detail: &'a crate::git::CommitDetail,
+) {
+    // Empty line
+    items.push(ListItem::new(Line::raw("")));
+
+    // Author
+    items.push(ListItem::new(Line::from(vec![
+        Span::raw("    Author:    "),
+        Span::styled(&detail.author_name, Style::default().fg(Color::Green)),
+        Span::raw(" <"),
+        Span::styled(&detail.author_email, Style::default().fg(Color::Cyan)),
+        Span::raw(">"),
+    ])));
+
+    // Committer (if different from author)
+    if detail.committer_name != detail.author_name
+        || detail.committer_email != detail.author_email
+    {
+        items.push(ListItem::new(Line::from(vec![
+            Span::raw("    Committer: "),
+            Span::styled(&detail.committer_name, Style::default().fg(Color::Green)),
+            Span::raw(" <"),
+            Span::styled(&detail.committer_email, Style::default().fg(Color::Cyan)),
+            Span::raw(">"),
+        ])));
+    }
+
+    // Date
+    items.push(ListItem::new(Line::from(vec![
+        Span::raw("    Date:      "),
+        Span::styled(
+            detail.author_time.format("%Y-%m-%d %H:%M:%S %z").to_string(),
+            Style::default().fg(Color::Yellow),
+        ),
+    ])));
+
+    // Full SHA
+    items.push(ListItem::new(Line::from(vec![
+        Span::raw("    Commit:    "),
+        Span::styled(&detail.full_sha, Style::default().fg(Color::Yellow)),
+    ])));
+
+    // GPG info (if present)
+    if let Some(gpg) = &detail.gpg_status {
+        items.push(ListItem::new(Line::from(vec![
+            Span::raw("    GPG:       "),
+            Span::styled(gpg, Style::default().fg(Color::Magenta)),
+        ])));
+    }
+
+    // Empty line before message
+    items.push(ListItem::new(Line::raw("")));
+
+    // Commit message (indented, may be multi-line)
+    for msg_line in detail.message.lines() {
+        items.push(ListItem::new(Line::from(vec![
+            Span::raw("    "),
+            Span::raw(msg_line.to_string()),
+        ])));
+    }
+
+    // Files section with stats
+    if !detail.files.is_empty() {
+        items.push(ListItem::new(Line::raw("")));
+        items.push(ListItem::new(Line::from(vec![
+            Span::styled(
+                format!("    {} file(s) changed  ", detail.files.len()),
+                Style::default().fg(Color::DarkGray),
+            ),
+            Span::styled(
+                format!("+{}", detail.insertions),
+                Style::default().fg(Color::Green),
+            ),
+            Span::styled(" / ", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                format!("-{}", detail.deletions),
+                Style::default().fg(Color::Red),
+            ),
+        ])));
+
+        for (file_idx, file) in detail.files.iter().enumerate() {
+            let is_file_selected = app.expanded_file_idx == Some(file_idx);
+            let (status_char, color) = match file.status {
+                FileState::Added => ('A', Color::Green),
+                FileState::Modified => ('M', Color::Yellow),
+                FileState::Deleted => ('D', Color::Red),
+                FileState::Renamed => ('R', Color::Cyan),
+                _ => ('?', Color::White),
+            };
+
+            let file_prefix = if is_file_selected { "  ▸ " } else { "    " };
+            let file_style = if is_file_selected {
+                Style::default().add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            };
+
+            let mut spans = vec![
+                Span::styled(file_prefix.to_string(), file_style),
+                Span::styled(format!("{status_char}"), file_style.fg(color)),
+                Span::raw("  "),
+                Span::styled(file.path.clone(), file_style),
+            ];
+
+            // Add per-file stats if there are changes
+            if file.insertions > 0 || file.deletions > 0 {
+                spans.push(Span::raw("  "));
+                if file.insertions > 0 {
+                    spans.push(Span::styled(
+                        format!("+{}", file.insertions),
+                        file_style.fg(Color::Green),
+                    ));
+                }
+                if file.insertions > 0 && file.deletions > 0 {
+                    spans.push(Span::raw("/"));
+                }
+                if file.deletions > 0 {
+                    spans.push(Span::styled(
+                        format!("-{}", file.deletions),
+                        file_style.fg(Color::Red),
+                    ));
+                }
+            }
+
+            items.push(ListItem::new(Line::from(spans)));
+        }
+    }
+
+    // Separator line
+    items.push(ListItem::new(Line::raw("")));
 }
 
 /// Get color for command type

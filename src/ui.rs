@@ -6,6 +6,7 @@ use ratatui::{
 };
 
 use crate::{
+    actions::ActionType,
     app::{App, HistoryMode, PopupContent, ViewMode, ConfirmAction},
     git::{format_relative_time, CommandType, FileState, RefDecoration},
     tui::Frame,
@@ -39,6 +40,11 @@ pub fn render(frame: &mut Frame<'_>, app: &mut App) {
     // Help overlay (centered popup, separate from full-screen popup)
     if app.show_help {
         render_help(frame, area);
+    }
+
+    // Action menu overlay
+    if let ViewMode::ActionMenu { .. } = &app.view_mode {
+        render_action_menu(frame, app, area);
     }
 }
 
@@ -1066,6 +1072,72 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
     );
 
     frame.render_widget(help, help_area);
+}
+
+/// Render action menu overlay
+fn render_action_menu(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    let (context, selected, actions) = match &app.view_mode {
+        ViewMode::ActionMenu { context, selected, actions } => (context, *selected, actions),
+        _ => return,
+    };
+
+    // Dynamic sizing: 50% width, height based on action count (min 8, max 60%)
+    let action_count = actions.len();
+    let height_percent = ((action_count + 4) * 3).min(60) as u16;
+    let menu_area = centered_rect(50, height_percent.max(20), area);
+
+    // Clear the area behind the popup
+    frame.render_widget(Clear, menu_area);
+
+    let context_name = context.display_name();
+
+    let mut items: Vec<ListItem<'_>> = Vec::new();
+
+    for (i, action) in actions.iter().enumerate() {
+        let is_selected = i == selected;
+        let prefix = if is_selected { "▸ " } else { "  " };
+
+        let style = if is_selected {
+            Style::default().add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+        };
+
+        // Type indicator
+        let type_indicator = match &action.action_type {
+            ActionType::App(_) => "",
+            ActionType::Cli(_) => "⌘ ",
+            ActionType::Alias(_) => "⎇ ",
+        };
+
+        items.push(ListItem::new(Line::from(vec![
+            Span::raw(prefix),
+            Span::styled(format!("{:<8}", action.key), style.fg(Color::Cyan)),
+            Span::raw(type_indicator),
+            Span::styled(action.label.clone(), style),
+        ])));
+    }
+
+    // Add footer hint
+    items.push(ListItem::new(Line::from("")));
+    items.push(ListItem::new(Line::from(vec![
+        Span::styled("  j/k ", Style::default().fg(Color::Cyan)),
+        Span::styled("navigate  ", Style::default().fg(Color::DarkGray)),
+        Span::styled("Enter ", Style::default().fg(Color::Cyan)),
+        Span::styled("execute  ", Style::default().fg(Color::DarkGray)),
+        Span::styled("m/Esc ", Style::default().fg(Color::Cyan)),
+        Span::styled("close", Style::default().fg(Color::DarkGray)),
+    ])));
+
+    let list = List::new(items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Cyan))
+            .title(format!(" {} Actions ", context_name))
+            .title_style(Style::default().fg(Color::Cyan).bold()),
+    );
+
+    frame.render_widget(list, menu_area);
 }
 
 /// Style a command output line with tab replacement

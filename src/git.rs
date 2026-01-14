@@ -646,25 +646,21 @@ impl GitRepo {
             None => return Ok(commands),
         };
 
-        // Find the default branch to exclude its commits
-        let default_branch_oid = ["main", "master", "develop"]
-            .iter()
-            .filter(|&&name| name != branch_name)
-            .find_map(|&name| {
-                self.repo
-                    .find_branch(name, git2::BranchType::Local)
-                    .ok()
-                    .and_then(|b| b.get().target())
-            });
+        // Compare against current branch (HEAD) to show only unique commits
+        let current_branch_oid = self
+            .repo
+            .head()
+            .ok()
+            .and_then(|h| h.target());
 
         // Collect refs for decorations
         let refs_map = self.collect_refs();
 
-        // Walk commits from the branch tip, excluding default branch
+        // Walk commits from the branch tip, excluding current branch
         let mut revwalk = self.repo.revwalk().context("Failed to create revwalk")?;
         revwalk.push(branch_oid).context("Failed to push branch OID")?;
-        if let Some(default_oid) = default_branch_oid {
-            let _ = revwalk.hide(default_oid); // Exclude commits reachable from default branch
+        if let Some(current_oid) = current_branch_oid {
+            let _ = revwalk.hide(current_oid); // Exclude commits reachable from current branch
         }
         revwalk.set_sorting(git2::Sort::TIME)?;
 

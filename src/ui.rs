@@ -7,7 +7,7 @@ use ratatui::{
 
 use crate::{
     app::{App, HistoryMode, PopupContent},
-    git::{CommandType, FileState, RefDecoration},
+    git::{format_relative_time, CommandType, FileState, RefDecoration},
     tui::Frame,
 };
 
@@ -540,8 +540,63 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         }
     }
 
+    // Branches section
+    if !app.branches.is_empty() {
+        // Add spacer if there's content above
+        if files_total > 0 || !app.activity.is_empty() {
+            items.push(ListItem::new(Line::from("")));
+        }
+
+        let branch_count = app.branches.len();
+        items.push(ListItem::new(Line::from(Span::styled(
+            format!("── Branches ({branch_count}) ──"),
+            Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
+        ))));
+
+        for (i, branch) in app.branches.iter().enumerate() {
+            // Calculate global index: command(1) + files + activity + branch index
+            let global_idx = 1 + files_total + activity_len + i;
+            let selected = global_idx == app.selected && !app.command_mode;
+            let prefix = if selected { "▸ " } else { "  " };
+
+            // Current branch indicator
+            let current_indicator = if branch.is_current { "* " } else { "  " };
+
+            // Branch name styling
+            let name_style = if selected {
+                Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)
+            } else if branch.is_current {
+                Style::default().fg(Color::Green).bold()
+            } else {
+                Style::default().fg(Color::White)
+            };
+
+            // Relative time
+            let relative_time = format_relative_time(branch.tip_time);
+
+            // Truncate message if needed (rough estimate for available space)
+            let max_msg_len = 40;
+            let message = if branch.tip_message.len() > max_msg_len {
+                format!("{}...", &branch.tip_message[..max_msg_len.saturating_sub(3)])
+            } else {
+                branch.tip_message.clone()
+            };
+
+            items.push(ListItem::new(Line::from(vec![
+                Span::raw(prefix),
+                Span::styled(current_indicator, Style::default().fg(Color::Green)),
+                Span::styled(format!("{:<18}", branch.name), name_style),
+                Span::styled(
+                    format!("{:<12}", relative_time),
+                    Style::default().fg(Color::DarkGray),
+                ),
+                Span::styled(message, Style::default().fg(Color::DarkGray)),
+            ])));
+        }
+    }
+
     // Empty state for files (command section is always shown)
-    if files_total == 0 && app.activity.is_empty() {
+    if files_total == 0 && app.activity.is_empty() && app.branches.is_empty() {
         items.push(ListItem::new(Line::from(Span::styled(
             "  No changes or activity",
             Style::default().fg(Color::DarkGray).italic(),
@@ -678,9 +733,17 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
         // Determine what section we're in for contextual hints
         let staged_len = app.status.staged_changes().len();
         let working_len = app.status.working_changes().len();
+        let activity_len = app.activity.len();
+        let files_total = staged_len + working_len;
+
         let on_command = app.selected == 0;
-        let on_file = !on_command && app.selected <= staged_len + working_len;
-        let on_history = !on_command && !on_file;
+        let on_file = !on_command && app.selected <= files_total;
+        let history_start = 1 + files_total;
+        let history_end = history_start + activity_len;
+        let on_history = app.selected >= history_start && app.selected < history_end;
+        let branches_start = history_end;
+        let on_branches = app.selected >= branches_start
+            && app.selected < branches_start + app.branches.len();
 
         let mut hints = vec![
             Span::styled(" j/k ", Style::default().bg(Color::DarkGray).bold()),
@@ -713,12 +776,20 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
             ]);
         }
 
+        // Branch-specific hints
+        if on_branches {
+            hints.extend([
+                Span::styled(" Enter ", Style::default().bg(Color::DarkGray).bold()),
+                Span::raw(" checkout  "),
+            ]);
+        }
+
         // Universal hints
         hints.extend([
+            Span::styled(" b ", Style::default().bg(Color::DarkGray).bold()),
+            Span::raw(" branches  "),
             Span::styled(" : ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" cmd  "),
-            Span::styled(" a ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" alias  "),
             Span::styled(" ? ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" help  "),
             Span::styled(" q ", Style::default().bg(Color::DarkGray).bold()),
@@ -755,6 +826,13 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
         Line::from("  k / ↑              Move up"),
         Line::from("  g                  Go to first"),
         Line::from("  G                  Go to last"),
+        Line::from("  b                  Jump to branches"),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Branches",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Line::from("  Enter              Checkout branch"),
         Line::from(""),
         Line::from(Span::styled(
             "File Actions",

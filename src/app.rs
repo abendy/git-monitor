@@ -13,7 +13,7 @@ use tracing::warn;
 use crate::{
     config::GitConfig,
     event::Event,
-    git::{CommitDetail, FileState, GitCommand, GitRepo, GitStatus},
+    git::{BranchInfo, CommitDetail, FileState, GitCommand, GitRepo, GitStatus},
     tui::Tui,
     ui,
     watcher::{RepoWatcher, WatchEvent},
@@ -229,6 +229,8 @@ pub struct App {
     pub expanded_detail: Option<CommitDetail>,
     /// Selected file index within expanded commit (None = on commit header)
     pub expanded_file_idx: Option<usize>,
+    /// List of local branches
+    pub branches: Vec<BranchInfo>,
 }
 
 impl App {
@@ -244,6 +246,7 @@ impl App {
         // Load commit log by default (matches HistoryMode::default())
         let activity = repo.commit_log(MAX_ACTIVITY).unwrap_or_default();
         let config = GitConfig::load(&repo_path).unwrap_or_default();
+        let branches = repo.list_branches().unwrap_or_default();
 
         Ok(Self {
             repo_path,
@@ -271,6 +274,7 @@ impl App {
             expanded_commit: None,
             expanded_detail: None,
             expanded_file_idx: None,
+            branches,
         })
     }
 
@@ -312,6 +316,11 @@ impl App {
 
         // Refresh activity log based on history mode
         self.refresh_activity();
+
+        // Refresh branches
+        if let Ok(branches) = self.repo.list_branches() {
+            self.branches = branches;
+        }
     }
 
     /// Refresh activity based on current history mode
@@ -340,9 +349,24 @@ impl App {
         let staged_len = self.status.staged_changes().len();
         let working_len = self.status.working_changes().len();
         let files_total = staged_len + working_len;
+        let activity_len = self.activity.len();
 
-        // Index 0 is command, files are 1..=files_total, history starts after
-        self.selected > files_total
+        // Index 0 is command, files are 1..=files_total, history is next
+        let history_start = 1 + files_total;
+        let history_end = history_start + activity_len;
+        self.selected >= history_start && self.selected < history_end
+    }
+
+    /// Check if selection is in the branches section
+    fn is_in_branches(&self) -> bool {
+        let staged_len = self.status.staged_changes().len();
+        let working_len = self.status.working_changes().len();
+        let activity_len = self.activity.len();
+        let files_total = staged_len + working_len;
+
+        // Branches start after: command(1) + files + activity
+        let branches_start = 1 + files_total + activity_len;
+        self.selected >= branches_start && self.selected < branches_start + self.branches.len()
     }
 
     /// Check if currently selected item is the expanded commit
@@ -380,6 +404,59 @@ impl App {
         // First history item is at index files_total + 1
         if !self.activity.is_empty() {
             self.selected = files_total + 1;
+        }
+    }
+
+    /// Jump to first branch item
+    fn jump_to_branches(&mut self) {
+        let staged_len = self.status.staged_changes().len();
+        let working_len = self.status.working_changes().len();
+        let activity_len = self.activity.len();
+        let files_total = staged_len + working_len;
+
+        // Branches come after: command(1) + files + activity
+        if !self.branches.is_empty() {
+            self.selected = 1 + files_total + activity_len;
+            self.close_expanded_commit();
+        }
+    }
+
+    /// Get the selected branch info (if on a branch item)
+    fn selected_branch(&self) -> Option<&BranchInfo> {
+        let staged_len = self.status.staged_changes().len();
+        let working_len = self.status.working_changes().len();
+        let activity_len = self.activity.len();
+        let files_total = staged_len + working_len;
+
+        let branches_start = 1 + files_total + activity_len;
+
+        if self.selected >= branches_start {
+            let branch_idx = self.selected - branches_start;
+            self.branches.get(branch_idx)
+        } else {
+            None
+        }
+    }
+
+    /// Checkout the currently selected branch
+    fn checkout_selected_branch(&mut self) {
+        let branch_name = match self.selected_branch() {
+            Some(branch) if branch.is_current => {
+                self.error = Some("Already on this branch".to_string());
+                return;
+            }
+            Some(branch) => branch.name.clone(),
+            None => return,
+        };
+
+        match self.repo.checkout_branch(&branch_name) {
+            Ok(()) => {
+                self.error = Some(format!("Switched to branch '{branch_name}'"));
+                self.refresh_status();
+            }
+            Err(e) => {
+                self.error = Some(e.to_string());
+            }
         }
     }
 
@@ -488,6 +565,11 @@ impl App {
                 }
             }
 
+            // Jump to branches
+            KeyCode::Char('b') => {
+                self.jump_to_branches();
+            }
+
             // Stage/Unstage
             KeyCode::Char('s') => {
                 self.toggle_stage();
@@ -503,6 +585,9 @@ impl App {
                     self.command_mode = true;
                     self.command_input.clear();
                     self.history_index = None;
+                } else if self.is_in_branches() {
+                    // Checkout selected branch
+                    self.checkout_selected_branch();
                 } else {
                     self.show_diff();
                 }
@@ -840,6 +925,7 @@ impl App {
             + self.status.staged_changes().len()
             + self.status.working_changes().len()
             + self.activity.len()
+            + self.branches.len()
     }
 
     /// Get the selected file info

@@ -188,6 +188,21 @@ pub struct CommitFile {
     pub deletions: usize,
 }
 
+/// Information about a local branch
+#[derive(Debug, Clone)]
+pub struct BranchInfo {
+    /// Branch name
+    pub name: String,
+    /// Whether this is the current (checked out) branch
+    pub is_current: bool,
+    /// Short SHA of the branch tip commit
+    pub tip_sha: String,
+    /// Commit message (summary) of the tip commit
+    pub tip_message: String,
+    /// Timestamp of the tip commit
+    pub tip_time: DateTime<Local>,
+}
+
 /// Types of git commands
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommandType {
@@ -263,6 +278,45 @@ impl CommandType {
             Self::Other => "•",
         }
     }
+}
+
+/// Format a timestamp as relative time (e.g., "2 hr ago", "3 days ago")
+pub fn format_relative_time(time: DateTime<Local>) -> String {
+    let now = Local::now();
+    let duration = now.signed_duration_since(time);
+
+    let seconds = duration.num_seconds();
+    if seconds < 60 {
+        return "just now".to_string();
+    }
+
+    let minutes = duration.num_minutes();
+    if minutes < 60 {
+        return format!("{} min ago", minutes);
+    }
+
+    let hours = duration.num_hours();
+    if hours < 24 {
+        return format!("{} hr ago", hours);
+    }
+
+    let days = duration.num_days();
+    if days < 7 {
+        return format!("{} days ago", days);
+    }
+
+    let weeks = days / 7;
+    if weeks < 4 {
+        return format!("{} wk ago", weeks);
+    }
+
+    let months = days / 30;
+    if months < 12 {
+        return format!("{} mo ago", months);
+    }
+
+    let years = days / 365;
+    format!("{} yr ago", years)
 }
 
 /// Git repository wrapper
@@ -574,6 +628,114 @@ impl GitRepo {
         }
 
         Ok(commands)
+    }
+
+    /// List all local branches with their tip commit info
+    pub fn list_branches(&self) -> Result<Vec<BranchInfo>> {
+        let mut branches = Vec::new();
+
+        // Get current branch name for comparison
+        let current_branch = self
+            .repo
+            .head()
+            .ok()
+            .and_then(|h| h.shorthand().map(String::from));
+
+        // Iterate through local branches
+        let branch_iter = self.repo.branches(Some(git2::BranchType::Local))?;
+
+        for branch_result in branch_iter {
+            let (branch, _branch_type) = branch_result?;
+
+            let name = match branch.name()? {
+                Some(n) => n.to_string(),
+                None => continue,
+            };
+
+            if name.is_empty() {
+                continue;
+            }
+
+            let is_current = current_branch.as_ref() == Some(&name);
+
+            // Get the tip commit
+            let reference = branch.get();
+            let oid = match reference.target() {
+                Some(oid) => oid,
+                None => continue,
+            };
+
+            let commit = self.repo.find_commit(oid)?;
+            let tip_sha = format!("{:.7}", oid);
+            let tip_message = commit.summary().unwrap_or("").to_string();
+
+            let time = commit.time();
+            let tip_time = Local
+                .timestamp_opt(time.seconds(), 0)
+                .single()
+                .unwrap_or_else(Local::now);
+
+            branches.push(BranchInfo {
+                name,
+                is_current,
+                tip_sha,
+                tip_message,
+                tip_time,
+            });
+        }
+
+        // Sort: current branch first, then alphabetically
+        branches.sort_by(|a, b| match (a.is_current, b.is_current) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.name.cmp(&b.name),
+        });
+
+        Ok(branches)
+    }
+
+    /// Checkout a branch by name
+    pub fn checkout_branch(&self, branch_name: &str) -> Result<()> {
+        let branch = self
+            .repo
+            .find_branch(branch_name, git2::BranchType::Local)
+            .with_context(|| format!("Branch '{branch_name}' not found"))?;
+
+        let reference = branch.get();
+        let oid = reference
+            .target()
+            .ok_or_else(|| anyhow::anyhow!("Branch has no target"))?;
+
+        let commit = self.repo.find_commit(oid)?;
+
+        // Check for uncommitted changes
+        let statuses = self.repo.statuses(None)?;
+        let has_changes = statuses.iter().any(|s| {
+            let status = s.status();
+            status.is_wt_modified()
+                || status.is_wt_deleted()
+                || status.is_index_modified()
+                || status.is_index_deleted()
+                || status.is_index_new()
+        });
+
+        if has_changes {
+            return Err(anyhow::anyhow!(
+                "Cannot checkout: you have uncommitted changes"
+            ));
+        }
+
+        // Checkout the tree
+        self.repo.checkout_tree(
+            commit.as_object(),
+            Some(git2::build::CheckoutBuilder::new().safe()),
+        )?;
+
+        // Update HEAD
+        self.repo
+            .set_head(&format!("refs/heads/{branch_name}"))?;
+
+        Ok(())
     }
 
     /// Get detailed commit information for a given SHA

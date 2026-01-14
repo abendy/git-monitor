@@ -6,15 +6,15 @@ use ratatui::{
 };
 
 use crate::{
-    actions::{ActionRegistry, ActionType, Context},
+    actions::{ActionRegistry, ActionType, AppState, Context},
     app::{App, HistoryMode, PopupContent, ViewMode, ConfirmAction},
     git::{format_relative_time, CommandType, FileState, RefDecoration},
     tui::Frame,
 };
 
 /// Render context-specific hints as a Line
-fn render_context_hint(registry: &ActionRegistry, context: Context) -> Line<'static> {
-    let actions = registry.hint_actions_for_context(context);
+fn render_context_hint(registry: &ActionRegistry, context: Context, state: &AppState) -> Line<'static> {
+    let actions = registry.hint_actions_for_context(context, state);
 
     if actions.is_empty() {
         return Line::from("");
@@ -312,7 +312,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
 
         // Hint for file actions (only show when in staged section)
         if in_staged {
-            items.push(ListItem::new(render_context_hint(&app.action_registry, app.current_context())));
+            items.push(ListItem::new(render_context_hint(&app.action_registry, app.current_context(), &app.app_state())));
         }
 
         for (i, file) in staged_changes.iter().enumerate() {
@@ -360,7 +360,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
 
         // Hint for file actions (only show when in working section)
         if in_working {
-            items.push(ListItem::new(render_context_hint(&app.action_registry, Context::WorkingFiles)));
+            items.push(ListItem::new(render_context_hint(&app.action_registry, Context::WorkingFiles, &app.app_state())));
         }
 
         for (i, file) in working_changes.iter().enumerate() {
@@ -436,7 +436,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             // Hint for history actions (only show when in history section)
             let in_history = matches!(app.current_context(), Context::HistoryCommits | Context::HistoryHeader);
             if in_history {
-                items.push(ListItem::new(render_context_hint(&app.action_registry, Context::HistoryCommits)));
+                items.push(ListItem::new(render_context_hint(&app.action_registry, Context::HistoryCommits, &app.app_state())));
             }
 
             // Show current branch name with upstream tracking info
@@ -518,7 +518,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
 
         // Hint for branch actions (only show when in branches section)
         if in_branches {
-            items.push(ListItem::new(render_context_hint(&app.action_registry, Context::BranchCommits)));
+            items.push(ListItem::new(render_context_hint(&app.action_registry, Context::BranchCommits, &app.app_state())));
         }
 
         for branch in other_branches.iter() {
@@ -763,7 +763,7 @@ fn render_commit_detail<'a>(
         // Hint for commit file actions (only show when a file is selected)
         if matches!(app.current_context(), Context::CommitFiles) {
             // Use extra indent for commit files hints
-            let hint = render_context_hint(&app.action_registry, Context::CommitFiles);
+            let hint = render_context_hint(&app.action_registry, Context::CommitFiles, &app.app_state());
             let mut spans = vec![Span::raw("  ")]; // Extra indent
             spans.extend(hint.spans);
             items.push(ListItem::new(Line::from(spans)));

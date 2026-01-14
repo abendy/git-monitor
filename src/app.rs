@@ -11,7 +11,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tracing::warn;
 
 use crate::{
-    actions::{Action, ActionRegistry, AppAction, ActionType, Context},
+    actions::{Action, ActionRegistry, AppAction, ActionType, AppState, Context},
     config::GitConfig,
     event::Event,
     git::{BranchInfo, CommitDetail, FileState, GitCommand, GitRepo, GitStatus},
@@ -412,9 +412,10 @@ impl App {
     /// Open action menu for current context
     pub fn open_action_menu(&mut self) {
         let context = self.current_context();
+        let state = self.app_state();
         let actions: Vec<Action> = self
             .action_registry
-            .actions_for_context(context)
+            .actions_for_context(context, &state)
             .into_iter()
             .cloned()
             .collect();
@@ -660,6 +661,24 @@ impl App {
         }
 
         Context::Global
+    }
+
+    /// Get current app state for condition evaluation
+    #[must_use]
+    pub fn app_state(&self) -> AppState {
+        AppState {
+            ahead: self.status.ahead,
+            behind: self.status.behind,
+            has_upstream: self.status.upstream.is_some(),
+            staged_count: self.status.staged_changes().len(),
+            working_count: self.status.working_changes().len(),
+            untracked_count: self
+                .status
+                .files
+                .iter()
+                .filter(|f| f.working == FileState::Untracked)
+                .count(),
+        }
     }
 
     /// Open diff popup for a file in a specific commit
@@ -1010,6 +1029,16 @@ impl App {
             // Push current branch (universal shortcut in normal mode)
             KeyCode::Char('P') => {
                 self.show_push_confirm(false);
+            }
+
+            // Pull (lowercase p)
+            KeyCode::Char('p') => {
+                self.execute_pull();
+            }
+
+            // Fetch
+            KeyCode::Char('f') => {
+                self.execute_fetch();
             }
 
             // Diff (inline popup)
@@ -1495,6 +1524,8 @@ impl App {
 
             // Global actions
             AppAction::Push => self.show_push_confirm(false),
+            AppAction::Pull => self.execute_pull(),
+            AppAction::Fetch => self.execute_fetch(),
             AppAction::Refresh => self.refresh_status(),
             AppAction::EnterCommandMode => self.enter_command_mode(),
             AppAction::BrowseAliases => self.enter_alias_browser(),
@@ -1747,6 +1778,18 @@ impl App {
                 self.open_output_popup();
             }
         }
+    }
+
+    /// Execute git pull
+    fn execute_pull(&mut self) {
+        self.command_input = "git pull".to_string();
+        self.execute_command();
+    }
+
+    /// Execute git fetch
+    fn execute_fetch(&mut self) {
+        self.command_input = "git fetch".to_string();
+        self.execute_command();
     }
 
     /// Run the currently selected alias

@@ -114,6 +114,63 @@ pub enum AppAction {
     JumpToHistory,
     /// Jump to branches section
     JumpToBranches,
+
+    // Remote actions
+    /// Pull from remote
+    Pull,
+    /// Fetch from remote
+    Fetch,
+}
+
+/// Conditions for when an action should be available
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[allow(dead_code)] // Some variants reserved for future use
+pub enum ActionCondition {
+    /// Always available (no condition)
+    #[default]
+    Always,
+    /// Branch is ahead of remote (can push)
+    BranchAhead,
+    /// Branch is behind remote (should pull)
+    BranchBehind,
+    /// Branch has upstream configured
+    HasUpstream,
+    /// Branch has no upstream configured
+    NoUpstream,
+    /// Has staged changes ready to commit
+    HasStagedChanges,
+    /// Has unstaged changes in working directory
+    HasWorkingChanges,
+    /// Has untracked files
+    HasUntrackedFiles,
+}
+
+/// Snapshot of app state for evaluating action conditions
+#[derive(Debug, Clone, Default)]
+pub struct AppState {
+    pub ahead: usize,
+    pub behind: usize,
+    pub has_upstream: bool,
+    pub staged_count: usize,
+    pub working_count: usize,
+    pub untracked_count: usize,
+}
+
+impl AppState {
+    /// Check if a condition is satisfied
+    #[must_use]
+    pub fn satisfies(&self, condition: ActionCondition) -> bool {
+        match condition {
+            ActionCondition::Always => true,
+            ActionCondition::BranchAhead => self.ahead > 0,
+            ActionCondition::BranchBehind => self.behind > 0,
+            ActionCondition::HasUpstream => self.has_upstream,
+            ActionCondition::NoUpstream => !self.has_upstream,
+            ActionCondition::HasStagedChanges => self.staged_count > 0,
+            ActionCondition::HasWorkingChanges => self.working_count > 0,
+            ActionCondition::HasUntrackedFiles => self.untracked_count > 0,
+        }
+    }
 }
 
 /// A single action definition
@@ -129,10 +186,12 @@ pub struct Action {
     pub contexts: Vec<Context>,
     /// Priority for display ordering (lower = higher priority)
     pub priority: u8,
+    /// Condition for when this action is available
+    pub condition: ActionCondition,
 }
 
 impl Action {
-    /// Create a new app action
+    /// Create a new app action (always available)
     fn app(key: &str, label: &str, action: AppAction, contexts: Vec<Context>, priority: u8) -> Self {
         Self {
             key: key.to_string(),
@@ -140,6 +199,26 @@ impl Action {
             action_type: ActionType::App(action),
             contexts,
             priority,
+            condition: ActionCondition::Always,
+        }
+    }
+
+    /// Create a new app action with a condition
+    fn app_when(
+        key: &str,
+        label: &str,
+        action: AppAction,
+        contexts: Vec<Context>,
+        priority: u8,
+        condition: ActionCondition,
+    ) -> Self {
+        Self {
+            key: key.to_string(),
+            label: label.to_string(),
+            action_type: ActionType::App(action),
+            contexts,
+            priority,
+            condition,
         }
     }
 
@@ -152,6 +231,7 @@ impl Action {
             action_type: ActionType::Alias(alias.clone()),
             contexts,
             priority: 100, // Aliases show after built-in actions
+            condition: ActionCondition::Always,
         }
     }
 }
@@ -256,12 +336,31 @@ impl ActionRegistry {
         ));
 
         // --- Global actions (available everywhere) ---
-        actions.push(Action::app(
+        // Push only shows when ahead of remote
+        actions.push(Action::app_when(
             "P",
             "push",
             AppAction::Push,
             vec![Context::Global],
             50,
+            ActionCondition::BranchAhead,
+        ));
+        // Pull only shows when behind remote
+        actions.push(Action::app_when(
+            "p",
+            "pull",
+            AppAction::Pull,
+            vec![Context::Global],
+            50,
+            ActionCondition::BranchBehind,
+        ));
+        // Fetch always available (lowercase f)
+        actions.push(Action::app(
+            "f",
+            "fetch",
+            AppAction::Fetch,
+            vec![Context::Global],
+            51,
         ));
         actions.push(Action::app(
             "r",
@@ -326,12 +425,18 @@ impl ActionRegistry {
     }
 
     /// Get actions for a specific context (includes Global actions)
+    /// Filters by both context and condition
     #[must_use]
-    pub fn actions_for_context(&self, context: Context) -> Vec<&Action> {
+    pub fn actions_for_context(&self, context: Context, state: &AppState) -> Vec<&Action> {
         let mut actions: Vec<_> = self
             .actions
             .iter()
-            .filter(|a| a.contexts.contains(&context) || a.contexts.contains(&Context::Global))
+            .filter(|a| {
+                let context_matches =
+                    a.contexts.contains(&context) || a.contexts.contains(&Context::Global);
+                let condition_satisfied = state.satisfies(a.condition);
+                context_matches && condition_satisfied
+            })
             .collect();
         actions.sort_by_key(|a| a.priority);
         actions
@@ -339,16 +444,18 @@ impl ActionRegistry {
 
     /// Get inline hint actions for a context (limited set for display)
     /// Returns only context-specific actions, not global ones
+    /// Filters by condition
     #[must_use]
-    pub fn hint_actions_for_context(&self, context: Context) -> Vec<&Action> {
+    pub fn hint_actions_for_context(&self, context: Context, state: &AppState) -> Vec<&Action> {
         let mut actions: Vec<_> = self
             .actions
             .iter()
             .filter(|a| {
                 // Only context-specific actions, not global
-                a.contexts.contains(&context)
-                    && !a.contexts.contains(&Context::Global)
-                    && a.priority < 80
+                let context_matches =
+                    a.contexts.contains(&context) && !a.contexts.contains(&Context::Global);
+                let condition_satisfied = state.satisfies(a.condition);
+                context_matches && condition_satisfied && a.priority < 80
             })
             .collect();
         actions.sort_by_key(|a| a.priority);

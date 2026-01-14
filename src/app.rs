@@ -395,9 +395,9 @@ impl App {
                 self.history_index = None;
             }
 
-            // Show aliases (when on command section)
+            // Show aliases (universal shortcut)
             KeyCode::Char('a') => {
-                if self.selected == 0 && !self.config.sections.is_empty() {
+                if !self.config.sections.is_empty() {
                     self.show_aliases = true;
                     self.alias_section_selected = 0;
                     self.show_section_aliases = false;

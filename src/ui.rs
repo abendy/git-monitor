@@ -143,17 +143,18 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         items.push(ListItem::new(Line::from(vec![
             Span::raw(cmd_prefix),
             Span::styled(": ", Style::default().fg(Color::Cyan).bold()),
-            Span::styled(
-                "Enter cmd  |  a aliases",
-                Style::default().fg(Color::DarkGray).italic(),
-            ),
+            Span::styled("type command   ", Style::default().fg(Color::DarkGray).italic()),
+            Span::styled("a ", Style::default().fg(Color::Cyan)),
+            Span::styled("aliases", Style::default().fg(Color::DarkGray).italic()),
         ])));
     } else {
         // Not selected or showing aliases
         items.push(ListItem::new(Line::from(vec![
             Span::raw(cmd_prefix),
             Span::styled(": ", Style::default().fg(Color::DarkGray)),
-            Span::styled("command", Style::default().fg(Color::DarkGray)),
+            Span::styled("command  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("a ", Style::default().fg(Color::Cyan)),
+            Span::styled("aliases", Style::default().fg(Color::DarkGray)),
         ])));
     }
 
@@ -274,7 +275,8 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         for (i, file) in staged_changes.iter().enumerate() {
             // Index 0 is command, so files start at index 1
             let global_idx = 1 + i;
-            let selected = global_idx == app.selected;
+            // Don't show selection when command mode is active (focus is on input)
+            let selected = global_idx == app.selected && !app.command_mode;
             let prefix = if selected { "▸ " } else { "  " };
             let status_char = file.staged.as_char();
             let color = state_color(file.staged);
@@ -309,7 +311,8 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         for (i, file) in working_changes.iter().enumerate() {
             // Index 0 is command, staged starts at 1, working starts at 1 + staged_len
             let global_idx = 1 + staged_len + i;
-            let selected = global_idx == app.selected;
+            // Don't show selection when command mode is active (focus is on input)
+            let selected = global_idx == app.selected && !app.command_mode;
             let prefix = if selected { "▸ " } else { "  " };
             let status_char = file.working.as_char();
             let color = state_color(file.working);
@@ -355,7 +358,8 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         for (i, cmd) in app.activity.iter().enumerate() {
             // Index 0 is command, files start at 1, history starts at 1 + files_total
             let global_idx = 1 + files_total + i;
-            let selected = global_idx == app.selected;
+            // Don't show selection when command mode is active (focus is on input)
+            let selected = global_idx == app.selected && !app.command_mode;
             let prefix = if selected { "▸ " } else { "  " };
 
             let time_str = cmd.timestamp.format("%H:%M:%S").to_string();
@@ -680,6 +684,8 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Span::raw(" diff  "),
             Span::styled(" : ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" cmd  "),
+            Span::styled(" a ", Style::default().bg(Color::DarkGray).bold()),
+            Span::raw(" alias  "),
             Span::styled(" ? ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" help  "),
             Span::styled(" q ", Style::default().bg(Color::DarkGray).bold()),

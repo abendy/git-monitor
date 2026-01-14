@@ -29,6 +29,102 @@ pub enum HistoryMode {
     CommitLog,
 }
 
+/// Content displayed in the popup
+#[derive(Debug, Clone, Default)]
+pub enum PopupContent {
+    /// No popup active
+    #[default]
+    None,
+    /// Command output (from : command mode)
+    CommandOutput {
+        command: String,
+        output: String,
+        success: bool,
+    },
+    /// File diff
+    Diff {
+        path: String,
+        content: String,
+        #[allow(dead_code)] // Reserved for future staged/unstaged indicator
+        is_staged: bool,
+    },
+    // Future: CommitDetail, RebaseTool, etc.
+}
+
+impl PopupContent {
+    /// Check if popup is active
+    pub fn is_active(&self) -> bool {
+        !matches!(self, PopupContent::None)
+    }
+
+    /// Get the content as lines for display
+    pub fn lines(&self) -> Vec<&str> {
+        match self {
+            PopupContent::None => vec![],
+            PopupContent::CommandOutput { output, .. } => output.lines().collect(),
+            PopupContent::Diff { content, .. } => content.lines().collect(),
+        }
+    }
+
+    /// Get the title for the popup
+    pub fn title(&self) -> String {
+        match self {
+            PopupContent::None => String::new(),
+            PopupContent::CommandOutput { command, .. } => format!(" Output: {command} "),
+            PopupContent::Diff { path, .. } => format!(" Diff: {path} "),
+        }
+    }
+}
+
+/// Popup state with scroll position
+#[derive(Debug, Clone, Default)]
+pub struct PopupState {
+    /// Content being displayed
+    pub content: PopupContent,
+    /// Scroll offset (line number at top of view)
+    pub scroll_offset: usize,
+}
+
+impl PopupState {
+    /// Open popup with content
+    pub fn open(&mut self, content: PopupContent) {
+        self.content = content;
+        self.scroll_offset = 0;
+    }
+
+    /// Close popup
+    pub fn close(&mut self) {
+        self.content = PopupContent::None;
+        self.scroll_offset = 0;
+    }
+
+    /// Check if popup is open
+    pub fn is_open(&self) -> bool {
+        self.content.is_active()
+    }
+
+    /// Scroll down by n lines
+    pub fn scroll_down(&mut self, n: usize, max_lines: usize, visible_height: usize) {
+        let max_offset = max_lines.saturating_sub(visible_height);
+        self.scroll_offset = (self.scroll_offset + n).min(max_offset);
+    }
+
+    /// Scroll up by n lines
+    pub fn scroll_up(&mut self, n: usize) {
+        self.scroll_offset = self.scroll_offset.saturating_sub(n);
+    }
+
+    /// Jump to top
+    pub fn scroll_to_top(&mut self) {
+        self.scroll_offset = 0;
+    }
+
+    /// Jump to bottom
+    pub fn scroll_to_bottom(&mut self, max_lines: usize, visible_height: usize) {
+        self.scroll_offset = max_lines.saturating_sub(visible_height);
+    }
+}
+
 /// Application state
 pub struct App {
     /// Path to the repository
@@ -50,12 +146,6 @@ pub struct App {
     pub selected: usize,
     /// Show help overlay
     pub show_help: bool,
-    /// Show diff overlay
-    pub show_diff: bool,
-    /// Current diff content
-    pub diff_content: String,
-    /// Diff file path (for title)
-    pub diff_path: String,
     /// Error message to display
     pub error: Option<String>,
     /// Whether in command input mode
@@ -80,6 +170,8 @@ pub struct App {
     pub alias_selected: usize,
     /// Current history display mode (reflog vs commit log)
     pub history_mode: HistoryMode,
+    /// Popup state (for full-screen overlays: output, diff, etc.)
+    pub popup: PopupState,
 }
 
 impl App {
@@ -106,9 +198,6 @@ impl App {
             running: true,
             selected: 0,
             show_help: false,
-            show_diff: false,
-            diff_content: String::new(),
-            diff_path: String::new(),
             error: None,
             command_mode: false,
             command_input: String::new(),
@@ -121,6 +210,7 @@ impl App {
             show_section_aliases: false,
             alias_selected: 0,
             history_mode: HistoryMode::default(),
+            popup: PopupState::default(),
         })
     }
 
@@ -240,19 +330,15 @@ impl App {
             return;
         }
 
-        // Overlays capture keys
-        if self.show_help {
-            self.show_help = false;
+        // Popup mode captures keys (full-screen overlays)
+        if self.popup.is_open() {
+            self.handle_popup_key(key);
             return;
         }
 
-        if self.show_diff {
-            match key.code {
-                KeyCode::Char('q') | KeyCode::Esc | KeyCode::Char('d') => {
-                    self.show_diff = false;
-                }
-                _ => {}
-            }
+        // Help overlay captures keys
+        if self.show_help {
+            self.show_help = false;
             return;
         }
 
@@ -341,6 +427,13 @@ impl App {
                 if let Some(sha) = self.selected_activity_sha() {
                     self.copy_to_clipboard(&sha);
                     self.error = Some(format!("Copied: {sha}"));
+                }
+            }
+
+            // Open output popup (when on command section with output)
+            KeyCode::Char('o') => {
+                if self.selected == 0 && !self.command_output.is_empty() {
+                    self.open_output_popup();
                 }
             }
 
@@ -450,6 +543,72 @@ impl App {
         }
     }
 
+    /// Handle keyboard input in popup mode
+    fn handle_popup_key(&mut self, key: KeyEvent) {
+        // Calculate visible height for scroll calculations
+        // This is approximate; actual height comes from render
+        let visible_height = 20_usize; // Will be refined in render
+        let max_lines = self.popup.content.lines().len();
+
+        match key.code {
+            // Close popup
+            KeyCode::Esc | KeyCode::Char('q') => {
+                self.popup.close();
+            }
+
+            // Scroll down
+            KeyCode::Char('j') | KeyCode::Down => {
+                self.popup.scroll_down(1, max_lines, visible_height);
+            }
+
+            // Scroll up
+            KeyCode::Char('k') | KeyCode::Up => {
+                self.popup.scroll_up(1);
+            }
+
+            // Page down
+            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.popup.scroll_down(visible_height / 2, max_lines, visible_height);
+            }
+
+            // Page up
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.popup.scroll_up(visible_height / 2);
+            }
+
+            // Jump to top
+            KeyCode::Char('g') => {
+                self.popup.scroll_to_top();
+            }
+
+            // Jump to bottom
+            KeyCode::Char('G') => {
+                self.popup.scroll_to_bottom(max_lines, visible_height);
+            }
+
+            _ => {}
+        }
+    }
+
+    /// Open the output popup with current command output
+    fn open_output_popup(&mut self) {
+        let command = self.command_history.last().cloned().unwrap_or_default();
+        self.popup.open(PopupContent::CommandOutput {
+            command,
+            output: self.command_output.clone(),
+            success: self.command_success,
+        });
+    }
+
+    /// Open a diff in the popup
+    fn open_diff_popup(&mut self, path: String, content: String, is_staged: bool) {
+        self.popup.open(PopupContent::Diff {
+            path,
+            content,
+            is_staged,
+        });
+    }
+
     /// Run the currently selected alias
     fn run_selected_alias(&mut self) {
         let Some(section) = self.config.sections.get(self.alias_section_selected) else {
@@ -554,7 +713,7 @@ impl App {
         }
     }
 
-    /// Show diff for selected file
+    /// Show diff for selected file (using new popup system)
     fn show_diff(&mut self) {
         let Some((path, is_staged)) = self.selected_file_info() else {
             return; // Can't show diff for activity items
@@ -562,9 +721,8 @@ impl App {
 
         match self.repo.diff_file(&path, is_staged) {
             Ok(content) => {
-                self.diff_content = content;
-                self.diff_path = path.to_string_lossy().to_string();
-                self.show_diff = true;
+                let path_str = path.to_string_lossy().to_string();
+                self.open_diff_popup(path_str, content, is_staged);
             }
             Err(e) => {
                 self.error = Some(format!("Diff error: {e}"));

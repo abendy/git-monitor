@@ -80,6 +80,7 @@ git-monitor --tick-rate 100
 | `d` / `Enter` | Show diff for selected file |
 | `y` | Copy commit sha to clipboard |
 | `a` | Browse git aliases (when on command section) |
+| `o` | Expand command output in popup (when on command section) |
 | `r` | Refresh status |
 | `h` | Toggle history mode (history/reflog) |
 | `:` | Enter command mode |

@@ -6,7 +6,7 @@ use ratatui::{
 };
 
 use crate::{
-    app::{App, HistoryMode},
+    app::{App, HistoryMode, PopupContent},
     git::{CommandType, FileState, RefDecoration},
     tui::Frame,
 };
@@ -26,16 +26,19 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
         .split(area);
 
     render_header(frame, app, layout[0]);
-    render_body(frame, app, layout[1]);
-    render_footer(frame, app, layout[2]);
 
-    // Overlays
-    if app.show_help {
-        render_help(frame, area);
+    // Conditional rendering: popup replaces body, not overlays it
+    if app.popup.is_open() {
+        render_popup(frame, app, layout[1]);
+        render_popup_footer(frame, app, layout[2]);
+    } else {
+        render_body(frame, app, layout[1]);
+        render_footer(frame, app, layout[2]);
     }
 
-    if app.show_diff {
-        render_diff(frame, app, area);
+    // Help overlay (centered popup, separate from full-screen popup)
+    if app.show_help {
+        render_help(frame, area);
     }
 }
 
@@ -247,10 +250,14 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
 
         let line_count = app.command_output.lines().count();
         if line_count > 4 {
-            items.push(ListItem::new(Line::from(Span::styled(
-                format!("    ... ({} more lines)", line_count - 4),
-                Style::default().fg(Color::DarkGray).italic(),
-            ))));
+            items.push(ListItem::new(Line::from(vec![
+                Span::styled(
+                    format!("    ... ({} more lines) ", line_count - 4),
+                    Style::default().fg(Color::DarkGray).italic(),
+                ),
+                Span::styled("o", Style::default().fg(Color::Cyan).bold()),
+                Span::styled(" to expand", Style::default().fg(Color::DarkGray).italic()),
+            ])));
         }
     }
 
@@ -590,6 +597,7 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
         )),
         Line::from("  :                  Enter command mode"),
         Line::from("  a                  Browse aliases"),
+        Line::from("  o                  Expand output popup"),
         Line::from("  Enter              Execute command"),
         Line::from("  Esc / Ctrl+C       Cancel"),
         Line::from("  Up / Down          Navigate history"),
@@ -618,59 +626,105 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
     frame.render_widget(help, help_area);
 }
 
-/// Render diff overlay
-fn render_diff(frame: &mut Frame<'_>, app: &App, area: Rect) {
-    // Use most of the screen for diff
-    let diff_area = centered_rect(90, 90, area);
+/// Render the full-screen popup (replaces body when active)
+fn render_popup(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    // Clear the area first to remove any artifacts from previous frame
+    frame.render_widget(Clear, area);
 
-    // Clear the area behind the popup
-    frame.render_widget(Clear, diff_area);
+    let title = app.popup.content.title();
+    let total_lines = app.popup.content.lines().len();
+    let visible_height = area.height.saturating_sub(2) as usize; // Account for borders
 
-    // Parse diff content into styled lines
-    let lines: Vec<Line<'_>> = app
-        .diff_content
-        .lines()
-        .map(|line| {
-            let (style, content) = if line.starts_with('+') && !line.starts_with("+++") {
-                (Style::default().fg(Color::Green), line)
-            } else if line.starts_with('-') && !line.starts_with("---") {
-                (Style::default().fg(Color::Red), line)
-            } else if line.starts_with("@@") {
-                (Style::default().fg(Color::Cyan), line)
-            } else if line.starts_with("diff") || line.starts_with("index") {
-                (Style::default().fg(Color::Yellow), line)
-            } else {
-                (Style::default().fg(Color::White), line)
-            };
-            Line::from(Span::styled(format!(" {content}"), style))
-        })
-        .collect();
-
-    let diff = Paragraph::new(lines)
-        .block(
-            Block::default()
-                .title(format!(" Diff: {} ", app.diff_path))
-                .title_style(Style::default().fg(Color::Cyan).bold())
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Cyan)),
-        )
-        .wrap(ratatui::widgets::Wrap { trim: false });
-
-    frame.render_widget(diff, diff_area);
-
-    // Footer hint
-    let hint_area = Rect {
-        x: diff_area.x,
-        y: diff_area.y + diff_area.height - 1,
-        width: diff_area.width,
-        height: 1,
+    // Build scroll indicator
+    let scroll_info = if total_lines > visible_height {
+        let max_offset = total_lines.saturating_sub(visible_height);
+        let current_pos = app.popup.scroll_offset.min(max_offset);
+        format!(" [{}/{}] ", current_pos + 1, max_offset + 1)
+    } else {
+        String::new()
     };
-    let hint = Paragraph::new(Line::from(vec![
+
+    // Get lines for display based on content type
+    let lines: Vec<Line<'_>> = match &app.popup.content {
+        PopupContent::None => vec![],
+
+        PopupContent::CommandOutput { output, success, .. } => {
+            let color = if *success { Color::White } else { Color::Red };
+            output
+                .lines()
+                .skip(app.popup.scroll_offset)
+                .take(visible_height)
+                .map(|line| {
+                    // Replace tabs with spaces to avoid rendering gaps
+                    let line = line.replace('\t', "    ");
+                    Line::from(Span::styled(format!(" {line}"), Style::default().fg(color).bg(Color::Reset)))
+                })
+                .collect()
+        }
+
+        PopupContent::Diff { content, .. } => {
+            content
+                .lines()
+                .skip(app.popup.scroll_offset)
+                .take(visible_height)
+                .map(|line| {
+                    // Replace tabs with spaces to avoid rendering gaps
+                    let line = line.replace('\t', "    ");
+                    let style = if line.starts_with('+') && !line.starts_with("+++") {
+                        Style::default().fg(Color::Green).bg(Color::Reset)
+                    } else if line.starts_with('-') && !line.starts_with("---") {
+                        Style::default().fg(Color::Red).bg(Color::Reset)
+                    } else if line.starts_with("@@") {
+                        Style::default().fg(Color::Cyan).bg(Color::Reset)
+                    } else if line.starts_with("diff") || line.starts_with("index") {
+                        Style::default().fg(Color::Yellow).bg(Color::Reset)
+                    } else {
+                        Style::default().fg(Color::White).bg(Color::Reset)
+                    };
+                    Line::from(Span::styled(format!(" {line}"), style))
+                })
+                .collect()
+        }
+    };
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan).bg(Color::Reset))
+        .style(Style::default().bg(Color::Reset)) // Fill block background
+        .title(title)
+        .title_style(Style::default().fg(Color::Cyan).bold())
+        .title_bottom(Line::from(Span::styled(
+            scroll_info,
+            Style::default().fg(Color::DarkGray),
+        )));
+
+    let popup = Paragraph::new(lines)
+        .style(Style::default().bg(Color::Reset)) // Fill content background
+        .block(block);
+
+    frame.render_widget(popup, area);
+}
+
+/// Render footer when popup is active
+fn render_popup_footer(frame: &mut Frame<'_>, _app: &App, area: Rect) {
+    let content = Line::from(vec![
+        Span::styled(" j/k ", Style::default().bg(Color::DarkGray).bold()),
+        Span::raw(" scroll  "),
+        Span::styled(" g/G ", Style::default().bg(Color::DarkGray).bold()),
+        Span::raw(" top/bottom  "),
+        Span::styled(" Ctrl+d/u ", Style::default().bg(Color::DarkGray).bold()),
+        Span::raw(" page  "),
         Span::styled(" q ", Style::default().bg(Color::DarkGray).bold()),
         Span::raw(" close "),
-    ]))
-    .alignment(Alignment::Center);
-    frame.render_widget(hint, hint_area);
+    ]);
+
+    let footer = Paragraph::new(content).alignment(Alignment::Center).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::DarkGray)),
+    );
+
+    frame.render_widget(footer, area);
 }
 
 /// Create a centered rectangle

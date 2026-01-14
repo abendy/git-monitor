@@ -1721,11 +1721,14 @@ impl App {
 
                 if output.status.success() {
                     // Capture output for popup
+                    // Note: git push/pull/fetch output to stderr even on success
                     self.command_success = true;
-                    self.command_output = if stdout.is_empty() {
-                        String::from("(no output)")
-                    } else {
+                    self.command_output = if !stderr.is_empty() {
+                        stderr.to_string()
+                    } else if !stdout.is_empty() {
                         stdout.to_string()
+                    } else {
+                        String::from("(no output)")
                     };
                     // Record in history (dedupe last)
                     if self.command_history.last().map(String::as_str) != Some(display_cmd.as_str()) {
@@ -2167,10 +2170,13 @@ impl App {
                 self.command_success = output.status.success();
 
                 if self.command_success {
-                    self.command_output = if stdout.is_empty() {
-                        String::from("(no output)")
-                    } else {
+                    // Note: git push/pull/fetch output to stderr even on success
+                    self.command_output = if !stderr.is_empty() {
+                        stderr.to_string()
+                    } else if !stdout.is_empty() {
                         stdout.to_string()
+                    } else {
+                        String::from("(no output)")
                     };
                 } else {
                     self.command_output = if stderr.is_empty() {

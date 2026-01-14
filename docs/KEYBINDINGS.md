@@ -70,6 +70,7 @@
 
 | Key | Action |
 |-----|--------|
+| `m` | Context action menu |
 | `r` | Refresh |
 | `?` | Help |
 | `q` / `Esc` | Quit |

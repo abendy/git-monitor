@@ -1078,6 +1078,7 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
             "General",
             Style::default().add_modifier(Modifier::BOLD),
         )),
+        Line::from("  m                  Action menu"),
         Line::from("  r                  Refresh status"),
         Line::from("  ?                  Toggle help"),
         Line::from("  q / Esc            Quit"),

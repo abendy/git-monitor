@@ -623,9 +623,7 @@ impl App {
                             }
                         } else {
                             // On commit header - collapse
-                            self.expanded_commit = None;
-                            self.expanded_detail = None;
-                            self.expanded_file_idx = None;
+                            self.close_expanded_commit();
                         }
                     } else {
                         // Expand - fetch details
@@ -959,6 +957,7 @@ impl App {
         let len = self.total_count();
         if len > 0 && self.selected < len - 1 {
             self.selected += 1;
+            self.close_expanded_commit();
         }
     }
 
@@ -966,12 +965,14 @@ impl App {
     fn select_prev(&mut self) {
         if self.selected > 0 {
             self.selected -= 1;
+            self.close_expanded_commit();
         }
     }
 
     /// Select first item
     fn select_first(&mut self) {
         self.selected = 0;
+        self.close_expanded_commit();
     }
 
     /// Select last item
@@ -979,7 +980,15 @@ impl App {
         let len = self.total_count();
         if len > 0 {
             self.selected = len - 1;
+            self.close_expanded_commit();
         }
+    }
+
+    /// Close expanded commit detail
+    fn close_expanded_commit(&mut self) {
+        self.expanded_commit = None;
+        self.expanded_detail = None;
+        self.expanded_file_idx = None;
     }
 
     /// Handle tick events (periodic updates)

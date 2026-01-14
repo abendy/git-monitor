@@ -481,7 +481,8 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
                             ),
                         ])));
 
-                        for file in &detail.files {
+                        for (file_idx, file) in detail.files.iter().enumerate() {
+                            let is_file_selected = app.expanded_file_idx == Some(file_idx);
                             let (status_char, color) = match file.status {
                                 FileState::Added => ('A', Color::Green),
                                 FileState::Modified => ('M', Color::Yellow),
@@ -490,11 +491,18 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
                                 _ => ('?', Color::White),
                             };
 
+                            let file_prefix = if is_file_selected { "  ▸ " } else { "    " };
+                            let file_style = if is_file_selected {
+                                Style::default().add_modifier(Modifier::BOLD)
+                            } else {
+                                Style::default()
+                            };
+
                             let mut spans = vec![
-                                Span::raw("    "),
-                                Span::styled(format!("{status_char}"), Style::default().fg(color)),
+                                Span::styled(file_prefix, file_style),
+                                Span::styled(format!("{status_char}"), file_style.fg(color)),
                                 Span::raw("  "),
-                                Span::raw(&file.path),
+                                Span::styled(file.path.clone(), file_style),
                             ];
 
                             // Add per-file stats if there are changes
@@ -503,7 +511,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
                                 if file.insertions > 0 {
                                     spans.push(Span::styled(
                                         format!("+{}", file.insertions),
-                                        Style::default().fg(Color::Green),
+                                        file_style.fg(Color::Green),
                                     ));
                                 }
                                 if file.insertions > 0 && file.deletions > 0 {
@@ -512,7 +520,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
                                 if file.deletions > 0 {
                                     spans.push(Span::styled(
                                         format!("-{}", file.deletions),
-                                        Style::default().fg(Color::Red),
+                                        file_style.fg(Color::Red),
                                     ));
                                 }
                             }

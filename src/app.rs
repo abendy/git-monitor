@@ -178,6 +178,8 @@ pub struct App {
     pub expanded_commit: Option<String>,
     /// Cached detail for expanded commit
     pub expanded_detail: Option<CommitDetail>,
+    /// Selected file index within expanded commit (None = on commit header)
+    pub expanded_file_idx: Option<usize>,
 }
 
 impl App {
@@ -219,6 +221,7 @@ impl App {
             popup: PopupState::default(),
             expanded_commit: None,
             expanded_detail: None,
+            expanded_file_idx: None,
         })
     }
 
@@ -291,6 +294,32 @@ impl App {
 
         // Index 0 is command, files are 1..=files_total, history starts after
         self.selected > files_total
+    }
+
+    /// Check if currently selected item is the expanded commit
+    fn is_on_expanded_commit(&self) -> bool {
+        if let Some(expanded_sha) = &self.expanded_commit {
+            if let Some(selected_sha) = self.selected_activity_sha() {
+                return expanded_sha == &selected_sha;
+            }
+        }
+        false
+    }
+
+    /// Open diff popup for a file in a specific commit
+    fn open_commit_file_diff(&mut self, commit_sha: &str, file_path: &str) {
+        match self.repo.commit_file_diff(commit_sha, file_path) {
+            Ok(diff_content) => {
+                self.popup.open(PopupContent::Diff {
+                    path: file_path.to_string(),
+                    content: diff_content,
+                    is_staged: false,
+                });
+            }
+            Err(e) => {
+                self.error = Some(format!("Failed to get diff: {e}"));
+            }
+        }
     }
 
     /// Jump to first history item
@@ -416,12 +445,55 @@ impl App {
                 }
             }
 
-            // List navigation
+            // List navigation (with expanded commit support)
             KeyCode::Char('j') | KeyCode::Down => {
-                self.select_next();
+                if self.is_on_expanded_commit() {
+                    // Navigate within expanded commit
+                    let file_count = self
+                        .expanded_detail
+                        .as_ref()
+                        .map(|d| d.files.len())
+                        .unwrap_or(0);
+
+                    match self.expanded_file_idx {
+                        None if file_count > 0 => {
+                            // Move from header to first file
+                            self.expanded_file_idx = Some(0);
+                        }
+                        Some(idx) if idx + 1 < file_count => {
+                            // Move to next file
+                            self.expanded_file_idx = Some(idx + 1);
+                        }
+                        Some(_) | None => {
+                            // At last file or no files - move to next commit
+                            self.expanded_file_idx = None;
+                            self.select_next();
+                        }
+                    }
+                } else {
+                    self.select_next();
+                }
             }
             KeyCode::Char('k') | KeyCode::Up => {
-                self.select_prev();
+                if self.is_on_expanded_commit() {
+                    // Navigate within expanded commit
+                    match self.expanded_file_idx {
+                        Some(0) => {
+                            // Move from first file back to header
+                            self.expanded_file_idx = None;
+                        }
+                        Some(idx) => {
+                            // Move to previous file
+                            self.expanded_file_idx = Some(idx - 1);
+                        }
+                        None => {
+                            // On header - move to previous item
+                            self.select_prev();
+                        }
+                    }
+                } else {
+                    self.select_prev();
+                }
             }
             KeyCode::Char('g') => {
                 self.select_first();
@@ -462,17 +534,33 @@ impl App {
                 }
             }
 
-            // Toggle commit detail expansion (for history items)
+            // Toggle commit detail expansion or open file diff
             KeyCode::Char(' ') => {
                 if let Some(sha) = self.selected_activity_sha() {
                     if self.expanded_commit.as_ref() == Some(&sha) {
-                        // Collapse
-                        self.expanded_commit = None;
-                        self.expanded_detail = None;
+                        // Already expanded - check if we're on a file
+                        if let Some(file_idx) = self.expanded_file_idx {
+                            // Open diff for this file - clone path to avoid borrow issues
+                            let file_path = self
+                                .expanded_detail
+                                .as_ref()
+                                .and_then(|d| d.files.get(file_idx))
+                                .map(|f| f.path.clone());
+
+                            if let Some(path) = file_path {
+                                self.open_commit_file_diff(&sha, &path);
+                            }
+                        } else {
+                            // On commit header - collapse
+                            self.expanded_commit = None;
+                            self.expanded_detail = None;
+                            self.expanded_file_idx = None;
+                        }
                     } else {
                         // Expand - fetch details
                         self.expanded_commit = Some(sha.clone());
                         self.expanded_detail = self.repo.commit_detail(&sha).ok();
+                        self.expanded_file_idx = None;
                     }
                 }
             }

@@ -725,6 +725,49 @@ impl GitRepo {
         })
     }
 
+    /// Get diff for a specific file in a commit (vs its parent)
+    pub fn commit_file_diff(&self, commit_sha: &str, file_path: &str) -> Result<String> {
+        let obj = self
+            .repo
+            .revparse_single(commit_sha)
+            .with_context(|| format!("Failed to find commit {commit_sha}"))?;
+        let commit = obj
+            .peel_to_commit()
+            .with_context(|| format!("Object {commit_sha} is not a commit"))?;
+
+        let tree = commit.tree().context("Failed to get commit tree")?;
+        let parent_tree = commit.parent(0).ok().and_then(|p| p.tree().ok());
+
+        // Create diff with path filter
+        let mut opts = git2::DiffOptions::new();
+        opts.pathspec(file_path);
+
+        let diff = self
+            .repo
+            .diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), Some(&mut opts))
+            .context("Failed to diff trees")?;
+
+        // Format as patch
+        let mut output = String::new();
+        diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
+            let prefix = match line.origin() {
+                '+' | '-' | ' ' => format!("{}", line.origin()),
+                _ => String::new(),
+            };
+            if let Ok(content) = std::str::from_utf8(line.content()) {
+                output.push_str(&prefix);
+                output.push_str(content);
+            }
+            true
+        })?;
+
+        if output.is_empty() {
+            output = format!("(No changes for {file_path})");
+        }
+
+        Ok(output)
+    }
+
     /// Populate file statuses
     fn populate_file_statuses(&self, status: &mut GitStatus) -> Result<()> {
         let mut opts = StatusOptions::new();

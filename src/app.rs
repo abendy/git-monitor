@@ -12,6 +12,7 @@ use tracing::warn;
 
 use crate::{
     actions::{Action, ActionRegistry, AppAction, ActionType, AppState, Context},
+    command::{CommandExecutor, CommandRequest, CommandResult, CommandSource, FeedbackPolicy},
     config::GitConfig,
     event::Event,
     git::{BranchInfo, CommitDetail, FileState, GitCommand, GitRepo, GitStatus},
@@ -289,6 +290,8 @@ pub struct App {
     pub pending_external: Option<ExternalCommand>,
     /// Action registry for contextual actions
     pub action_registry: ActionRegistry,
+    /// Command executor for running commands
+    executor: CommandExecutor,
 }
 
 impl App {
@@ -314,6 +317,9 @@ impl App {
             .flat_map(|s| s.aliases.iter().cloned())
             .collect();
         action_registry.add_alias_actions(&all_aliases);
+
+        // Initialize command executor
+        let executor = CommandExecutor::new(&repo_path);
 
         Ok(Self {
             repo_path,
@@ -344,6 +350,7 @@ impl App {
             expanded_branch_commits: Vec::new(),
             pending_external: None,
             action_registry,
+            executor,
         })
     }
 
@@ -1408,12 +1415,17 @@ impl App {
             match &action.action_type {
                 ActionType::App(app_action) => self.execute_app_action(*app_action),
                 ActionType::Cli(cmd) => {
-                    self.command_input = cmd.clone();
-                    self.execute_command();
+                    // CLI command from action menu - use ActionMenu source (always shows popup)
+                    if let Some(request) = CommandRequest::from_input(cmd) {
+                        self.run_command(request.with_source(CommandSource::ActionMenu));
+                    }
                 }
                 ActionType::Alias(alias) => {
-                    self.command_input = format!("git {}", alias.name);
-                    self.execute_command();
+                    // Alias from action menu - use ActionMenu source (always shows popup)
+                    let request = CommandRequest::git([&alias.name])
+                        .with_source(CommandSource::ActionMenu)
+                        .with_display_name(format!("git {}", alias.name));
+                    self.run_command(request);
                 }
             }
         }
@@ -1684,115 +1696,58 @@ impl App {
             .upstream
             .as_ref()
             .and_then(|u| u.split('/').next())
-            .unwrap_or("origin");
+            .unwrap_or("origin")
+            .to_string();
 
         // Build push command arguments
-        let mut args = vec!["push"];
+        let mut args: Vec<String> = vec!["push".to_string()];
 
         if force {
-            args.push("--force-with-lease");
+            args.push("--force-with-lease".to_string());
         }
 
         if set_upstream {
-            args.push("-u");
-            args.push(remote);
-            args.push(&branch);
+            args.push("-u".to_string());
+            args.push(remote.clone());
+            args.push(branch.clone());
         }
 
-        // Build a display string for the popup title/history
-        let mut display_cmd = String::from("git push");
+        // Build display name for history/popup
+        let mut display_name = String::from("git push");
         if force {
-            display_cmd.push_str(" --force-with-lease");
+            display_name.push_str(" --force-with-lease");
         }
         if set_upstream {
-            display_cmd.push_str(&format!(" -u {} {}", remote, branch));
+            display_name.push_str(&format!(" -u {} {}", remote, branch));
         }
 
-        // Execute push
-        let result = Command::new("git")
-            .args(&args)
-            .current_dir(&self.repo_path)
-            .output();
+        // Execute using unified framework
+        // Push from keyboard shortcut - use Keyboard source (popup on failure or long output)
+        let request = CommandRequest {
+            program: "git".to_string(),
+            args,
+            display_name,
+            cwd: None,
+            source: CommandSource::Keyboard,
+            feedback: FeedbackPolicy::Default,
+            refresh_after: true,
+        };
 
-        match result {
-            Ok(output) => {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let stderr = String::from_utf8_lossy(&output.stderr);
-
-                if output.status.success() {
-                    // Capture output for popup
-                    // Note: git push/pull/fetch output to stderr even on success
-                    self.command_success = true;
-                    self.command_output = if !stderr.is_empty() {
-                        stderr.to_string()
-                    } else if !stdout.is_empty() {
-                        stdout.to_string()
-                    } else {
-                        String::from("(no output)")
-                    };
-                    // Record in history (dedupe last)
-                    if self.command_history.last().map(String::as_str) != Some(display_cmd.as_str()) {
-                        self.command_history.push(display_cmd.clone());
-                        if self.command_history.len() > MAX_COMMAND_HISTORY {
-                            self.command_history.remove(0);
-                        }
-                    }
-                    // Auto-open popup on long output (do not show footer notice)
-                    if self.command_output.lines().count() > AUTO_POPUP_LINE_THRESHOLD {
-                        self.open_output_popup();
-                    }
-                    self.refresh_status();
-                } else {
-                    // Show error
-                    let error_msg = if stderr.is_empty() {
-                        stdout.to_string()
-                    } else {
-                        stderr.to_string()
-                    };
-                    // Capture output for popup and always open on failure
-                    self.command_success = false;
-                    self.command_output = error_msg;
-                    if self.command_history.last().map(String::as_str) != Some(display_cmd.as_str()) {
-                        self.command_history.push(display_cmd.clone());
-                        if self.command_history.len() > MAX_COMMAND_HISTORY {
-                            self.command_history.remove(0);
-                        }
-                    }
-                    self.open_output_popup();
-                }
-            }
-            Err(e) => {
-                // Capture output for popup and open
-                self.command_success = false;
-                self.command_output = e.to_string();
-                let mut display_cmd = String::from("git push");
-                if force {
-                    display_cmd.push_str(" --force-with-lease");
-                }
-                if set_upstream {
-                    display_cmd.push_str(&format!(" -u {} {}", remote, branch));
-                }
-                if self.command_history.last().map(String::as_str) != Some(display_cmd.as_str()) {
-                    self.command_history.push(display_cmd);
-                    if self.command_history.len() > MAX_COMMAND_HISTORY {
-                        self.command_history.remove(0);
-                    }
-                }
-                self.open_output_popup();
-            }
-        }
+        self.run_command(request);
     }
 
     /// Execute git pull
     fn execute_pull(&mut self) {
-        self.command_input = "git pull".to_string();
-        self.execute_command();
+        let request = CommandRequest::git(["pull"])
+            .with_source(CommandSource::Keyboard);
+        self.run_command(request);
     }
 
     /// Execute git fetch
     fn execute_fetch(&mut self) {
-        self.command_input = "git fetch".to_string();
-        self.execute_command();
+        let request = CommandRequest::git(["fetch"])
+            .with_source(CommandSource::Keyboard);
+        self.run_command(request);
     }
 
     /// Run the currently selected alias
@@ -1818,9 +1773,11 @@ impl App {
         // Exit alias mode
         self.exit_alias_mode();
 
-        // Set up command and execute
-        self.command_input = format!("git {name}");
-        self.execute_command();
+        // Execute using unified framework with AliasBrowser source (always shows popup)
+        let request = CommandRequest::git([&name])
+            .with_source(CommandSource::AliasBrowser)
+            .with_display_name(format!("git {name}"));
+        self.run_command(request);
     }
 
     /// Total count of all selectable items
@@ -2128,77 +2085,85 @@ impl App {
         // Status is refreshed via file watcher events
     }
 
-    /// Execute a command (must start with "git")
+    // ─────────────────────────────────────────────────────────────────────────
+    // Unified Command Execution
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Execute a command using the unified framework
+    ///
+    /// This is the single entry point for all command execution. It handles:
+    /// - Running the command via CommandExecutor
+    /// - Recording in history
+    /// - Displaying output (inline or popup based on source and result)
+    /// - Refreshing git status if requested
+    fn run_command(&mut self, request: CommandRequest) {
+        // Execute via the executor
+        let result = self.executor.execute(&request);
+
+        // Record in history (deduplicated)
+        if self.command_history.last().map(String::as_str) != Some(&request.display_name) {
+            self.command_history.push(request.display_name.clone());
+            if self.command_history.len() > MAX_COMMAND_HISTORY {
+                self.command_history.remove(0);
+            }
+        }
+
+        // Store output for display
+        self.command_output = result.display_output().to_string();
+        self.command_success = result.success;
+
+        // Determine if popup should auto-open based on source and result
+        let should_popup = match request.feedback {
+            FeedbackPolicy::AlwaysPopup => true,
+            FeedbackPolicy::InlineOnly => false,
+            FeedbackPolicy::Silent => false,
+            FeedbackPolicy::External => false,
+            FeedbackPolicy::Default => {
+                // Source-based defaults:
+                // - ActionMenu/AliasBrowser: Always popup (deliberate selection deserves feedback)
+                // - Keyboard/Palette: Popup on failure or long output
+                match request.source {
+                    CommandSource::ActionMenu | CommandSource::AliasBrowser => true,
+                    CommandSource::Keyboard | CommandSource::Palette | CommandSource::Internal => {
+                        !result.success || result.line_count() > AUTO_POPUP_LINE_THRESHOLD
+                    }
+                }
+            }
+        };
+
+        if should_popup {
+            self.open_output_popup();
+        }
+
+        // Refresh git status if requested
+        if request.refresh_after {
+            self.refresh_status();
+        }
+    }
+
+    /// Execute command from the command palette (: mode)
     fn execute_command(&mut self) {
         let input = self.command_input.trim();
         if input.is_empty() {
             return;
         }
 
-        // Parse command
-        let parts: Vec<&str> = input.split_whitespace().collect();
-        if parts.is_empty() {
+        // Parse command - for now still restrict to git commands for safety
+        // TODO: Make this configurable for allowed command prefixes
+        let Some(request) = CommandRequest::from_input(input) else {
             return;
-        }
+        };
 
-        // Only allow git commands for safety
-        if parts[0] != "git" {
+        if request.program != "git" {
             self.command_output = String::from("Error: Only git commands are allowed");
             self.command_success = false;
+            self.command_input.clear();
+            self.history_index = None;
             return;
         }
 
-        // Add to history (avoid duplicates of last command)
-        if self.command_history.last().map(String::as_str) != Some(input) {
-            self.command_history.push(input.to_string());
-            if self.command_history.len() > MAX_COMMAND_HISTORY {
-                self.command_history.remove(0);
-            }
-        }
-
-        // Execute the command
-        let result = Command::new("git")
-            .args(&parts[1..])
-            .current_dir(&self.repo_path)
-            .output();
-
-        match result {
-            Ok(output) => {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let stderr = String::from_utf8_lossy(&output.stderr);
-
-                self.command_success = output.status.success();
-
-                if self.command_success {
-                    // Note: git push/pull/fetch output to stderr even on success
-                    self.command_output = if !stderr.is_empty() {
-                        stderr.to_string()
-                    } else if !stdout.is_empty() {
-                        stdout.to_string()
-                    } else {
-                        String::from("(no output)")
-                    };
-                } else {
-                    self.command_output = if stderr.is_empty() {
-                        stdout.to_string()
-                    } else {
-                        stderr.to_string()
-                    };
-                }
-
-                // Refresh status after any git command (it might have changed state)
-                self.refresh_status();
-            }
-            Err(e) => {
-                self.command_output = format!("Failed to execute: {e}");
-                self.command_success = false;
-            }
-        }
-
-        // Auto-open popup if output exceeds threshold
-        if self.command_output.lines().count() > AUTO_POPUP_LINE_THRESHOLD {
-            self.open_output_popup();
-        }
+        // Execute using unified framework (source = Palette)
+        self.run_command(request.with_source(CommandSource::Palette));
 
         // Clear input and reset history navigation
         self.command_input.clear();

@@ -267,8 +267,13 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
 
     // Staged section
     if !staged_changes.is_empty() {
+        // Check if selection is within staged section (indices 1 to staged_len)
+        let in_staged = app
+            .selected
+            .is_some_and(|s| s >= 1 && s < 1 + staged_len && !app.command_mode);
+        let arrow = if in_staged { "▾" } else { "▸" };
         items.push(ListItem::new(Line::from(Span::styled(
-            format!("  Staged ({staged_len})"),
+            format!("  {arrow} Staged ({staged_len})"),
             Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
         ))));
 
@@ -303,14 +308,21 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             items.push(ListItem::new(Line::from("")));
         }
 
+        // Check if selection is within working section
+        let working_start = 1 + staged_len;
+        let working_end = working_start + working_len;
+        let in_working = app
+            .selected
+            .is_some_and(|s| s >= working_start && s < working_end && !app.command_mode);
+        let arrow = if in_working { "▾" } else { "▸" };
         items.push(ListItem::new(Line::from(Span::styled(
-            format!("  Working ({working_len})"),
+            format!("  {arrow} Working ({working_len})"),
             Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
         ))));
 
         for (i, file) in working_changes.iter().enumerate() {
             // Index 0 is command, staged starts at 1, working starts at 1 + staged_len
-            let global_idx = 1 + staged_len + i;
+            let global_idx = working_start + i;
             // Don't show selection when command mode is active (focus is on input)
             let selected = Some(global_idx) == app.selected && !app.command_mode;
             let prefix = if selected { "▸ " } else { "  " };
@@ -398,8 +410,14 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             items.push(ListItem::new(Line::from("")));
         }
 
+        // Check if selection is within branches section
+        let branches_start = current_idx;
+        let in_branches = app
+            .selected
+            .is_some_and(|s| s >= branches_start && !app.command_mode);
+        let arrow = if in_branches { "▾" } else { "▸" };
         items.push(ListItem::new(Line::from(Span::styled(
-            format!("  Branches ({})", other_branches.len()),
+            format!("  {arrow} Branches ({})", other_branches.len()),
             Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
         ))));
 

@@ -16,7 +16,7 @@ use crate::{
     config::GitConfig,
     event::Event,
     git::{BranchInfo, CommitDetail, FileState, GitCommand, GitRepo, GitStatus},
-    menu::{Checkbox, ConfirmMenu, Menu, MenuResult, MenuStack, SelectItem, SelectMenu},
+    menu::{AliasSectionMenu, MenuResult, MenuStack},
     tui::Tui,
     ui,
     watcher::{RepoWatcher, WatchEvent},
@@ -103,18 +103,6 @@ pub enum ViewMode {
     Command,
     /// Generic confirmation mode (prompt in footer)
     Confirm(ConfirmAction),
-    /// Alias browser showing section list
-    AliasSections {
-        /// Currently selected section index
-        selected: usize,
-    },
-    /// Alias browser showing aliases within a section
-    AliasItems {
-        /// Section being viewed
-        section_idx: usize,
-        /// Currently selected alias index within section
-        selected: usize,
-    },
     /// Action menu showing available actions for current context
     ActionMenu {
         /// Context when menu was opened
@@ -367,14 +355,6 @@ impl App {
         matches!(self.view_mode, ViewMode::Command)
     }
 
-    /// Check if in any alias browsing mode
-    pub fn is_alias_mode(&self) -> bool {
-        matches!(
-            self.view_mode,
-            ViewMode::AliasSections { .. } | ViewMode::AliasItems { .. }
-        )
-    }
-
     /// Enter command mode
     pub fn enter_command_mode(&mut self) {
         self.view_mode = ViewMode::Command;
@@ -389,35 +369,17 @@ impl App {
         self.history_index = None;
     }
 
-    /// Enter alias browser at section list
+    /// Enter alias browser using the menu stack
     pub fn enter_alias_browser(&mut self) {
-        if !self.config.sections.is_empty() {
-            self.view_mode = ViewMode::AliasSections { selected: 0 };
+        if self.config.sections.is_empty() {
+            return;
         }
-    }
 
-    /// Drill into an alias section
-    pub fn enter_alias_section(&mut self) {
-        if let ViewMode::AliasSections { selected } = self.view_mode {
-            self.view_mode = ViewMode::AliasItems {
-                section_idx: selected,
-                selected: 0,
-            };
-        }
-    }
-
-    /// Go back from alias items to sections
-    pub fn back_to_alias_sections(&mut self) {
-        if let ViewMode::AliasItems { section_idx, .. } = self.view_mode {
-            self.view_mode = ViewMode::AliasSections {
-                selected: section_idx,
-            };
-        }
-    }
-
-    /// Exit alias mode entirely
-    pub fn exit_alias_mode(&mut self) {
-        self.view_mode = ViewMode::Normal;
+        let menu = AliasSectionMenu::new(
+            self.config.sections.clone(),
+            self.repo_path.clone(),
+        );
+        self.menu_stack.push(Box::new(menu));
     }
 
     /// Open action menu for current context
@@ -926,10 +888,6 @@ impl App {
                 self.handle_confirm_key(key);
                 return;
             }
-            ViewMode::AliasSections { .. } | ViewMode::AliasItems { .. } => {
-                self.handle_alias_mode_key(key);
-                return;
-            }
             ViewMode::ActionMenu { .. } => {
                 self.handle_action_menu_key(key);
                 return;
@@ -1299,77 +1257,6 @@ impl App {
             }
             KeyCode::Down => {
                 self.history_next();
-            }
-
-            _ => {}
-        }
-    }
-
-    /// Handle keyboard input in alias browsing mode
-    fn handle_alias_mode_key(&mut self, key: KeyEvent) {
-        match key.code {
-            // Universal push shortcut
-            KeyCode::Char('P') => {
-                self.show_push_confirm(false);
-            }
-            // Go back / close
-            KeyCode::Esc | KeyCode::Char('q') => {
-                match &self.view_mode {
-                    ViewMode::AliasItems { .. } => {
-                        self.back_to_alias_sections();
-                    }
-                    ViewMode::AliasSections { .. } => {
-                        self.exit_alias_mode();
-                    }
-                    _ => {}
-                }
-            }
-
-            // Select category or run alias
-            KeyCode::Enter => {
-                match &self.view_mode {
-                    ViewMode::AliasItems { .. } => {
-                        self.run_selected_alias();
-                    }
-                    ViewMode::AliasSections { .. } => {
-                        self.enter_alias_section();
-                    }
-                    _ => {}
-                }
-            }
-
-            // Navigation
-            KeyCode::Char('j') | KeyCode::Down => {
-                match &mut self.view_mode {
-                    ViewMode::AliasItems { section_idx, selected } => {
-                        if let Some(section) = self.config.sections.get(*section_idx) {
-                            if *selected < section.aliases.len().saturating_sub(1) {
-                                *selected += 1;
-                            }
-                        }
-                    }
-                    ViewMode::AliasSections { selected } => {
-                        if *selected < self.config.sections.len().saturating_sub(1) {
-                            *selected += 1;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            KeyCode::Char('k') | KeyCode::Up => {
-                match &mut self.view_mode {
-                    ViewMode::AliasItems { selected, .. } => {
-                        if *selected > 0 {
-                            *selected -= 1;
-                        }
-                    }
-                    ViewMode::AliasSections { selected } => {
-                        if *selected > 0 {
-                            *selected -= 1;
-                        }
-                    }
-                    _ => {}
-                }
             }
 
             _ => {}
@@ -1800,36 +1687,6 @@ impl App {
     fn execute_fetch(&mut self) {
         let request = CommandRequest::git(["fetch"])
             .with_source(CommandSource::Keyboard);
-        self.run_command(request);
-    }
-
-    /// Run the currently selected alias
-    fn run_selected_alias(&mut self) {
-        // Get section and alias indices from view_mode
-        let (section_idx, alias_idx) = match self.view_mode {
-            ViewMode::AliasItems { section_idx, selected } => (section_idx, selected),
-            _ => return,
-        };
-
-        // Get the alias name before exiting alias mode (to avoid borrow issues)
-        let alias_name = self
-            .config
-            .sections
-            .get(section_idx)
-            .and_then(|s| s.aliases.get(alias_idx))
-            .map(|a| a.name.clone());
-
-        let Some(name) = alias_name else {
-            return;
-        };
-
-        // Exit alias mode
-        self.exit_alias_mode();
-
-        // Execute using unified framework with AliasBrowser source (always shows popup)
-        let request = CommandRequest::git([&name])
-            .with_source(CommandSource::AliasBrowser)
-            .with_display_name(format!("git {name}"));
         self.run_command(request);
     }
 

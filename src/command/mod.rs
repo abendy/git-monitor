@@ -9,7 +9,7 @@ mod history;
 pub use executor::{CommandExecutor, CommandResult};
 pub use history::CommandHistory;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Source of command execution - affects feedback behavior
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -132,5 +132,20 @@ impl CommandRequest {
     pub fn with_display_name(mut self, name: impl Into<String>) -> Self {
         self.display_name = name.into();
         self
+    }
+
+    /// Create a git alias command request
+    pub fn git_alias(name: &str, command: &str, repo_path: &Path) -> Self {
+        // Git aliases are expanded as "git <command>"
+        let args: Vec<String> = command.split_whitespace().map(String::from).collect();
+        Self {
+            program: "git".to_string(),
+            args,
+            display_name: format!("git {name}"),
+            cwd: Some(repo_path.to_path_buf()),
+            source: CommandSource::default(),
+            feedback: FeedbackPolicy::default(),
+            refresh_after: true,
+        }
     }
 }

@@ -165,7 +165,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let mut items: Vec<ListItem<'_>> = Vec::new();
 
     // Command section (always at top, index 0)
-    let cmd_selected = app.selected == Some(0) && !app.is_alias_mode();
+    let cmd_selected = app.selected == Some(0) && !app.menu_stack.is_active();
     let cmd_prefix = if cmd_selected { "▸ " } else { "  " };
 
     if app.is_command_mode() {
@@ -196,83 +196,8 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         ])));
     }
 
-    // Show alias categories when in alias browsing mode
-    if let ViewMode::AliasSections { selected: section_selected } = app.view_mode {
-        let section_count = app.config.sections.len();
-        items.push(ListItem::new(Line::from(Span::styled(
-            format!("── Aliases ({section_count} categories) ──"),
-            Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
-        ))));
-
-        for (i, section) in app.config.sections.iter().enumerate() {
-            let selected = i == section_selected;
-            let prefix = if selected { "▸ " } else { "  " };
-            let alias_count = section.aliases.len();
-
-            let style = if selected {
-                Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::White)
-            };
-
-            items.push(ListItem::new(Line::from(vec![
-                Span::raw(prefix),
-                Span::styled(&section.name, style),
-                Span::styled(format!(" ({alias_count})"), Style::default().fg(Color::DarkGray)),
-            ])));
-        }
-
-        items.push(ListItem::new(Line::from(Span::styled(
-            "  Enter select  Esc back",
-            Style::default().fg(Color::DarkGray).italic(),
-        ))));
-    }
-
-    // Show aliases within a section
-    if let ViewMode::AliasItems { section_idx, selected: alias_selected } = app.view_mode {
-        if let Some(section) = app.config.sections.get(section_idx) {
-            items.push(ListItem::new(Line::from(Span::styled(
-                format!("── {} ──", section.name),
-                Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
-            ))));
-
-            for (i, alias) in section.aliases.iter().enumerate() {
-                let selected = i == alias_selected;
-                let prefix = if selected { "▸ " } else { "  " };
-
-                let style = if selected {
-                    Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().fg(Color::White)
-                };
-
-                // Truncate command if too long
-                let max_cmd_len = area.width.saturating_sub(20) as usize;
-                let cmd_display = if alias.command.len() > max_cmd_len {
-                    format!("{}...", &alias.command[..max_cmd_len.saturating_sub(3)])
-                } else {
-                    alias.command.clone()
-                };
-
-                items.push(ListItem::new(Line::from(vec![
-                    Span::raw(prefix),
-                    Span::styled(
-                        format!("{:<12}", alias.name),
-                        style,
-                    ),
-                    Span::styled(cmd_display, Style::default().fg(Color::DarkGray)),
-                ])));
-            }
-
-            items.push(ListItem::new(Line::from(Span::styled(
-                "  Enter run  Esc back",
-                Style::default().fg(Color::DarkGray).italic(),
-            ))));
-        }
-    }
-
-    // Command output (if any, and not in alias mode)
-    if !app.command_output.is_empty() && !app.is_alias_mode() {
+    // Command output (if any, and not when menu overlay is active)
+    if !app.command_output.is_empty() && !app.menu_stack.is_active() {
         let output_color = if app.command_success {
             Color::White
         } else {

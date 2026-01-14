@@ -894,6 +894,43 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Span::styled(" Up/Down ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" history "),
         ])
+    } else if let ViewMode::PushConfirm { branch, remote, has_upstream, ahead, force } = &app.view_mode {
+        // Push confirmation prompt in footer
+        let mut spans = vec![];
+
+        if !*has_upstream {
+            spans.push(Span::raw("Set upstream and push "));
+            spans.push(Span::styled(branch, Style::default().fg(Color::Yellow).bold()));
+            spans.push(Span::raw(" → "));
+            spans.push(Span::styled(format!("{remote}/{branch}"), Style::default().fg(Color::Cyan)));
+            spans.push(Span::raw("? "));
+        } else {
+            let action = if *force { "Force push " } else { "Push " };
+            spans.push(Span::raw(action));
+            spans.push(Span::styled(branch, Style::default().fg(Color::Yellow).bold()));
+            spans.push(Span::raw(" → "));
+            spans.push(Span::styled(format!("{remote}/{branch}"), Style::default().fg(Color::Cyan)));
+            if *ahead > 0 {
+                spans.push(Span::styled(
+                    format!(" ({}↑)", ahead),
+                    Style::default().fg(Color::Green),
+                ));
+            }
+            spans.push(Span::raw("? "));
+        }
+
+        if *force {
+            spans.push(Span::styled("⚠ ", Style::default().fg(Color::Yellow)));
+        }
+
+        spans.push(Span::styled(" Enter ", Style::default().bg(Color::DarkGray).bold()));
+        spans.push(Span::raw(" yes  "));
+        spans.push(Span::styled(" f ", Style::default().bg(Color::DarkGray).bold()));
+        spans.push(Span::raw(if *force { " normal  " } else { " force  " }));
+        spans.push(Span::styled(" Esc ", Style::default().bg(Color::DarkGray).bold()));
+        spans.push(Span::raw(" cancel "));
+
+        Line::from(spans)
     } else if let Some(ref error) = app.error {
         Line::from(Span::styled(
             error.as_str(),
@@ -959,6 +996,7 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
         )),
         Line::from("  s                  Stage/unstage file"),
         Line::from("  d / Enter          Show diff"),
+        Line::from("  P                  Push current branch"),
         Line::from(""),
         Line::from(Span::styled(
             "History",

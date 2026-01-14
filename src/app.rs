@@ -86,6 +86,19 @@ pub enum ViewMode {
     Normal,
     /// Command input mode (typing git commands)
     Command,
+    /// Push confirmation mode (prompt in footer)
+    PushConfirm {
+        /// Branch to push
+        branch: String,
+        /// Remote name (e.g., "origin")
+        remote: String,
+        /// Whether upstream is set
+        has_upstream: bool,
+        /// Number of commits ahead
+        ahead: usize,
+        /// Force push mode
+        force: bool,
+    },
     /// Alias browser showing section list
     AliasSections {
         /// Currently selected section index
@@ -128,7 +141,6 @@ pub enum PopupContent {
         #[allow(dead_code)] // Reserved for future staged/unstaged indicator
         is_staged: bool,
     },
-    // Future: CommitDetail, RebaseTool, etc.
 }
 
 impl PopupContent {
@@ -525,6 +537,20 @@ impl App {
         selected >= branches_start && selected < branches_end
     }
 
+    /// Check if selection is in the files section (staged or working changes)
+    fn is_in_files_section(&self) -> bool {
+        let Some(selected) = self.selected else {
+            return false;
+        };
+        // Index 0 is command section, files start at 1
+        if selected == 0 {
+            return false;
+        }
+        let files_total = self.status.staged_changes().len() + self.status.working_changes().len();
+        // Files are from index 1 to files_total (inclusive)
+        selected <= files_total
+    }
+
     /// Check if selection is on a branch header (always None - headers not selectable)
     fn is_on_branch_header(&self) -> Option<String> {
         None
@@ -775,6 +801,10 @@ impl App {
                 self.handle_command_mode_key(key);
                 return;
             }
+            ViewMode::PushConfirm { .. } => {
+                self.handle_push_confirm_key(key);
+                return;
+            }
             ViewMode::AliasSections { .. } | ViewMode::AliasItems { .. } => {
                 self.handle_alias_mode_key(key);
                 return;
@@ -881,6 +911,13 @@ impl App {
             // Stage/Unstage
             KeyCode::Char('s') => {
                 self.toggle_stage();
+            }
+
+            // Push current branch (from files section)
+            KeyCode::Char('P') => {
+                if self.is_in_files_section() {
+                    self.show_push_confirm(false);
+                }
             }
 
             // Diff (inline popup)
@@ -1197,6 +1234,34 @@ impl App {
         }
     }
 
+    /// Handle keyboard input in push confirmation mode
+    fn handle_push_confirm_key(&mut self, key: KeyEvent) {
+        // Extract values from view_mode before matching
+        let (has_upstream, force) = match &self.view_mode {
+            ViewMode::PushConfirm { has_upstream, force, .. } => (*has_upstream, *force),
+            _ => return,
+        };
+
+        match key.code {
+            // Cancel
+            KeyCode::Esc | KeyCode::Char('q') => {
+                self.view_mode = ViewMode::Normal;
+            }
+            // Execute push
+            KeyCode::Enter => {
+                self.view_mode = ViewMode::Normal;
+                self.execute_push(force, !has_upstream);
+            }
+            // Toggle force push mode
+            KeyCode::Char('f') | KeyCode::Char('F') => {
+                if let ViewMode::PushConfirm { force, .. } = &mut self.view_mode {
+                    *force = !*force;
+                }
+            }
+            _ => {}
+        }
+    }
+
     /// Handle keyboard input in popup mode
     fn handle_popup_key(&mut self, key: KeyEvent) {
         // Use visible height from last render (defaults to 20 if not yet rendered)
@@ -1264,6 +1329,109 @@ impl App {
             content,
             is_staged,
         });
+    }
+
+    /// Enter push confirmation mode (prompt shown in footer)
+    fn show_push_confirm(&mut self, force: bool) {
+        let branch = match &self.status.branch {
+            Some(b) => b.clone(),
+            None => {
+                self.error = Some("No branch checked out".to_string());
+                return;
+            }
+        };
+
+        // Extract remote name from upstream (e.g., "origin/main" -> "origin")
+        let (remote, has_upstream) = match &self.status.upstream {
+            Some(upstream) => {
+                let remote = upstream.split('/').next().unwrap_or("origin").to_string();
+                (remote, true)
+            }
+            None => ("origin".to_string(), false),
+        };
+
+        self.view_mode = ViewMode::PushConfirm {
+            branch,
+            remote,
+            has_upstream,
+            ahead: self.status.ahead,
+            force,
+        };
+    }
+
+    /// Execute git push
+    fn execute_push(&mut self, force: bool, set_upstream: bool) {
+        let branch = match &self.status.branch {
+            Some(b) => b.clone(),
+            None => {
+                self.error = Some("No branch checked out".to_string());
+                return;
+            }
+        };
+
+        // Determine remote
+        let remote = self
+            .status
+            .upstream
+            .as_ref()
+            .and_then(|u| u.split('/').next())
+            .unwrap_or("origin");
+
+        // Build push command arguments
+        let mut args = vec!["push"];
+
+        if force {
+            args.push("--force-with-lease");
+        }
+
+        if set_upstream {
+            args.push("-u");
+            args.push(remote);
+            args.push(&branch);
+        }
+
+        // Execute push
+        let result = Command::new("git")
+            .args(&args)
+            .current_dir(&self.repo_path)
+            .output();
+
+        match result {
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+
+                if output.status.success() {
+                    // Format success message
+                    let commits = if self.status.ahead > 0 {
+                        format!(" ({} commit{})", self.status.ahead, if self.status.ahead == 1 { "" } else { "s" })
+                    } else {
+                        String::new()
+                    };
+
+                    let upstream_msg = self
+                        .status
+                        .upstream
+                        .as_ref()
+                        .map(|u| format!(" → {u}"))
+                        .unwrap_or_else(|| format!(" → {remote}/{branch}"));
+
+                    self.error = Some(format!("Pushed {branch}{upstream_msg}{commits}"));
+                    self.refresh_status();
+                } else {
+                    // Show error
+                    let error_msg = if stderr.is_empty() {
+                        stdout.to_string()
+                    } else {
+                        stderr.to_string()
+                    };
+                    self.error = Some(format!("Push failed: {}", error_msg.trim()));
+                }
+            }
+            Err(e) => {
+                self.error = Some(format!("Failed to execute push: {e}"));
+            }
+        }
     }
 
     /// Run the currently selected alias

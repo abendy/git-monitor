@@ -127,7 +127,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let mut items: Vec<ListItem<'_>> = Vec::new();
 
     // Command section (always at top, index 0)
-    let cmd_selected = app.selected == 0 && !app.show_aliases;
+    let cmd_selected = app.selected == Some(0) && !app.show_aliases;
     let cmd_prefix = if cmd_selected { "▸ " } else { "  " };
 
     if app.command_mode {
@@ -276,7 +276,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             // Index 0 is command, so files start at index 1
             let global_idx = 1 + i;
             // Don't show selection when command mode is active (focus is on input)
-            let selected = global_idx == app.selected && !app.command_mode;
+            let selected = Some(global_idx) == app.selected && !app.command_mode;
             let prefix = if selected { "▸ " } else { "  " };
             let status_char = file.staged.as_char();
             let color = state_color(file.staged);
@@ -312,7 +312,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             // Index 0 is command, staged starts at 1, working starts at 1 + staged_len
             let global_idx = 1 + staged_len + i;
             // Don't show selection when command mode is active (focus is on input)
-            let selected = global_idx == app.selected && !app.command_mode;
+            let selected = Some(global_idx) == app.selected && !app.command_mode;
             let prefix = if selected { "▸ " } else { "  " };
             let status_char = file.working.as_char();
             let color = state_color(file.working);
@@ -359,7 +359,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             // Index 0 is command, files start at 1, history starts at 1 + files_total
             let global_idx = 1 + files_total + i;
             // Don't show selection when command mode is active (focus is on input)
-            let selected = global_idx == app.selected && !app.command_mode;
+            let selected = Some(global_idx) == app.selected && !app.command_mode;
             let prefix = if selected { "▸ " } else { "  " };
 
             let time_str = cmd.timestamp.format("%H:%M:%S").to_string();
@@ -556,7 +556,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         for (i, branch) in app.branches.iter().enumerate() {
             // Calculate global index: command(1) + files + activity + branch index
             let global_idx = 1 + files_total + activity_len + i;
-            let selected = global_idx == app.selected && !app.command_mode;
+            let selected = Some(global_idx) == app.selected && !app.command_mode;
             let prefix = if selected { "▸ " } else { "  " };
 
             // Current branch indicator
@@ -736,14 +736,15 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
         let activity_len = app.activity.len();
         let files_total = staged_len + working_len;
 
-        let on_command = app.selected == 0;
-        let on_file = !on_command && app.selected <= files_total;
+        let selected = app.selected.unwrap_or(usize::MAX);
+        let on_command = selected == 0;
+        let on_file = selected >= 1 && selected <= files_total;
         let history_start = 1 + files_total;
         let history_end = history_start + activity_len;
-        let on_history = app.selected >= history_start && app.selected < history_end;
+        let on_history = selected >= history_start && selected < history_end;
         let branches_start = history_end;
-        let on_branches = app.selected >= branches_start
-            && app.selected < branches_start + app.branches.len();
+        let on_branches = selected >= branches_start
+            && selected < branches_start + app.branches.len();
 
         let mut hints = vec![
             Span::styled(" j/k ", Style::default().bg(Color::DarkGray).bold()),

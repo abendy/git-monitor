@@ -193,8 +193,8 @@ pub struct App {
     watcher: Option<RepoWatcher>,
     /// Whether the application is running
     pub running: bool,
-    /// Selected index in main list (command → staged → working → activity)
-    pub selected: usize,
+    /// Selected index in main list (None = nothing focused, Some(0) = command, etc.)
+    pub selected: Option<usize>,
     /// Show help overlay
     pub show_help: bool,
     /// Error message to display
@@ -256,7 +256,7 @@ impl App {
             config,
             watcher: None,
             running: true,
-            selected: 0,
+            selected: None,
             show_help: false,
             error: None,
             command_mode: false,
@@ -346,6 +346,9 @@ impl App {
 
     /// Check if selection is in the history section
     fn is_in_history(&self) -> bool {
+        let Some(selected) = self.selected else {
+            return false;
+        };
         let staged_len = self.status.staged_changes().len();
         let working_len = self.status.working_changes().len();
         let files_total = staged_len + working_len;
@@ -354,11 +357,14 @@ impl App {
         // Index 0 is command, files are 1..=files_total, history is next
         let history_start = 1 + files_total;
         let history_end = history_start + activity_len;
-        self.selected >= history_start && self.selected < history_end
+        selected >= history_start && selected < history_end
     }
 
     /// Check if selection is in the branches section
     fn is_in_branches(&self) -> bool {
+        let Some(selected) = self.selected else {
+            return false;
+        };
         let staged_len = self.status.staged_changes().len();
         let working_len = self.status.working_changes().len();
         let activity_len = self.activity.len();
@@ -366,7 +372,7 @@ impl App {
 
         // Branches start after: command(1) + files + activity
         let branches_start = 1 + files_total + activity_len;
-        self.selected >= branches_start && self.selected < branches_start + self.branches.len()
+        selected >= branches_start && selected < branches_start + self.branches.len()
     }
 
     /// Check if currently selected item is the expanded commit
@@ -403,7 +409,7 @@ impl App {
 
         // First history item is at index files_total + 1
         if !self.activity.is_empty() {
-            self.selected = files_total + 1;
+            self.selected = Some(files_total + 1);
         }
     }
 
@@ -416,13 +422,14 @@ impl App {
 
         // Branches come after: command(1) + files + activity
         if !self.branches.is_empty() {
-            self.selected = 1 + files_total + activity_len;
+            self.selected = Some(1 + files_total + activity_len);
             self.close_expanded_commit();
         }
     }
 
     /// Get the selected branch info (if on a branch item)
     fn selected_branch(&self) -> Option<&BranchInfo> {
+        let selected = self.selected?;
         let staged_len = self.status.staged_changes().len();
         let working_len = self.status.working_changes().len();
         let activity_len = self.activity.len();
@@ -430,8 +437,8 @@ impl App {
 
         let branches_start = 1 + files_total + activity_len;
 
-        if self.selected >= branches_start {
-            let branch_idx = self.selected - branches_start;
+        if selected >= branches_start {
+            let branch_idx = selected - branches_start;
             self.branches.get(branch_idx)
         } else {
             None
@@ -507,7 +514,7 @@ impl App {
 
         // Auto-enter command mode when typing on command section
         // (except for quit, help, and special keys)
-        if self.selected == 0 {
+        if self.selected == Some(0) {
             if let KeyCode::Char(c) = key.code {
                 if !matches!(c, 'q' | '?' | ':' | 'o') && !key.modifiers.contains(KeyModifiers::CONTROL) {
                     self.command_mode = true;
@@ -580,7 +587,7 @@ impl App {
                 self.show_diff();
             }
             KeyCode::Enter => {
-                if self.selected == 0 {
+                if self.selected == Some(0) {
                     // Activate command mode when on command section
                     self.command_mode = true;
                     self.command_input.clear();
@@ -623,7 +630,7 @@ impl App {
                 }
             }
             KeyCode::Char('k') | KeyCode::Up => {
-                if self.selected == 0 && !self.command_history.is_empty() {
+                if self.selected == Some(0) && !self.command_history.is_empty() {
                     // On command section - enter command mode and show history
                     self.command_mode = true;
                     self.history_prev();
@@ -721,7 +728,7 @@ impl App {
 
             // Open output popup (when on command section with output)
             KeyCode::Char('o') => {
-                if self.selected == 0 && !self.command_output.is_empty() {
+                if self.selected == Some(0) && !self.command_output.is_empty() {
                     self.open_output_popup();
                 }
             }
@@ -931,8 +938,10 @@ impl App {
     /// Get the selected file info
     /// Returns (path, is_staged, file_state) or None if selection is on command or activity
     fn selected_file_info(&self) -> Option<(PathBuf, bool, FileState)> {
+        let selected = self.selected?;
+
         // Index 0 is command section
-        if self.selected == 0 {
+        if selected == 0 {
             return None;
         }
 
@@ -941,7 +950,7 @@ impl App {
         let staged_len = staged.len();
 
         // Adjust for command section at index 0
-        let file_idx = self.selected - 1;
+        let file_idx = selected - 1;
 
         if file_idx < staged_len {
             // Selected is in staged
@@ -951,20 +960,21 @@ impl App {
             let working_idx = file_idx - staged_len;
             working.get(working_idx).map(|f| (f.path.clone(), false, f.working))
         } else {
-            // Selected is in activity
+            // Selected is in activity or branches
             None
         }
     }
 
     /// Get the selected activity item's SHA (if on a history item)
     fn selected_activity_sha(&self) -> Option<String> {
+        let selected = self.selected?;
         let staged_len = self.status.staged_changes().len();
         let working_len = self.status.working_changes().len();
         let files_total = staged_len + working_len;
 
         // Index 0 is command, files are 1..=files_total, activity starts after
-        if self.selected > files_total {
-            let activity_idx = self.selected - 1 - files_total;
+        if selected > files_total {
+            let activity_idx = selected - 1 - files_total;
             self.activity
                 .get(activity_idx)
                 .and_then(|cmd| cmd.sha.clone())
@@ -1041,23 +1051,37 @@ impl App {
     /// Select next item
     fn select_next(&mut self) {
         let len = self.total_count();
-        if len > 0 && self.selected < len - 1 {
-            self.selected += 1;
-            self.close_expanded_commit();
+        if len == 0 {
+            return;
+        }
+
+        match self.selected {
+            None => {
+                // Nothing selected, select first item
+                self.selected = Some(0);
+            }
+            Some(idx) if idx < len - 1 => {
+                self.selected = Some(idx + 1);
+                self.close_expanded_commit();
+            }
+            _ => {}
         }
     }
 
     /// Select previous item
     fn select_prev(&mut self) {
-        if self.selected > 0 {
-            self.selected -= 1;
-            self.close_expanded_commit();
+        match self.selected {
+            Some(idx) if idx > 0 => {
+                self.selected = Some(idx - 1);
+                self.close_expanded_commit();
+            }
+            _ => {}
         }
     }
 
     /// Select first item
     fn select_first(&mut self) {
-        self.selected = 0;
+        self.selected = Some(0);
         self.close_expanded_commit();
     }
 
@@ -1065,7 +1089,7 @@ impl App {
     fn select_last(&mut self) {
         let len = self.total_count();
         if len > 0 {
-            self.selected = len - 1;
+            self.selected = Some(len - 1);
             self.close_expanded_commit();
         }
     }

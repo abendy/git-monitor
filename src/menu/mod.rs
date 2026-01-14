@@ -2,8 +2,12 @@
 //!
 //! Provides composable menus with stack-based navigation.
 
+mod confirm;
+mod select;
 mod stack;
 
+pub use confirm::{Checkbox, ConfirmMenu};
+pub use select::{SelectItem, SelectMenu};
 pub use stack::MenuStack;
 
 use crossterm::event::KeyEvent;

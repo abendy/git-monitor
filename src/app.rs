@@ -7,7 +7,7 @@ use tracing::warn;
 use crate::{
     config::GitConfig,
     event::Event,
-    git::{CommitDetail, GitCommand, GitRepo, GitStatus},
+    git::{CommitDetail, FileState, GitCommand, GitRepo, GitStatus},
     tui::Tui,
     ui,
     watcher::{RepoWatcher, WatchEvent},
@@ -534,9 +534,13 @@ impl App {
                 }
             }
 
-            // Toggle commit detail expansion or open file diff
+            // Show diff for files, or toggle commit detail expansion
             KeyCode::Char(' ') => {
-                if let Some(sha) = self.selected_activity_sha() {
+                // First check if we're on a staged/working file
+                if self.selected_file_info().is_some() {
+                    self.show_diff();
+                } else if let Some(sha) = self.selected_activity_sha() {
+                    // History item handling
                     if self.expanded_commit.as_ref() == Some(&sha) {
                         // Already expanded - check if we're on a file
                         if let Some(file_idx) = self.expanded_file_idx {
@@ -773,9 +777,9 @@ impl App {
             + self.activity.len()
     }
 
-    /// Get the selected file and whether it's staged
-    /// Returns (path, is_staged) or None if selection is on command or activity
-    fn selected_file_info(&self) -> Option<(PathBuf, bool)> {
+    /// Get the selected file info
+    /// Returns (path, is_staged, file_state) or None if selection is on command or activity
+    fn selected_file_info(&self) -> Option<(PathBuf, bool, FileState)> {
         // Index 0 is command section
         if self.selected == 0 {
             return None;
@@ -790,11 +794,11 @@ impl App {
 
         if file_idx < staged_len {
             // Selected is in staged
-            staged.get(file_idx).map(|f| (f.path.clone(), true))
+            staged.get(file_idx).map(|f| (f.path.clone(), true, f.staged))
         } else if file_idx < staged_len + working.len() {
             // Selected is in working
             let working_idx = file_idx - staged_len;
-            working.get(working_idx).map(|f| (f.path.clone(), false))
+            working.get(working_idx).map(|f| (f.path.clone(), false, f.working))
         } else {
             // Selected is in activity
             None
@@ -827,7 +831,7 @@ impl App {
 
     /// Toggle stage/unstage for selected file
     fn toggle_stage(&mut self) {
-        let Some((path, is_staged)) = self.selected_file_info() else {
+        let Some((path, is_staged, _state)) = self.selected_file_info() else {
             return; // Can't stage/unstage activity items
         };
 
@@ -846,13 +850,35 @@ impl App {
 
     /// Show diff for selected file (using new popup system)
     fn show_diff(&mut self) {
-        let Some((path, is_staged)) = self.selected_file_info() else {
+        let Some((path, is_staged, state)) = self.selected_file_info() else {
             return; // Can't show diff for activity items
         };
 
+        let path_str = path.to_string_lossy().to_string();
+
+        // For untracked files, show the file content instead of diff
+        if state == FileState::Untracked {
+            let full_path = self.repo_path.join(&path);
+            match std::fs::read_to_string(&full_path) {
+                Ok(content) => {
+                    // Format as a "new file" diff-like view
+                    let formatted = content
+                        .lines()
+                        .map(|line| format!("+{line}"))
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    let header = format!("(new file)\n\n{formatted}");
+                    self.open_diff_popup(path_str, header, is_staged);
+                }
+                Err(e) => {
+                    self.error = Some(format!("Error reading file: {e}"));
+                }
+            }
+            return;
+        }
+
         match self.repo.diff_file(&path, is_staged) {
             Ok(content) => {
-                let path_str = path.to_string_lossy().to_string();
                 self.open_diff_popup(path_str, content, is_staged);
             }
             Err(e) => {

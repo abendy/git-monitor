@@ -675,13 +675,46 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Style::default().fg(Color::Red),
         ))
     } else {
-        Line::from(vec![
+        // Determine what section we're in for contextual hints
+        let staged_len = app.status.staged_changes().len();
+        let working_len = app.status.working_changes().len();
+        let on_command = app.selected == 0;
+        let on_file = !on_command && app.selected <= staged_len + working_len;
+        let on_history = !on_command && !on_file;
+
+        let mut hints = vec![
             Span::styled(" j/k ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" nav  "),
-            Span::styled(" s ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" stage  "),
-            Span::styled(" d ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" diff  "),
+        ];
+
+        // File-specific hints
+        if on_file {
+            hints.extend([
+                Span::styled(" s ", Style::default().bg(Color::DarkGray).bold()),
+                Span::raw(" stage  "),
+                Span::styled(" d ", Style::default().bg(Color::DarkGray).bold()),
+                Span::raw(" diff  "),
+            ]);
+        }
+
+        // Command section hints
+        if on_command && !app.command_output.is_empty() {
+            hints.extend([
+                Span::styled(" o ", Style::default().bg(Color::DarkGray).bold()),
+                Span::raw(" output  "),
+            ]);
+        }
+
+        // History section hints
+        if on_history {
+            hints.extend([
+                Span::styled(" h ", Style::default().bg(Color::DarkGray).bold()),
+                Span::raw(" log/reflog  "),
+            ]);
+        }
+
+        // Universal hints
+        hints.extend([
             Span::styled(" : ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" cmd  "),
             Span::styled(" a ", Style::default().bg(Color::DarkGray).bold()),
@@ -690,7 +723,9 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Span::raw(" help  "),
             Span::styled(" q ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" quit "),
-        ])
+        ]);
+
+        Line::from(hints)
     };
 
     let footer = Paragraph::new(content).alignment(Alignment::Center).block(

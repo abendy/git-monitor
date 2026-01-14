@@ -630,7 +630,8 @@ impl GitRepo {
         Ok(commands)
     }
 
-    /// Get commits unique to a branch (not in main/master/develop)
+    /// Get commits unique to a branch (not reachable from current branch)
+    /// Always includes at least the tip commit so branches are never empty
     pub fn commit_log_for_branch(&self, branch_name: &str) -> Result<Vec<GitCommand>> {
         let mut commands = Vec::new();
 
@@ -656,6 +657,25 @@ impl GitRepo {
         // Collect refs for decorations
         let refs_map = self.collect_refs();
 
+        // Helper to create GitCommand from commit
+        let make_command = |commit: &git2::Commit<'_>, refs_map: &HashMap<String, Vec<RefDecoration>>| {
+            let message = commit.summary().unwrap_or("").to_string();
+            let time = commit.time();
+            let timestamp = Local
+                .timestamp_opt(time.seconds(), 0)
+                .single()
+                .unwrap_or_else(Local::now);
+            let short_sha = format!("{:.7}", commit.id());
+            let decorations = refs_map.get(&short_sha).cloned().unwrap_or_default();
+            GitCommand {
+                timestamp,
+                command_type: CommandType::Commit,
+                message,
+                sha: Some(short_sha),
+                decorations,
+            }
+        };
+
         // Walk commits from the branch tip, excluding current branch
         let mut revwalk = self.repo.revwalk().context("Failed to create revwalk")?;
         revwalk.push(branch_oid).context("Failed to push branch OID")?;
@@ -675,29 +695,14 @@ impl GitRepo {
                 Err(_) => continue,
             };
 
-            // Get commit message (first line)
-            let message = commit.summary().unwrap_or("").to_string();
+            commands.push(make_command(&commit, &refs_map));
+        }
 
-            // Parse timestamp
-            let time = commit.time();
-            let timestamp = Local
-                .timestamp_opt(time.seconds(), 0)
-                .single()
-                .unwrap_or_else(Local::now);
-
-            // Get short SHA
-            let short_sha = format!("{:.7}", oid);
-
-            // Look up decorations
-            let decorations = refs_map.get(&short_sha).cloned().unwrap_or_default();
-
-            commands.push(GitCommand {
-                timestamp,
-                command_type: CommandType::Commit,
-                message,
-                sha: Some(short_sha),
-                decorations,
-            });
+        // Always show at least the tip commit (for branches like main that share ancestry)
+        if commands.is_empty() {
+            if let Ok(tip_commit) = self.repo.find_commit(branch_oid) {
+                commands.push(make_command(&tip_commit, &refs_map));
+            }
         }
 
         Ok(commands)

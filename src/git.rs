@@ -143,6 +143,8 @@ pub struct GitCommand {
     pub sha: Option<String>,
     /// Decorations (branches, tags) pointing to this commit
     pub decorations: Vec<RefDecoration>,
+    /// True if this commit only exists on remote (not reachable from HEAD)
+    pub is_remote_only: bool,
 }
 
 /// Detailed commit information for expanded view
@@ -195,6 +197,8 @@ pub struct BranchInfo {
     pub name: String,
     /// Whether this is the current (checked out) branch
     pub is_current: bool,
+    /// Whether this is a remote tracking branch
+    pub is_remote: bool,
 }
 
 /// Types of git commands
@@ -553,15 +557,18 @@ impl GitRepo {
                 message,
                 sha: Some(short_sha),
                 decorations,
+                is_remote_only: false,
             });
         }
 
         Ok(commands)
     }
 
-    /// Get commit history (git log)
+    /// Get commit history (git log), including remote-only commits if tracking upstream
     pub fn commit_log(&self, limit: usize) -> Result<Vec<GitCommand>> {
         let mut commands = Vec::new();
+        let mut remote_only_commands = Vec::new();
+        let mut merge_base_sha: Option<String> = None;
 
         // Get HEAD
         let head = match self.repo.head() {
@@ -577,48 +584,91 @@ impl GitRepo {
         // Collect refs for decorations
         let refs_map = self.collect_refs();
 
-        // Walk commits
+        // Helper to create GitCommand from commit
+        let make_command =
+            |commit: &git2::Commit<'_>,
+             refs_map: &HashMap<String, Vec<RefDecoration>>,
+             is_remote_only: bool| {
+                let message = commit.summary().unwrap_or("").to_string();
+                let time = commit.time();
+                let timestamp = Local
+                    .timestamp_opt(time.seconds(), 0)
+                    .single()
+                    .unwrap_or_else(Local::now);
+                let short_sha = format!("{:.7}", commit.id());
+                let decorations = refs_map.get(&short_sha).cloned().unwrap_or_default();
+                GitCommand {
+                    timestamp,
+                    command_type: CommandType::Commit,
+                    message,
+                    sha: Some(short_sha),
+                    decorations,
+                    is_remote_only,
+                }
+            };
+
+        // Check for upstream and get remote-only commits + merge base
+        if head.is_branch() {
+            if let Some(branch_name) = head.shorthand() {
+                if let Ok(branch) = self.repo.find_branch(branch_name, git2::BranchType::Local) {
+                    if let Ok(upstream) = branch.upstream() {
+                        if let Some(upstream_oid) = upstream.get().target() {
+                            // Find merge base for positioning
+                            if let Ok(base_oid) = self.repo.merge_base(head_oid, upstream_oid) {
+                                merge_base_sha = Some(format!("{:.7}", base_oid));
+                            }
+
+                            // Walk commits from upstream that are not reachable from HEAD
+                            if let Ok(mut revwalk) = self.repo.revwalk() {
+                                let _ = revwalk.push(upstream_oid);
+                                let _ = revwalk.hide(head_oid);
+                                revwalk.set_sorting(git2::Sort::TIME).ok();
+
+                                for oid_result in revwalk {
+                                    let oid = match oid_result {
+                                        Ok(oid) => oid,
+                                        Err(_) => continue,
+                                    };
+                                    if let Ok(commit) = self.repo.find_commit(oid) {
+                                        remote_only_commands
+                                            .push(make_command(&commit, &refs_map, true));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Walk local commits from HEAD
         let mut revwalk = self.repo.revwalk().context("Failed to create revwalk")?;
         revwalk.push(head_oid).context("Failed to push HEAD")?;
         revwalk.set_sorting(git2::Sort::TIME)?;
 
+        let mut inserted_remote = false;
         for oid_result in revwalk.take(limit) {
             let oid = match oid_result {
                 Ok(oid) => oid,
                 Err(_) => continue,
             };
 
-            let commit = match self.repo.find_commit(oid) {
-                Ok(c) => c,
-                Err(_) => continue,
-            };
-
-            // Get commit message (first line)
-            let message = commit
-                .summary()
-                .unwrap_or("")
-                .to_string();
-
-            // Parse timestamp
-            let time = commit.time();
-            let timestamp = Local
-                .timestamp_opt(time.seconds(), 0)
-                .single()
-                .unwrap_or_else(Local::now);
-
-            // Get short SHA
             let short_sha = format!("{:.7}", oid);
 
-            // Look up decorations
-            let decorations = refs_map.get(&short_sha).cloned().unwrap_or_default();
+            // Insert remote-only commits right before the merge base
+            if !inserted_remote && merge_base_sha.as_ref() == Some(&short_sha) {
+                commands.append(&mut remote_only_commands);
+                inserted_remote = true;
+            }
 
-            commands.push(GitCommand {
-                timestamp,
-                command_type: CommandType::Commit,
-                message,
-                sha: Some(short_sha),
-                decorations,
-            });
+            if let Ok(commit) = self.repo.find_commit(oid) {
+                commands.push(make_command(&commit, &refs_map, false));
+            }
+        }
+
+        // If we never hit the merge base (e.g., it's beyond our limit), append at end
+        if !inserted_remote && !remote_only_commands.is_empty() {
+            commands.append(&mut remote_only_commands);
         }
 
         Ok(commands)
@@ -629,10 +679,11 @@ impl GitRepo {
     pub fn commit_log_for_branch(&self, branch_name: &str) -> Result<Vec<GitCommand>> {
         let mut commands = Vec::new();
 
-        // Find the branch
+        // Find the branch (try local first, then remote)
         let branch = self
             .repo
             .find_branch(branch_name, git2::BranchType::Local)
+            .or_else(|_| self.repo.find_branch(branch_name, git2::BranchType::Remote))
             .context(format!("Failed to find branch '{branch_name}'"))?;
 
         let branch_ref = branch.get();
@@ -667,6 +718,7 @@ impl GitRepo {
                 message,
                 sha: Some(short_sha),
                 decorations,
+                is_remote_only: false,
             }
         };
 
@@ -702,7 +754,7 @@ impl GitRepo {
         Ok(commands)
     }
 
-    /// List all local branches with their tip commit info
+    /// List all branches (local and remote) with their info
     pub fn list_branches(&self) -> Result<Vec<BranchInfo>> {
         let mut branches = Vec::new();
 
@@ -712,6 +764,15 @@ impl GitRepo {
             .head()
             .ok()
             .and_then(|h| h.shorthand().map(String::from));
+
+        // Get upstream branch name to filter it from remote list
+        let upstream_name = current_branch.as_ref().and_then(|branch_name| {
+            self.repo
+                .find_branch(branch_name, git2::BranchType::Local)
+                .ok()
+                .and_then(|branch| branch.upstream().ok())
+                .and_then(|upstream| upstream.name().ok().flatten().map(String::from))
+        });
 
         // Iterate through local branches
         let branch_iter = self.repo.branches(Some(git2::BranchType::Local))?;
@@ -730,14 +791,53 @@ impl GitRepo {
 
             let is_current = current_branch.as_ref() == Some(&name);
 
-            branches.push(BranchInfo { name, is_current });
+            branches.push(BranchInfo {
+                name,
+                is_current,
+                is_remote: false,
+            });
         }
 
-        // Sort: current branch first, then alphabetically
-        branches.sort_by(|a, b| match (a.is_current, b.is_current) {
-            (true, false) => std::cmp::Ordering::Less,
-            (false, true) => std::cmp::Ordering::Greater,
-            _ => a.name.cmp(&b.name),
+        // Iterate through remote branches
+        let remote_iter = self.repo.branches(Some(git2::BranchType::Remote))?;
+
+        for branch_result in remote_iter {
+            let (branch, _branch_type) = branch_result?;
+
+            let name = match branch.name()? {
+                Some(n) => n.to_string(),
+                None => continue,
+            };
+
+            // Skip HEAD refs (e.g., origin/HEAD)
+            if name.ends_with("/HEAD") {
+                continue;
+            }
+
+            // Skip upstream of current branch (already shown in history header)
+            if upstream_name.as_ref() == Some(&name) {
+                continue;
+            }
+
+            branches.push(BranchInfo {
+                name,
+                is_current: false,
+                is_remote: true,
+            });
+        }
+
+        // Sort: current branch first, then local branches, then remote branches
+        branches.sort_by(|a, b| {
+            match (a.is_current, b.is_current) {
+                (true, false) => return std::cmp::Ordering::Less,
+                (false, true) => return std::cmp::Ordering::Greater,
+                _ => {}
+            }
+            match (a.is_remote, b.is_remote) {
+                (false, true) => std::cmp::Ordering::Less,
+                (true, false) => std::cmp::Ordering::Greater,
+                _ => a.name.cmp(&b.name),
+            }
         });
 
         Ok(branches)

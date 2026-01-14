@@ -385,12 +385,39 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 Style::default().fg(Color::DarkGray).italic(),
             ))));
 
-            // Show current branch name
+            // Show current branch name with upstream tracking info
             if let Some(current_branch) = app.branches.iter().find(|b| b.is_current) {
-                items.push(ListItem::new(Line::from(Span::styled(
+                let mut branch_spans = vec![Span::styled(
                     format!("  {}", current_branch.name),
                     Style::default().fg(Color::Cyan),
-                ))));
+                )];
+
+                // Add ahead/behind indicators if tracking upstream
+                if app.status.ahead > 0 || app.status.behind > 0 {
+                    branch_spans.push(Span::raw(" "));
+                    if app.status.ahead > 0 {
+                        branch_spans.push(Span::styled(
+                            format!("↑{}", app.status.ahead),
+                            Style::default().fg(Color::Green),
+                        ));
+                    }
+                    if app.status.behind > 0 {
+                        branch_spans.push(Span::styled(
+                            format!("↓{}", app.status.behind),
+                            Style::default().fg(Color::Red),
+                        ));
+                    }
+                }
+
+                // Show upstream branch name
+                if let Some(upstream) = &app.status.upstream {
+                    branch_spans.push(Span::styled(
+                        format!(" → {}", upstream),
+                        Style::default().fg(Color::DarkGray),
+                    ));
+                }
+
+                items.push(ListItem::new(Line::from(branch_spans)));
             }
 
             let activity_count = app.activity.len();
@@ -439,9 +466,15 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             let is_expanded = app.expanded_branch.as_deref() == Some(&branch.name);
 
             // Branch names are not selectable - just labels
+            // Remote branches shown in red, local in white
+            let branch_color = if branch.is_remote {
+                Color::Red
+            } else {
+                Color::White
+            };
             items.push(ListItem::new(Line::from(Span::styled(
                 format!("  {}", branch.name),
-                Style::default().fg(Color::White),
+                Style::default().fg(branch_color),
             ))));
 
             // If this branch is expanded, show its commits
@@ -496,7 +529,10 @@ fn render_commit_line<'a>(
     let selection_prefix = if selected { "▸" } else { " " };
     // Tree style: indent + tree chars to show nesting under branch header
     // Simple style: just vertical line for history
-    let (indent, graph_char) = if use_tree_style {
+    // Remote-only commits use a branch-off indicator
+    let (indent, graph_char) = if cmd.is_remote_only {
+        ("", "├—")
+    } else if use_tree_style {
         ("   ", if is_last { "└─" } else { "├─" })
     } else {
         ("", if is_last { "╵" } else { "│" })
@@ -530,15 +566,23 @@ fn render_commit_line<'a>(
         Style::default()
     };
 
+    // Remote-only commits use dimmer colors and red graph indicator
+    let (graph_color, sha_color, msg_color) = if cmd.is_remote_only {
+        (Color::Red, Color::Red, Color::DarkGray)
+    } else {
+        (Color::DarkGray, Color::Yellow, Color::White)
+    };
+
     let mut spans = vec![
         Span::raw(format!("{selection_prefix} {indent}")),
-        Span::styled(format!("{graph_char} "), Style::default().fg(Color::DarkGray)),
-        Span::styled(format!("{sha_str} "), style.fg(Color::Yellow)),
+        Span::styled(format!("{graph_char} "), Style::default().fg(graph_color)),
+        Span::styled(format!("{sha_str} "), style.fg(sha_color)),
         Span::styled(format!("{time_str}  "), style.fg(Color::DarkGray)),
         Span::styled(format!("{icon} "), style.fg(color)),
     ];
 
     // Check for special commit prefixes (fixup!, squash!, amend!, wip)
+    // For remote-only commits, use dimmer colors throughout
     let special_prefixes = ["fixup!", "squash!", "amend!"];
     let wip_prefixes = ["wip:", "wip ", "WIP:", "WIP "];
 
@@ -549,7 +593,7 @@ fn render_commit_line<'a>(
         ));
         spans.push(Span::styled(
             message[prefix.len()..].to_string(),
-            style.fg(Color::White),
+            style.fg(msg_color),
         ));
     } else if let Some(prefix) = wip_prefixes.iter().find(|p| message.starts_with(*p)) {
         spans.push(Span::styled(
@@ -558,10 +602,10 @@ fn render_commit_line<'a>(
         ));
         spans.push(Span::styled(
             message[prefix.len()..].to_string(),
-            style.fg(Color::White),
+            style.fg(msg_color),
         ));
     } else {
-        spans.push(Span::styled(message, style.fg(Color::White)));
+        spans.push(Span::styled(message, style.fg(msg_color)));
     }
 
     // Add decorations if any

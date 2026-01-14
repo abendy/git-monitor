@@ -409,11 +409,6 @@ impl App {
         self.view_mode = ViewMode::Normal;
     }
 
-    /// Check if in action menu mode
-    pub fn is_action_menu_mode(&self) -> bool {
-        matches!(self.view_mode, ViewMode::ActionMenu { .. })
-    }
-
     /// Open action menu for current context
     pub fn open_action_menu(&mut self) {
         let context = self.current_context();

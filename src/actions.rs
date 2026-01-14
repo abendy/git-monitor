@@ -45,10 +45,11 @@ impl Context {
 
 /// Type of action
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)] // Cli variant reserved for future extension
 pub enum ActionType {
     /// Built-in application action (e.g., stage, diff)
     App(AppAction),
-    /// Custom CLI command
+    /// Custom CLI command (for future use)
     Cli(String),
     /// Git alias from gitconfig
     Alias(Alias),
@@ -56,6 +57,7 @@ pub enum ActionType {
 
 /// Built-in app actions
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)] // Some variants reserved for future use
 pub enum AppAction {
     // File actions
     /// Stage or unstage the selected file

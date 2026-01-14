@@ -939,12 +939,14 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Style::default().fg(Color::Red),
         ))
     } else {
-        // Universal hints: nav top/btm | : cmd  w files  h history  b branches | help quit
+        // Universal hints: nav top/btm m menu | : cmd  w files  h history  b branches | help quit
         Line::from(vec![
             Span::styled(" j/k ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" nav  "),
             Span::styled(" g/G ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" top/btm "),
+            Span::raw(" top/btm  "),
+            Span::styled(" m ", Style::default().bg(Color::DarkGray).bold()),
+            Span::raw(" menu "),
             Span::styled(" │ ", Style::default().fg(Color::DarkGray)),
             Span::styled(" : ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" cmd  "),

@@ -940,6 +940,8 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
         hints.extend([
             Span::styled(" g/G ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" top/btm  "),
+            Span::styled(" w ", Style::default().bg(Color::DarkGray).bold()),
+            Span::raw(" files  "),
             Span::styled(" b ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" branches  "),
             Span::styled(" : ", Style::default().bg(Color::DarkGray).bold()),
@@ -980,6 +982,7 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
         Line::from("  k / ↑              Move up"),
         Line::from("  g                  Go to first"),
         Line::from("  G                  Go to last"),
+        Line::from("  w                  Jump to working files"),
         Line::from("  b                  Jump to branches"),
         Line::from(""),
         Line::from(Span::styled(

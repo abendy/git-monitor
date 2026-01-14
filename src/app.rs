@@ -524,6 +524,19 @@ impl App {
         }
     }
 
+    /// Jump to working area (first file in staged or working changes)
+    fn jump_to_working(&mut self) {
+        let files_total =
+            self.status.staged_changes().len() + self.status.working_changes().len();
+        if files_total == 0 {
+            return;
+        }
+
+        // Select first file (index 1, after any spacer)
+        self.selected = Some(1);
+        self.close_expanded_commit();
+    }
+
     /// Jump to history and expand it, landing on most recent commit
     fn jump_to_history(&mut self) {
         if self.activity.is_empty() {
@@ -793,6 +806,11 @@ impl App {
             // Jump to branches
             KeyCode::Char('b') => {
                 self.jump_to_branches();
+            }
+
+            // Jump to working area
+            KeyCode::Char('w') => {
+                self.jump_to_working();
             }
 
             // Stage/Unstage

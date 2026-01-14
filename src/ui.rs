@@ -6,7 +6,7 @@ use ratatui::{
 };
 
 use crate::{
-    actions::{ActionRegistry, ActionType, AppState, Context},
+    actions::{ActionRegistry, ActionType, AppAction, AppState, Context},
     app::{App, HistoryMode, PopupContent, ViewMode, ConfirmAction},
     git::{format_relative_time, CommandType, FileState, RefDecoration},
     tui::Frame,
@@ -471,19 +471,34 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
                     ));
                 }
 
-                // Contextual hints based on state
+                // Dynamic hints from action registry for remote actions
                 let state = app.app_state();
-                branch_spans.push(Span::styled("  · ", Style::default().fg(Color::DarkGray)));
-                if state.ahead > 0 {
-                    branch_spans.push(Span::styled("P ", Style::default().fg(Color::Cyan)));
-                    branch_spans.push(Span::styled("push  ", Style::default().fg(Color::DarkGray).italic()));
+                let remote_actions: Vec<_> = app
+                    .action_registry
+                    .actions_for_context(Context::Global, &state)
+                    .into_iter()
+                    .filter(|a| matches!(
+                        a.action_type,
+                        ActionType::App(AppAction::Push | AppAction::Pull | AppAction::Fetch)
+                    ))
+                    .collect();
+
+                if !remote_actions.is_empty() {
+                    branch_spans.push(Span::styled("  · ", Style::default().fg(Color::DarkGray)));
+                    for (i, action) in remote_actions.iter().enumerate() {
+                        if i > 0 {
+                            branch_spans.push(Span::styled("  ", Style::default()));
+                        }
+                        branch_spans.push(Span::styled(
+                            format!("{} ", action.key),
+                            Style::default().fg(Color::Cyan),
+                        ));
+                        branch_spans.push(Span::styled(
+                            action.label.clone(),
+                            Style::default().fg(Color::DarkGray).italic(),
+                        ));
+                    }
                 }
-                if state.behind > 0 {
-                    branch_spans.push(Span::styled("p ", Style::default().fg(Color::Cyan)));
-                    branch_spans.push(Span::styled("pull  ", Style::default().fg(Color::DarkGray).italic()));
-                }
-                branch_spans.push(Span::styled("f ", Style::default().fg(Color::Cyan)));
-                branch_spans.push(Span::styled("fetch", Style::default().fg(Color::DarkGray).italic()));
 
                 items.push(ListItem::new(Line::from(branch_spans)));
             }

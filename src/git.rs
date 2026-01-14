@@ -522,8 +522,8 @@ impl GitRepo {
         refs_map
     }
 
-    /// Get recent activity from reflog
-    pub fn reflog(&self, limit: usize) -> Result<Vec<GitCommand>> {
+    /// Get recent activity from reflog with pagination
+    pub fn reflog(&self, skip: usize, limit: usize) -> Result<Vec<GitCommand>> {
         let mut commands = Vec::new();
 
         let reflog = match self.repo.reflog("HEAD") {
@@ -534,7 +534,7 @@ impl GitRepo {
         // Collect all refs once for decoration lookup
         let refs_map = self.collect_refs();
 
-        for entry in reflog.iter().take(limit) {
+        for entry in reflog.iter().skip(skip).take(limit) {
             let message = entry.message().unwrap_or("").to_string();
             let command_type = CommandType::from_message(&message);
 
@@ -564,8 +564,9 @@ impl GitRepo {
         Ok(commands)
     }
 
-    /// Get commit history (git log), including remote-only commits if tracking upstream
-    pub fn commit_log(&self, limit: usize) -> Result<Vec<GitCommand>> {
+    /// Get commit history (git log) with pagination, including remote-only commits if tracking upstream
+    /// Remote-only commits are only shown on the first page (skip = 0)
+    pub fn commit_log(&self, skip: usize, limit: usize) -> Result<Vec<GitCommand>> {
         let mut commands = Vec::new();
         let mut remote_only_commands = Vec::new();
         let mut merge_base_sha: Option<String> = None;
@@ -607,8 +608,8 @@ impl GitRepo {
                 }
             };
 
-        // Check for upstream and get remote-only commits + merge base
-        if head.is_branch() {
+        // Check for upstream and get remote-only commits + merge base (only on first page)
+        if skip == 0 && head.is_branch() {
             if let Some(branch_name) = head.shorthand() {
                 if let Ok(branch) = self.repo.find_branch(branch_name, git2::BranchType::Local) {
                     if let Ok(upstream) = branch.upstream() {
@@ -647,7 +648,7 @@ impl GitRepo {
         revwalk.set_sorting(git2::Sort::TIME)?;
 
         let mut inserted_remote = false;
-        for oid_result in revwalk.take(limit) {
+        for oid_result in revwalk.skip(skip).take(limit) {
             let oid = match oid_result {
                 Ok(oid) => oid,
                 Err(_) => continue,
@@ -655,7 +656,7 @@ impl GitRepo {
 
             let short_sha = format!("{:.7}", oid);
 
-            // Insert remote-only commits right before the merge base
+            // Insert remote-only commits right before the merge base (only on first page)
             if !inserted_remote && merge_base_sha.as_ref() == Some(&short_sha) {
                 commands.append(&mut remote_only_commands);
                 inserted_remote = true;

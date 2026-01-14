@@ -19,8 +19,8 @@ use crate::{
     watcher::{RepoWatcher, WatchEvent},
 };
 
-/// Maximum number of activity entries to keep
-const MAX_ACTIVITY: usize = 50;
+/// Page size for history pagination
+const PAGE_SIZE: usize = 50;
 
 /// Maximum number of commands to keep in history
 const MAX_COMMAND_HISTORY: usize = 100;
@@ -256,6 +256,8 @@ pub struct App {
     pub branches: Vec<BranchInfo>,
     /// Whether the History section (current branch) is collapsed
     pub history_collapsed: bool,
+    /// Current page offset for history pagination (0-indexed)
+    pub history_page: usize,
     /// Which non-current branch is expanded (showing its commits)
     pub expanded_branch: Option<String>,
     /// Cached commits for the expanded branch
@@ -275,7 +277,7 @@ impl App {
 
         let status = repo.status().unwrap_or_default();
         // Load commit log by default (matches HistoryMode::default())
-        let activity = repo.commit_log(MAX_ACTIVITY).unwrap_or_default();
+        let activity = repo.commit_log(0, PAGE_SIZE).unwrap_or_default();
         let config = GitConfig::load(&repo_path).unwrap_or_default();
         let branches = repo.list_branches().unwrap_or_default();
 
@@ -303,6 +305,7 @@ impl App {
             expanded_file_idx: None,
             branches,
             history_collapsed: false,
+            history_page: 0,
             expanded_branch: None,
             expanded_branch_commits: Vec::new(),
             pending_external: None,
@@ -420,11 +423,12 @@ impl App {
         }
     }
 
-    /// Refresh activity based on current history mode
+    /// Refresh activity based on current history mode and page
     fn refresh_activity(&mut self) {
+        let skip = self.history_page * PAGE_SIZE;
         let result = match self.history_mode {
-            HistoryMode::Reflog => self.repo.reflog(MAX_ACTIVITY),
-            HistoryMode::CommitLog => self.repo.commit_log(MAX_ACTIVITY),
+            HistoryMode::Reflog => self.repo.reflog(skip, PAGE_SIZE),
+            HistoryMode::CommitLog => self.repo.commit_log(skip, PAGE_SIZE),
         };
 
         if let Ok(activity) = result {
@@ -438,7 +442,46 @@ impl App {
             HistoryMode::Reflog => HistoryMode::CommitLog,
             HistoryMode::CommitLog => HistoryMode::Reflog,
         };
+        self.history_page = 0; // Reset to first page when switching modes
         self.refresh_activity();
+    }
+
+    /// Go to next history page
+    fn next_history_page(&mut self) {
+        // Only advance if we got a full page (more data likely exists)
+        // Use >= because remote-only commits may add extra items beyond PAGE_SIZE
+        if self.activity.len() >= PAGE_SIZE {
+            self.history_page += 1;
+            self.refresh_activity();
+            self.select_first_history_commit();
+        }
+    }
+
+    /// Go to previous history page
+    fn prev_history_page(&mut self) {
+        if self.history_page > 0 {
+            self.history_page -= 1;
+            self.refresh_activity();
+            self.select_first_history_commit();
+        }
+    }
+
+    /// Select the first commit in the history section
+    fn select_first_history_commit(&mut self) {
+        if !self.activity.is_empty() {
+            let files_total = self.status.staged_changes().len() + self.status.working_changes().len();
+            // First commit is after header: 1 (command) + files_total + 1 (header)
+            self.selected = Some(1 + files_total + 1);
+        }
+    }
+
+    /// Go to first history page
+    #[allow(dead_code)]
+    fn first_history_page(&mut self) {
+        if self.history_page != 0 {
+            self.history_page = 0;
+            self.refresh_activity();
+        }
     }
 
     /// Check if selection is on the History header
@@ -803,6 +846,28 @@ impl App {
                 }
             }
 
+            // History pagination: next page (only in history section)
+            KeyCode::Char(']') => {
+                if self.is_in_history() || self.is_on_history_header() {
+                    // Use >= because remote-only commits may add extra items beyond PAGE_SIZE
+                    if self.activity.len() >= PAGE_SIZE {
+                        self.next_history_page();
+                    }
+                }
+            }
+
+            // History pagination: previous page (only in history section)
+            KeyCode::Char('[') => {
+                if self.is_in_history() || self.is_on_history_header() {
+                    self.prev_history_page();
+                }
+            }
+
+            // Select first item (vim-style)
+            KeyCode::Char('g') => {
+                self.select_first();
+            }
+
             // Jump to branches
             KeyCode::Char('b') => {
                 self.jump_to_branches();
@@ -923,9 +988,6 @@ impl App {
                 } else {
                     self.select_prev();
                 }
-            }
-            KeyCode::Char('g') => {
-                self.select_first();
             }
             KeyCode::Char('G') => {
                 self.select_last();

@@ -384,18 +384,29 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
         };
 
-        items.push(ListItem::new(Line::from(vec![
+        // Build header with optional page indicator
+        let mut header_spans = vec![
             Span::raw(header_prefix),
             Span::styled(format!("{collapse_indicator} "), header_style),
             Span::styled(format!("{history_label} ({activity_len})"), header_style),
-        ])));
+        ];
+
+        // Show page indicator if not on first page
+        if app.history_page > 0 {
+            header_spans.push(Span::styled(
+                format!(" [page {}]", app.history_page + 1),
+                Style::default().fg(Color::DarkGray),
+            ));
+        }
+
+        items.push(ListItem::new(Line::from(header_spans)));
         current_idx += 1;
 
         // Only show commits if not collapsed
         if !app.history_collapsed {
             // Hint for switching modes and actions
             items.push(ListItem::new(Line::from(Span::styled(
-                "  h toggle reflog/history · space expand · c copy hash",
+                "  h toggle reflog/history · space expand · [/] page · c copy hash",
                 Style::default().fg(Color::DarkGray).italic(),
             ))));
 

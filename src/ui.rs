@@ -437,21 +437,12 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
 
         for branch in other_branches.iter() {
             let is_expanded = app.expanded_branch.as_deref() == Some(&branch.name);
-            let header_selected = Some(current_idx) == app.selected && !app.command_mode;
-            let prefix = if header_selected { "▸ " } else { "  " };
 
-            // Branch name styling
-            let name_style = if header_selected {
-                Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::White)
-            };
-
-            items.push(ListItem::new(Line::from(vec![
-                Span::raw(prefix),
-                Span::styled(branch.name.clone(), name_style),
-            ])));
-            current_idx += 1;
+            // Branch names are not selectable - just labels
+            items.push(ListItem::new(Line::from(Span::styled(
+                format!("  {}", branch.name),
+                Style::default().fg(Color::White),
+            ))));
 
             // If this branch is expanded, show its commits
             if is_expanded {

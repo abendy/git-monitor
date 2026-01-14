@@ -381,39 +381,21 @@ impl App {
         selected >= history_commits_start && selected < history_commits_end
     }
 
-    /// Check if selection is in the branches section (header or commits)
+    /// Check if selection is in the branches section (expanded branch commits)
     fn is_in_branches(&self) -> bool {
+        if self.expanded_branch.is_none() || self.expanded_branch_commits.is_empty() {
+            return false;
+        }
         let Some(selected) = self.selected else {
             return false;
         };
         let branches_start = self.branches_start_index();
-        selected >= branches_start
+        let branches_end = branches_start + self.expanded_branch_commits.len();
+        selected >= branches_start && selected < branches_end
     }
 
-    /// Check if selection is on a branch header
+    /// Check if selection is on a branch header (always None - headers not selectable)
     fn is_on_branch_header(&self) -> Option<String> {
-        let selected = self.selected?;
-        let branches_start = self.branches_start_index();
-
-        if selected < branches_start {
-            return None;
-        }
-
-        let other_branches = self.other_branches();
-        let mut current_idx = branches_start;
-
-        for branch in other_branches {
-            if selected == current_idx {
-                return Some(branch.name.clone());
-            }
-            current_idx += 1; // Branch header
-
-            // Add expanded branch commits
-            if self.expanded_branch.as_deref() == Some(&branch.name) {
-                current_idx += self.expanded_branch_commits.len();
-            }
-        }
-
         None
     }
 
@@ -484,13 +466,9 @@ impl App {
         let first_branch_name = other_branches[0].name.clone();
         self.expand_branch(&first_branch_name);
 
-        // Select first commit in the branch (skip header)
+        // Select first commit in the branch
         let branches_start = self.branches_start_index();
-        if !self.expanded_branch_commits.is_empty() {
-            self.selected = Some(branches_start + 1);
-        } else {
-            self.selected = Some(branches_start);
-        }
+        self.selected = Some(branches_start);
         self.close_expanded_commit();
     }
 
@@ -1055,15 +1033,12 @@ impl App {
             1 + self.activity.len()
         };
 
-        // Branches section: each branch has 1 header + (commits if expanded)
-        let other_branches = self.other_branches();
-        let mut branch_items = 0;
-        for branch in other_branches {
-            branch_items += 1; // Header
-            if self.expanded_branch.as_deref() == Some(&branch.name) {
-                branch_items += self.expanded_branch_commits.len();
-            }
-        }
+        // Branches section: only expanded branch commits are selectable (not headers)
+        let branch_items = if self.expanded_branch.is_some() {
+            self.expanded_branch_commits.len()
+        } else {
+            0
+        };
 
         1 + files_total + history_items + branch_items
     }
@@ -1119,23 +1094,9 @@ impl App {
 
         // Check if in expanded branch commits
         let branches_start = self.branches_start_index();
-        if selected >= branches_start {
-            let other_branches = self.other_branches();
-            let mut current_idx = branches_start;
-
-            for branch in other_branches {
-                current_idx += 1; // Skip branch header
-
-                // Check if this branch is expanded
-                if self.expanded_branch.as_deref() == Some(&branch.name) {
-                    let commits_end = current_idx + self.expanded_branch_commits.len();
-                    if selected >= current_idx && selected < commits_end {
-                        let commit_idx = selected - current_idx;
-                        return self.expanded_branch_commits.get(commit_idx).and_then(|cmd| cmd.sha.clone());
-                    }
-                    current_idx = commits_end;
-                }
-            }
+        if self.expanded_branch.is_some() && selected >= branches_start {
+            let commit_idx = selected - branches_start;
+            return self.expanded_branch_commits.get(commit_idx).and_then(|cmd| cmd.sha.clone());
         }
 
         None
@@ -1220,8 +1181,6 @@ impl App {
             Some(idx) if idx < len - 1 => {
                 self.close_expanded_commit();
 
-                // Check if we're about to move onto a branch header
-                // We need to detect this BEFORE changing indices
                 let files_total = self.status.staged_changes().len() + self.status.working_changes().len();
                 let history_header_idx = 1 + files_total;
 
@@ -1231,60 +1190,42 @@ impl App {
                     && idx == history_header_idx + self.activity.len();
 
                 if on_last_history_commit {
-                    // Moving from last history commit to first branch
+                    // Moving from last history commit to first branch's first commit
                     let other_branches = self.other_branches();
                     if let Some(first_branch) = other_branches.first() {
                         let branch_name = first_branch.name.clone();
                         self.expand_branch(&branch_name);
-                        // After expand_branch, history is collapsed, so recalculate
                         self.selected = Some(self.branches_start_index());
                         return;
                     }
                 }
 
                 // Check if we're on an expanded branch's last commit
-                if let Some(ref expanded_name) = self.expanded_branch.clone() {
+                if self.expanded_branch.is_some() {
                     let branches_start = self.branches_start_index();
-                    let other_branches = self.other_branches();
-                    let mut current_idx = branches_start;
-                    let mut found_current = false;
-                    let mut next_branch_name = None;
+                    let last_commit_idx = branches_start + self.expanded_branch_commits.len() - 1;
 
-                    for branch in other_branches {
-                        if branch.name == *expanded_name {
-                            // This is the expanded branch
-                            let commits_end = current_idx + 1 + self.expanded_branch_commits.len();
-                            if idx == commits_end - 1 {
-                                // We're on the last commit of this branch
-                                found_current = true;
-                            }
-                            current_idx = commits_end;
-                        } else {
-                            if found_current {
-                                // This is the next branch after the expanded one
-                                next_branch_name = Some(branch.name.clone());
+                    if idx == last_commit_idx {
+                        // Find next branch
+                        let branch_names: Vec<String> = self.other_branches().iter().map(|b| b.name.clone()).collect();
+                        let expanded_name = self.expanded_branch.as_ref().unwrap().clone();
+                        let mut found = false;
+                        let mut next_branch: Option<String> = None;
+                        for name in &branch_names {
+                            if found {
+                                next_branch = Some(name.clone());
                                 break;
                             }
-                            current_idx += 1; // Just header, no commits
-                        }
-                    }
-
-                    if let Some(next_name) = next_branch_name {
-                        self.expand_branch(&next_name);
-                        // Find the new index for this branch header
-                        let new_branches_start = self.branches_start_index();
-                        let other = self.other_branches();
-                        let mut new_idx = new_branches_start;
-                        for b in other {
-                            if b.name == next_name {
-                                self.selected = Some(new_idx);
-                                return;
-                            }
-                            new_idx += 1;
-                            if self.expanded_branch.as_deref() == Some(&b.name) {
-                                new_idx += self.expanded_branch_commits.len();
+                            if name == &expanded_name {
+                                found = true;
                             }
                         }
+                        if let Some(next_name) = next_branch {
+                            self.expand_branch(&next_name);
+                            self.selected = Some(self.branches_start_index());
+                        }
+                        // No next branch or expanded next - stay at last commit
+                        return;
                     }
                 }
 
@@ -1293,12 +1234,8 @@ impl App {
                 self.selected = Some(new_idx);
 
                 // Skip history header - auto-expand and go to first commit
-                let files_total_check = self.status.staged_changes().len() + self.status.working_changes().len();
-                let history_header_check = 1 + files_total_check;
-                if new_idx == history_header_check && !self.activity.is_empty() {
+                if new_idx == history_header_idx && !self.activity.is_empty() {
                     self.expand_history();
-                    // Skip header, go to first commit (header + 1 for hint line + 1 for first commit...
-                    // actually just +1 since hint line is not in the index count)
                     self.selected = Some(new_idx + 1);
                 }
             }
@@ -1315,65 +1252,33 @@ impl App {
                 let files_total = self.status.staged_changes().len() + self.status.working_changes().len();
                 let history_header_idx = 1 + files_total;
 
-                // Check if we're on history header and it's collapsed - expand it
-                if self.history_collapsed && idx == history_header_idx {
-                    // We're on history header, moving up to files
-                    // Just normal navigation, but if we're at the first branch and moving up...
-                }
-
-                // Check if we're on the first branch header moving up
-                if self.history_collapsed {
+                // Check if we're on the first commit of an expanded branch
+                if self.expanded_branch.is_some() {
                     let branches_start = self.branches_start_index();
                     if idx == branches_start {
-                        // Moving from first branch header to history
-                        // Expand history (which collapses the branch)
-                        self.expand_history();
-                        // Select last history commit (skip header)
-                        self.selected = Some(history_header_idx + self.activity.len());
-                        return;
-                    }
-                }
+                        // On first commit of expanded branch - go to previous branch or history
+                        let other_branches = self.other_branches();
+                        let expanded_name = self.expanded_branch.as_ref().unwrap().clone();
+                        let mut prev_branch: Option<String> = None;
 
-                // Check if we're on the header of an expanded branch (to go to previous)
-                if let Some(expanded_name) = self.expanded_branch.clone() {
-                    // Find the header index of the expanded branch and the previous branch name
-                    let branches_start = self.branches_start_index();
-                    let branch_names: Vec<String> = self.other_branches().iter().map(|b| b.name.clone()).collect();
-
-                    let mut current_idx = branches_start;
-                    let mut expanded_header_idx = None;
-                    let mut prev_branch_idx = None;
-
-                    for (i, name) in branch_names.iter().enumerate() {
-                        if *name == expanded_name {
-                            expanded_header_idx = Some(current_idx);
-                            if i > 0 {
-                                prev_branch_idx = Some(i - 1);
+                        for branch in other_branches {
+                            if branch.name == expanded_name {
+                                break;
                             }
-                            current_idx += 1 + self.expanded_branch_commits.len();
+                            prev_branch = Some(branch.name.clone());
+                        }
+
+                        if let Some(prev_name) = prev_branch {
+                            // Expand previous branch and go to its last commit
+                            self.expand_branch(&prev_name);
+                            let new_start = self.branches_start_index();
+                            self.selected = Some(new_start + self.expanded_branch_commits.len() - 1);
                         } else {
-                            current_idx += 1;
+                            // First branch - go to history
+                            self.expand_history();
+                            self.selected = Some(history_header_idx + self.activity.len());
                         }
-                    }
-
-                    // If we're on the expanded branch's header
-                    if let Some(header_idx) = expanded_header_idx {
-                        if idx == header_idx {
-                            if let Some(prev_idx) = prev_branch_idx {
-                                // Expand previous branch
-                                let prev_name = branch_names[prev_idx].clone();
-                                self.expand_branch(&prev_name);
-                                // Select last commit of previous branch
-                                let new_start = self.branches_start_index();
-                                self.selected = Some(new_start + prev_idx + self.expanded_branch_commits.len());
-                                return;
-                            } else {
-                                // First branch, go to history
-                                self.expand_history();
-                                self.selected = Some(history_header_idx + self.activity.len());
-                                return;
-                            }
-                        }
+                        return;
                     }
                 }
 

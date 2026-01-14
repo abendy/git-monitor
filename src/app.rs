@@ -7,7 +7,7 @@ use tracing::warn;
 use crate::{
     config::GitConfig,
     event::Event,
-    git::{GitCommand, GitRepo, GitStatus},
+    git::{CommitDetail, GitCommand, GitRepo, GitStatus},
     tui::Tui,
     ui,
     watcher::{RepoWatcher, WatchEvent},
@@ -174,6 +174,10 @@ pub struct App {
     pub history_mode: HistoryMode,
     /// Popup state (for full-screen overlays: output, diff, etc.)
     pub popup: PopupState,
+    /// SHA of currently expanded commit in history (None = collapsed)
+    pub expanded_commit: Option<String>,
+    /// Cached detail for expanded commit
+    pub expanded_detail: Option<CommitDetail>,
 }
 
 impl App {
@@ -213,6 +217,8 @@ impl App {
             alias_selected: 0,
             history_mode: HistoryMode::default(),
             popup: PopupState::default(),
+            expanded_commit: None,
+            expanded_detail: None,
         })
     }
 
@@ -424,13 +430,49 @@ impl App {
                 self.select_last();
             }
 
-            // Copy sha to clipboard (for history items)
+            // Copy sha to clipboard (for history items) - 'y' copies short sha
             KeyCode::Char('y') => {
                 if let Some(sha) = self.selected_activity_sha() {
                     if self.copy_to_clipboard(&sha) {
                         self.error = Some(format!("Copied: {sha}"));
                     } else {
                         self.error = Some("Failed to copy to clipboard".to_string());
+                    }
+                }
+            }
+
+            // Copy full sha to clipboard (for history items)
+            KeyCode::Char('c') => {
+                if self.is_in_history() {
+                    // If expanded, copy full sha from detail
+                    if let Some(detail) = &self.expanded_detail {
+                        if self.copy_to_clipboard(&detail.full_sha) {
+                            self.error = Some(format!("Copied: {}", detail.full_sha));
+                        } else {
+                            self.error = Some("Failed to copy to clipboard".to_string());
+                        }
+                    } else if let Some(sha) = self.selected_activity_sha() {
+                        // If not expanded, copy short sha
+                        if self.copy_to_clipboard(&sha) {
+                            self.error = Some(format!("Copied: {sha}"));
+                        } else {
+                            self.error = Some("Failed to copy to clipboard".to_string());
+                        }
+                    }
+                }
+            }
+
+            // Toggle commit detail expansion (for history items)
+            KeyCode::Char(' ') => {
+                if let Some(sha) = self.selected_activity_sha() {
+                    if self.expanded_commit.as_ref() == Some(&sha) {
+                        // Collapse
+                        self.expanded_commit = None;
+                        self.expanded_detail = None;
+                    } else {
+                        // Expand - fetch details
+                        self.expanded_commit = Some(sha.clone());
+                        self.expanded_detail = self.repo.commit_detail(&sha).ok();
                     }
                 }
             }

@@ -346,9 +346,9 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
         ))));
 
-        // Hint for switching modes
+        // Hint for switching modes and actions
         items.push(ListItem::new(Line::from(Span::styled(
-            "  h to switch to reflog/history",
+            "  h toggle reflog/history · space expand · c copy hash",
             Style::default().fg(Color::DarkGray).italic(),
         ))));
 
@@ -399,6 +399,101 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             }
 
             items.push(ListItem::new(Line::from(spans)));
+
+            // If this commit is expanded, render detail lines
+            if app.expanded_commit.as_ref() == cmd.sha.as_ref() {
+                if let Some(detail) = &app.expanded_detail {
+                    // Empty line
+                    items.push(ListItem::new(Line::raw("")));
+
+                    // Author
+                    items.push(ListItem::new(Line::from(vec![
+                        Span::raw("    Author:    "),
+                        Span::styled(&detail.author_name, Style::default().fg(Color::Green)),
+                        Span::raw(" <"),
+                        Span::styled(&detail.author_email, Style::default().fg(Color::Cyan)),
+                        Span::raw(">"),
+                    ])));
+
+                    // Committer (if different from author)
+                    if detail.committer_name != detail.author_name
+                        || detail.committer_email != detail.author_email
+                    {
+                        items.push(ListItem::new(Line::from(vec![
+                            Span::raw("    Committer: "),
+                            Span::styled(&detail.committer_name, Style::default().fg(Color::Green)),
+                            Span::raw(" <"),
+                            Span::styled(&detail.committer_email, Style::default().fg(Color::Cyan)),
+                            Span::raw(">"),
+                        ])));
+                    }
+
+                    // Date
+                    items.push(ListItem::new(Line::from(vec![
+                        Span::raw("    Date:      "),
+                        Span::styled(
+                            detail.author_time.format("%Y-%m-%d %H:%M:%S %z").to_string(),
+                            Style::default().fg(Color::Yellow),
+                        ),
+                    ])));
+
+                    // Full SHA
+                    items.push(ListItem::new(Line::from(vec![
+                        Span::raw("    Commit:    "),
+                        Span::styled(&detail.full_sha, Style::default().fg(Color::Yellow)),
+                    ])));
+
+                    // GPG info (if present)
+                    if let Some(gpg) = &detail.gpg_status {
+                        items.push(ListItem::new(Line::from(vec![
+                            Span::raw("    GPG:       "),
+                            Span::styled(gpg, Style::default().fg(Color::Magenta)),
+                        ])));
+                    }
+
+                    // Empty line before message
+                    items.push(ListItem::new(Line::raw("")));
+
+                    // Commit message (indented, may be multi-line)
+                    for msg_line in detail.message.lines() {
+                        items.push(ListItem::new(Line::from(vec![
+                            Span::raw("    "),
+                            Span::raw(msg_line),
+                        ])));
+                    }
+
+                    // Files section
+                    if !detail.files.is_empty() {
+                        items.push(ListItem::new(Line::raw("")));
+                        items.push(ListItem::new(Line::from(Span::styled(
+                            format!("    {} file(s) changed:", detail.files.len()),
+                            Style::default().fg(Color::DarkGray),
+                        ))));
+
+                        for file in &detail.files {
+                            let (status_char, color) = match file.status {
+                                FileState::Added => ('A', Color::Green),
+                                FileState::Modified => ('M', Color::Yellow),
+                                FileState::Deleted => ('D', Color::Red),
+                                FileState::Renamed => ('R', Color::Cyan),
+                                _ => ('?', Color::White),
+                            };
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::raw("    "),
+                                Span::styled(
+                                    format!("{status_char}"),
+                                    Style::default().fg(color),
+                                ),
+                                Span::raw("  "),
+                                Span::raw(&file.path),
+                            ])));
+                        }
+                    }
+
+                    // Separator line
+                    items.push(ListItem::new(Line::raw("")));
+                }
+            }
         }
     }
 

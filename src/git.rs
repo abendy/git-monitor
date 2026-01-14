@@ -145,6 +145,41 @@ pub struct GitCommand {
     pub decorations: Vec<RefDecoration>,
 }
 
+/// Detailed commit information for expanded view
+#[derive(Debug, Clone)]
+pub struct CommitDetail {
+    /// Full 40-character SHA
+    pub full_sha: String,
+    /// Author name
+    pub author_name: String,
+    /// Author email
+    pub author_email: String,
+    /// Author timestamp
+    pub author_time: DateTime<Local>,
+    /// Committer name
+    pub committer_name: String,
+    /// Committer email
+    pub committer_email: String,
+    /// Committer timestamp
+    #[allow(dead_code)]
+    pub committer_time: DateTime<Local>,
+    /// Full commit message (summary + body)
+    pub message: String,
+    /// GPG signature status (if signed)
+    pub gpg_status: Option<String>,
+    /// Files changed in this commit
+    pub files: Vec<CommitFile>,
+}
+
+/// A file changed in a commit
+#[derive(Debug, Clone)]
+pub struct CommitFile {
+    /// File path
+    pub path: String,
+    /// Change status
+    pub status: FileState,
+}
+
 /// Types of git commands
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommandType {
@@ -531,6 +566,117 @@ impl GitRepo {
         }
 
         Ok(commands)
+    }
+
+    /// Get detailed commit information for a given SHA
+    pub fn commit_detail(&self, short_sha: &str) -> Result<CommitDetail> {
+        // Parse the short SHA to find the commit
+        let obj = self
+            .repo
+            .revparse_single(short_sha)
+            .with_context(|| format!("Failed to find commit {short_sha}"))?;
+        let commit = obj
+            .peel_to_commit()
+            .with_context(|| format!("Object {short_sha} is not a commit"))?;
+
+        let oid = commit.id();
+        let full_sha = format!("{oid}");
+
+        // Extract author info
+        let author = commit.author();
+        let author_name = author.name().unwrap_or("Unknown").to_string();
+        let author_email = author.email().unwrap_or("").to_string();
+        let author_time = {
+            let time = author.when();
+            let secs = time.seconds();
+            let offset_mins = time.offset_minutes();
+            let offset = chrono::FixedOffset::east_opt(offset_mins * 60)
+                .unwrap_or_else(|| chrono::FixedOffset::east_opt(0).unwrap());
+            DateTime::from_timestamp(secs, 0)
+                .map(|dt| dt.with_timezone(&offset).with_timezone(&Local))
+                .unwrap_or_else(Local::now)
+        };
+
+        // Extract committer info
+        let committer = commit.committer();
+        let committer_name = committer.name().unwrap_or("Unknown").to_string();
+        let committer_email = committer.email().unwrap_or("").to_string();
+        let committer_time = {
+            let time = committer.when();
+            let secs = time.seconds();
+            let offset_mins = time.offset_minutes();
+            let offset = chrono::FixedOffset::east_opt(offset_mins * 60)
+                .unwrap_or_else(|| chrono::FixedOffset::east_opt(0).unwrap());
+            DateTime::from_timestamp(secs, 0)
+                .map(|dt| dt.with_timezone(&offset).with_timezone(&Local))
+                .unwrap_or_else(Local::now)
+        };
+
+        // Get full commit message
+        let message = commit.message().unwrap_or("").to_string();
+
+        // Check for GPG signature
+        let gpg_status = commit
+            .raw_header()
+            .and_then(|header| {
+                if header.contains("gpgsig") {
+                    Some("Signed".to_string())
+                } else {
+                    None
+                }
+            });
+
+        // Get files changed by diffing against parent
+        let tree = commit.tree().context("Failed to get commit tree")?;
+        let parent_tree = commit.parent(0).ok().and_then(|p| p.tree().ok());
+
+        let diff = self
+            .repo
+            .diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None)
+            .context("Failed to diff trees")?;
+
+        let mut files = Vec::new();
+        diff.foreach(
+            &mut |delta, _progress| {
+                let path = delta
+                    .new_file()
+                    .path()
+                    .or_else(|| delta.old_file().path())
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_else(|| "<unknown>".to_string());
+
+                let status = match delta.status() {
+                    git2::Delta::Added => FileState::Added,
+                    git2::Delta::Deleted => FileState::Deleted,
+                    git2::Delta::Modified => FileState::Modified,
+                    git2::Delta::Renamed => FileState::Renamed,
+                    git2::Delta::Copied => FileState::Added,
+                    _ => FileState::Modified,
+                };
+
+                files.push(CommitFile { path, status });
+                true
+            },
+            None,
+            None,
+            None,
+        )?;
+
+        // Sort files by path
+        files.sort_by(|a, b| a.path.cmp(&b.path));
+
+        Ok(CommitDetail {
+            full_sha,
+            author_name,
+            author_email,
+            author_time,
+            committer_name,
+            committer_email,
+            committer_time,
+            message,
+            gpg_status,
+            files,
+        })
     }
 
     /// Populate file statuses

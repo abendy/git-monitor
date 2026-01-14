@@ -164,13 +164,9 @@ pub trait Menu: Send {
     /// Handle a key event
     fn handle_key(&mut self, key: KeyEvent) -> MenuResult;
 
-    /// Render the menu (default implementation provided)
-    fn render(&self, frame: &mut Frame<'_>, area: Rect)
-    where
-        Self: Sized,
-    {
-        default_render(self, frame, area);
-    }
+    /// Render the menu
+    /// Implementors that use standard item-based rendering should call `render_menu(self, frame, area)`
+    fn render(&self, frame: &mut Frame<'_>, area: Rect);
 
     /// Move selection up
     fn select_prev(&mut self) {
@@ -201,8 +197,9 @@ pub trait Menu: Send {
     }
 }
 
-/// Default menu rendering
-fn default_render(menu: &dyn Menu, frame: &mut Frame<'_>, area: Rect) {
+/// Render a menu using the standard list-based layout
+/// Call this from Menu::render() implementations that use item-based display
+pub fn render_menu(menu: &dyn Menu, frame: &mut Frame<'_>, area: Rect) {
     use ratatui::{
         style::{Color, Modifier, Style},
         text::{Line, Span},

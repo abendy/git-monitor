@@ -12,10 +12,11 @@ use tracing::warn;
 
 use crate::{
     actions::{Action, ActionRegistry, AppAction, ActionType, AppState, Context},
-    command::{CommandExecutor, CommandRequest, CommandResult, CommandSource, FeedbackPolicy},
+    command::{CommandExecutor, CommandRequest, CommandSource, FeedbackPolicy},
     config::GitConfig,
     event::Event,
     git::{BranchInfo, CommitDetail, FileState, GitCommand, GitRepo, GitStatus},
+    menu::{Checkbox, ConfirmMenu, Menu, MenuResult, MenuStack, SelectItem, SelectMenu},
     tui::Tui,
     ui,
     watcher::{RepoWatcher, WatchEvent},
@@ -292,6 +293,8 @@ pub struct App {
     pub action_registry: ActionRegistry,
     /// Command executor for running commands
     executor: CommandExecutor,
+    /// Menu stack for modal dialogs
+    pub menu_stack: MenuStack,
 }
 
 impl App {
@@ -351,6 +354,7 @@ impl App {
             pending_external: None,
             action_registry,
             executor,
+            menu_stack: MenuStack::new(),
         })
     }
 
@@ -906,6 +910,12 @@ impl App {
 
     /// Handle keyboard input
     fn handle_key(&mut self, key: KeyEvent) {
+        // Menu stack takes priority when active
+        if self.menu_stack.is_active() {
+            self.handle_menu_key(key);
+            return;
+        }
+
         // ViewMode-based dispatch (command and alias modes capture all input)
         match &self.view_mode {
             ViewMode::Command => {
@@ -1630,6 +1640,49 @@ impl App {
             }
 
             _ => {}
+        }
+    }
+
+    /// Handle key events when menu stack is active
+    fn handle_menu_key(&mut self, key: KeyEvent) {
+        use crate::menu::MenuAction;
+
+        // Get the result from the active menu
+        let result = if let Some(menu) = self.menu_stack.current_mut() {
+            menu.handle_key(key)
+        } else {
+            return;
+        };
+
+        // Process the result
+        match result {
+            MenuResult::Continue => {}
+            MenuResult::Close => {
+                self.menu_stack.pop();
+            }
+            MenuResult::Execute(action) => {
+                self.menu_stack.clear();
+                match action {
+                    MenuAction::Command(request) => {
+                        self.run_command(request);
+                    }
+                    MenuAction::App(app_action) => {
+                        self.execute_app_action(app_action);
+                    }
+                    MenuAction::Custom(callback) => {
+                        callback();
+                    }
+                }
+            }
+            MenuResult::Push(menu) => {
+                self.menu_stack.push(menu);
+            }
+            MenuResult::Pop => {
+                self.menu_stack.pop();
+            }
+            MenuResult::CloseAll => {
+                self.menu_stack.clear();
+            }
         }
     }
 

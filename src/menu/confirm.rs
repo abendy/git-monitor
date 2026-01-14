@@ -193,10 +193,7 @@ impl Menu for ConfirmMenu {
         }
     }
 
-    fn render(&self, frame: &mut Frame<'_>, area: Rect)
-    where
-        Self: Sized,
-    {
+    fn render(&self, frame: &mut Frame<'_>, area: Rect) {
         frame.render_widget(Clear, area);
 
         let mut lines = Vec::new();

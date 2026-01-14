@@ -69,9 +69,14 @@ pub fn render(frame: &mut Frame<'_>, app: &mut App) {
         render_help(frame, area);
     }
 
-    // Action menu overlay
+    // Action menu overlay (legacy - will be replaced by menu stack)
     if let ViewMode::ActionMenu { .. } = &app.view_mode {
         render_action_menu(frame, app, area);
+    }
+
+    // Menu stack overlay (new modular menu system)
+    if app.menu_stack.is_active() {
+        render_menu_stack(frame, app, area);
     }
 }
 
@@ -1191,6 +1196,19 @@ fn render_action_menu(frame: &mut Frame<'_>, app: &App, area: Rect) {
     );
 
     frame.render_widget(list, menu_area);
+}
+
+/// Render the menu stack overlay
+fn render_menu_stack(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    if let Some(menu) = app.menu_stack.current() {
+        // Dynamic sizing based on menu items (min 20%, max 60%)
+        let item_count = menu.items().len().max(5); // Minimum for custom menus
+        let height_percent = ((item_count + 4) * 3).min(60) as u16;
+        let menu_area = centered_rect(50, height_percent.max(20), area);
+
+        // Delegate rendering to the menu implementation
+        menu.render(frame, menu_area);
+    }
 }
 
 /// Style a command output line with tab replacement

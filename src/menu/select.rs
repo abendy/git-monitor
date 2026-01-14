@@ -145,4 +145,8 @@ impl<T: Clone + Send + 'static> Menu for SelectMenu<T> {
             _ => MenuResult::Continue,
         }
     }
+
+    fn render(&self, frame: &mut ratatui::Frame<'_>, area: ratatui::layout::Rect) {
+        super::render_menu(self, frame, area);
+    }
 }

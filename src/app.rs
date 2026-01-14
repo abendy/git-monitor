@@ -19,6 +19,9 @@ const MAX_ACTIVITY: usize = 50;
 /// Maximum number of commands to keep in history
 const MAX_COMMAND_HISTORY: usize = 100;
 
+/// Auto-open popup if command output exceeds this many lines
+const AUTO_POPUP_LINE_THRESHOLD: usize = 5;
+
 /// History display mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HistoryMode {
@@ -983,6 +986,11 @@ impl App {
                 self.command_output = format!("Failed to execute: {e}");
                 self.command_success = false;
             }
+        }
+
+        // Auto-open popup if output exceeds threshold
+        if self.command_output.lines().count() > AUTO_POPUP_LINE_THRESHOLD {
+            self.open_output_popup();
         }
 
         // Clear input and reset history navigation

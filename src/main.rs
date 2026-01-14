@@ -47,6 +47,7 @@ fn main() -> Result<()> {
     app.setup_watcher(tui.events.sender())?;
 
     let result = app.run(&mut tui);
+    app.save_history();
     tui.exit()?;
 
     result

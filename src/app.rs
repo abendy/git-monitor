@@ -1,4 +1,10 @@
-use std::{path::PathBuf, process::Command, sync::mpsc::Sender};
+use std::{
+    fs::File,
+    io::{BufRead, BufReader, Write},
+    path::PathBuf,
+    process::Command,
+    sync::mpsc::Sender,
+};
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -21,6 +27,46 @@ const MAX_COMMAND_HISTORY: usize = 100;
 
 /// Auto-open popup if command output exceeds this many lines
 const AUTO_POPUP_LINE_THRESHOLD: usize = 5;
+
+/// History file name in home directory
+const HISTORY_FILE: &str = ".git-monitor-history";
+
+/// Get the path to the history file
+fn history_file_path() -> Option<PathBuf> {
+    dirs::home_dir().map(|home| home.join(HISTORY_FILE))
+}
+
+/// Load command history from file
+fn load_history() -> Vec<String> {
+    let Some(path) = history_file_path() else {
+        return Vec::new();
+    };
+
+    let Ok(file) = File::open(&path) else {
+        return Vec::new();
+    };
+
+    BufReader::new(file)
+        .lines()
+        .map_while(Result::ok)
+        .take(MAX_COMMAND_HISTORY)
+        .collect()
+}
+
+/// Save command history to file
+fn save_history(history: &[String]) {
+    let Some(path) = history_file_path() else {
+        return;
+    };
+
+    let Ok(mut file) = File::create(&path) else {
+        return;
+    };
+
+    for cmd in history.iter().take(MAX_COMMAND_HISTORY) {
+        let _ = writeln!(file, "{cmd}");
+    }
+}
 
 /// History display mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -214,7 +260,7 @@ impl App {
             command_input: String::new(),
             command_output: String::new(),
             command_success: true,
-            command_history: Vec::new(),
+            command_history: load_history(),
             history_index: None,
             show_aliases: false,
             alias_section_selected: 0,
@@ -1056,5 +1102,10 @@ impl App {
             }
             None => {}
         }
+    }
+
+    /// Save command history to persistent storage
+    pub fn save_history(&self) {
+        save_history(&self.command_history);
     }
 }

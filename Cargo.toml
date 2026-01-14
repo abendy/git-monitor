@@ -29,6 +29,9 @@ thiserror = "1.0"
 # Clipboard
 arboard = "3"
 
+# Directories (for history file)
+dirs = "5"
+
 # CLI argument parsing
 clap = { version = "4", features = ["derive"] }
 

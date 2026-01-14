@@ -385,6 +385,14 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 Style::default().fg(Color::DarkGray).italic(),
             ))));
 
+            // Show current branch name
+            if let Some(current_branch) = app.branches.iter().find(|b| b.is_current) {
+                items.push(ListItem::new(Line::from(Span::styled(
+                    format!("  {}", current_branch.name),
+                    Style::default().fg(Color::Cyan),
+                ))));
+            }
+
             let activity_count = app.activity.len();
             for (i, cmd) in app.activity.iter().enumerate() {
                 let selected = Some(current_idx) == app.selected && !app.command_mode;
@@ -430,7 +438,6 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         for branch in other_branches.iter() {
             let is_expanded = app.expanded_branch.as_deref() == Some(&branch.name);
             let header_selected = Some(current_idx) == app.selected && !app.command_mode;
-            let collapse_indicator = if is_expanded { "▾" } else { "▸" };
             let prefix = if header_selected { "▸ " } else { "  " };
 
             // Branch name styling
@@ -442,7 +449,6 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
 
             items.push(ListItem::new(Line::from(vec![
                 Span::raw(prefix),
-                Span::styled(format!("{collapse_indicator} "), name_style),
                 Span::styled(branch.name.clone(), name_style),
             ])));
             current_idx += 1;

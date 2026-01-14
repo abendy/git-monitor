@@ -11,12 +11,12 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tracing::warn;
 
 use crate::{
-    actions::{Action, ActionRegistry, AppAction, ActionType, AppState, Context},
+    actions::{Action, ActionRegistry, AppAction, AppState, Context},
     command::{CommandExecutor, CommandRequest, CommandSource, FeedbackPolicy},
     config::GitConfig,
     event::Event,
     git::{BranchInfo, CommitDetail, FileState, GitCommand, GitRepo, GitStatus},
-    menu::{AliasSectionMenu, MenuResult, MenuStack},
+    menu::{ActionMenu, AliasSectionMenu, MenuResult, MenuStack},
     tui::Tui,
     ui,
     watcher::{RepoWatcher, WatchEvent},
@@ -103,15 +103,6 @@ pub enum ViewMode {
     Command,
     /// Generic confirmation mode (prompt in footer)
     Confirm(ConfirmAction),
-    /// Action menu showing available actions for current context
-    ActionMenu {
-        /// Context when menu was opened
-        context: Context,
-        /// Selected action index
-        selected: usize,
-        /// Cached actions for the context
-        actions: Vec<Action>,
-    },
 }
 
 /// External command requiring TUI suspension
@@ -382,7 +373,7 @@ impl App {
         self.menu_stack.push(Box::new(menu));
     }
 
-    /// Open action menu for current context
+    /// Open action menu for current context using the menu stack
     pub fn open_action_menu(&mut self) {
         let context = self.current_context();
         let state = self.app_state();
@@ -397,16 +388,8 @@ impl App {
             return;
         }
 
-        self.view_mode = ViewMode::ActionMenu {
-            context,
-            selected: 0,
-            actions,
-        };
-    }
-
-    /// Close action menu
-    pub fn close_action_menu(&mut self) {
-        self.view_mode = ViewMode::Normal;
+        let menu = ActionMenu::new(context, actions, self.repo_path.clone());
+        self.menu_stack.push(Box::new(menu));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -888,10 +871,6 @@ impl App {
                 self.handle_confirm_key(key);
                 return;
             }
-            ViewMode::ActionMenu { .. } => {
-                self.handle_action_menu_key(key);
-                return;
-            }
             ViewMode::Normal => {}
         }
 
@@ -1260,71 +1239,6 @@ impl App {
             }
 
             _ => {}
-        }
-    }
-
-    /// Handle keyboard input in action menu mode
-    fn handle_action_menu_key(&mut self, key: KeyEvent) {
-        match key.code {
-            // Close menu
-            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('m') => {
-                self.close_action_menu();
-            }
-
-            // Navigate down
-            KeyCode::Char('j') | KeyCode::Down => {
-                if let ViewMode::ActionMenu { selected, actions, .. } = &mut self.view_mode {
-                    if *selected < actions.len().saturating_sub(1) {
-                        *selected += 1;
-                    }
-                }
-            }
-
-            // Navigate up
-            KeyCode::Char('k') | KeyCode::Up => {
-                if let ViewMode::ActionMenu { selected, .. } = &mut self.view_mode {
-                    if *selected > 0 {
-                        *selected -= 1;
-                    }
-                }
-            }
-
-            // Execute selected action
-            KeyCode::Enter => {
-                self.execute_selected_action();
-            }
-
-            _ => {}
-        }
-    }
-
-    /// Execute the currently selected action from the action menu
-    fn execute_selected_action(&mut self) {
-        let action = match &self.view_mode {
-            ViewMode::ActionMenu { selected, actions, .. } => actions.get(*selected).cloned(),
-            _ => None,
-        };
-
-        // Close menu first
-        self.close_action_menu();
-
-        if let Some(action) = action {
-            match &action.action_type {
-                ActionType::App(app_action) => self.execute_app_action(*app_action),
-                ActionType::Cli(cmd) => {
-                    // CLI command from action menu - use ActionMenu source (always shows popup)
-                    if let Some(request) = CommandRequest::from_input(cmd) {
-                        self.run_command(request.with_source(CommandSource::ActionMenu));
-                    }
-                }
-                ActionType::Alias(alias) => {
-                    // Alias from action menu - use ActionMenu source (always shows popup)
-                    let request = CommandRequest::git([&alias.name])
-                        .with_source(CommandSource::ActionMenu)
-                        .with_display_name(format!("git {}", alias.name));
-                    self.run_command(request);
-                }
-            }
         }
     }
 

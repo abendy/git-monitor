@@ -2,11 +2,13 @@
 //!
 //! Provides composable menus with stack-based navigation.
 
+mod action;
 mod alias;
 mod confirm;
 mod select;
 mod stack;
 
+pub use action::ActionMenu;
 pub use alias::{AliasItemsMenu, AliasSectionMenu};
 pub use confirm::{Checkbox, ConfirmMenu};
 pub use select::{SelectItem, SelectMenu};

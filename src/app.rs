@@ -538,20 +538,6 @@ impl App {
         selected >= branches_start && selected < branches_end
     }
 
-    /// Check if selection is in the files section (staged or working changes)
-    fn is_in_files_section(&self) -> bool {
-        let Some(selected) = self.selected else {
-            return false;
-        };
-        // Index 0 is command section, files start at 1
-        if selected == 0 {
-            return false;
-        }
-        let files_total = self.status.staged_changes().len() + self.status.working_changes().len();
-        // Files are from index 1 to files_total (inclusive)
-        selected <= files_total
-    }
-
     /// Check if selection is on a branch header (always None - headers not selectable)
     fn is_on_branch_header(&self) -> Option<String> {
         None
@@ -1418,20 +1404,6 @@ impl App {
                 let stderr = String::from_utf8_lossy(&output.stderr);
 
                 if output.status.success() {
-                    // Format success message
-                    let commits = if self.status.ahead > 0 {
-                        format!(" ({} commit{})", self.status.ahead, if self.status.ahead == 1 { "" } else { "s" })
-                    } else {
-                        String::new()
-                    };
-
-                    let upstream_msg = self
-                        .status
-                        .upstream
-                        .as_ref()
-                        .map(|u| format!(" → {u}"))
-                        .unwrap_or_else(|| format!(" → {remote}/{branch}"));
-
                     // Capture output for popup
                     self.command_success = true;
                     self.command_output = if stdout.is_empty() {

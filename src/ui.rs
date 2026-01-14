@@ -536,8 +536,33 @@ fn render_commit_line<'a>(
         Span::styled(format!("{sha_str} "), style.fg(Color::Yellow)),
         Span::styled(format!("{time_str}  "), style.fg(Color::DarkGray)),
         Span::styled(format!("{icon} "), style.fg(color)),
-        Span::styled(message, style.fg(Color::White)),
     ];
+
+    // Check for special commit prefixes (fixup!, squash!, amend!, wip)
+    let special_prefixes = ["fixup!", "squash!", "amend!"];
+    let wip_prefixes = ["wip:", "wip ", "WIP:", "WIP "];
+
+    if let Some(prefix) = special_prefixes.iter().find(|p| message.starts_with(*p)) {
+        spans.push(Span::styled(
+            prefix.to_string(),
+            style.fg(Color::Magenta).add_modifier(Modifier::BOLD),
+        ));
+        spans.push(Span::styled(
+            message[prefix.len()..].to_string(),
+            style.fg(Color::White),
+        ));
+    } else if let Some(prefix) = wip_prefixes.iter().find(|p| message.starts_with(*p)) {
+        spans.push(Span::styled(
+            prefix.to_string(),
+            style.fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        ));
+        spans.push(Span::styled(
+            message[prefix.len()..].to_string(),
+            style.fg(Color::White),
+        ));
+    } else {
+        spans.push(Span::styled(message, style.fg(Color::White)));
+    }
 
     // Add decorations if any
     if !decoration_spans.is_empty() {

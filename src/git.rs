@@ -195,12 +195,6 @@ pub struct BranchInfo {
     pub name: String,
     /// Whether this is the current (checked out) branch
     pub is_current: bool,
-    /// Short SHA of the branch tip commit
-    pub tip_sha: String,
-    /// Commit message (summary) of the tip commit
-    pub tip_message: String,
-    /// Timestamp of the tip commit
-    pub tip_time: DateTime<Local>,
 }
 
 /// Types of git commands
@@ -736,30 +730,7 @@ impl GitRepo {
 
             let is_current = current_branch.as_ref() == Some(&name);
 
-            // Get the tip commit
-            let reference = branch.get();
-            let oid = match reference.target() {
-                Some(oid) => oid,
-                None => continue,
-            };
-
-            let commit = self.repo.find_commit(oid)?;
-            let tip_sha = format!("{:.7}", oid);
-            let tip_message = commit.summary().unwrap_or("").to_string();
-
-            let time = commit.time();
-            let tip_time = Local
-                .timestamp_opt(time.seconds(), 0)
-                .single()
-                .unwrap_or_else(Local::now);
-
-            branches.push(BranchInfo {
-                name,
-                is_current,
-                tip_sha,
-                tip_message,
-                tip_time,
-            });
+            branches.push(BranchInfo { name, is_current });
         }
 
         // Sort: current branch first, then alphabetically

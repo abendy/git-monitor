@@ -471,11 +471,19 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
                     ));
                 }
 
-                // Contextual hint: p push
-                branch_spans.push(Span::styled(
-                    "  · p  push",
-                    Style::default().fg(Color::DarkGray).italic(),
-                ));
+                // Contextual hints based on state
+                let state = app.app_state();
+                branch_spans.push(Span::styled("  · ", Style::default().fg(Color::DarkGray)));
+                if state.ahead > 0 {
+                    branch_spans.push(Span::styled("P ", Style::default().fg(Color::Cyan)));
+                    branch_spans.push(Span::styled("push  ", Style::default().fg(Color::DarkGray).italic()));
+                }
+                if state.behind > 0 {
+                    branch_spans.push(Span::styled("p ", Style::default().fg(Color::Cyan)));
+                    branch_spans.push(Span::styled("pull  ", Style::default().fg(Color::DarkGray).italic()));
+                }
+                branch_spans.push(Span::styled("f ", Style::default().fg(Color::Cyan)));
+                branch_spans.push(Span::styled("fetch", Style::default().fg(Color::DarkGray).italic()));
 
                 items.push(ListItem::new(Line::from(branch_spans)));
             }

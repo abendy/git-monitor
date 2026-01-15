@@ -2,10 +2,16 @@
 //!
 //! Each section (Command, Staged, Working, History, Branches) implements
 //! the Section trait, providing its own rendering, actions, and key handling.
-//!
-//! Not yet integrated - will be implemented incrementally per ADR.
 
-#![allow(dead_code)] // Module reserved for section-based architecture
+#![allow(dead_code)] // Module in progress - not yet fully integrated
+
+mod command;
+mod staged;
+mod working;
+
+pub use command::{CommandSection, CommandSectionData};
+pub use staged::{StagedSection, StagedSectionData};
+pub use working::{WorkingSection, WorkingSectionData};
 
 use crossterm::event::KeyEvent;
 use ratatui::text::Line;

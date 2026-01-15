@@ -17,10 +17,12 @@ Implemented (Partial)
 - Toast rendering in header (types defined but not rendered)
 - Auto-dismiss tick handling for toasts
 
-## Context
-Command output is currently displayed through multiple mechanisms with inconsistent behavior:
+## Context (Historical)
+*This section describes the pre-integration state that motivated this ADR. The system has since been unified as described in "What's Done" above.*
 
-### Current Output Display Paths
+Command output was previously displayed through multiple mechanisms with inconsistent behavior:
+
+### Previous Output Display Paths
 
 1. **Inline Command Section** (ui.rs:270-296)
    - Shows first 4 lines of `command_output`

@@ -17,7 +17,9 @@
 | Key | Action |
 |-----|--------|
 | `s` | Stage/unstage |
-| `d` / `Enter` | Show diff |
+| `Space` | Open diff in pager |
+| `d` / `Enter` | Show inline diff |
+| `M` | Open in difftool |
 | `P` | Push (when ahead) |
 | `p` | Pull (when behind) |
 | `f` | Fetch |
@@ -31,6 +33,7 @@
 | `[` / `]` | Previous/next page |
 | `y` | Copy short SHA |
 | `c` | Copy full SHA |
+| `R` | Interactive rebase onto commit |
 
 ## Commit Files (when expanded)
 

@@ -1,6 +1,4 @@
 use std::{
-    fs::File,
-    io::{BufRead, BufReader, Write},
     path::PathBuf,
     process::{Command, Stdio},
     sync::mpsc::Sender,
@@ -12,7 +10,7 @@ use tracing::warn;
 
 use crate::{
     actions::{Action, ActionRegistry, AppAction, AppState, Context},
-    command::{CommandExecutor, CommandRequest, CommandSource, FeedbackPolicy},
+    command::{CommandExecutor, CommandHistory, CommandRequest, CommandSource, FeedbackPolicy},
     config::GitConfig,
     event::Event,
     feedback::{PopupContent, PopupState, AUTO_POPUP_LINE_THRESHOLD},
@@ -25,49 +23,6 @@ use crate::{
 
 /// Page size for history pagination
 const PAGE_SIZE: usize = 50;
-
-/// Maximum number of commands to keep in history
-const MAX_COMMAND_HISTORY: usize = 100;
-
-/// History file name in home directory
-const HISTORY_FILE: &str = ".git-monitor-history";
-
-/// Get the path to the history file
-fn history_file_path() -> Option<PathBuf> {
-    dirs::home_dir().map(|home| home.join(HISTORY_FILE))
-}
-
-/// Load command history from file
-fn load_history() -> Vec<String> {
-    let Some(path) = history_file_path() else {
-        return Vec::new();
-    };
-
-    let Ok(file) = File::open(&path) else {
-        return Vec::new();
-    };
-
-    BufReader::new(file)
-        .lines()
-        .map_while(Result::ok)
-        .take(MAX_COMMAND_HISTORY)
-        .collect()
-}
-
-/// Save command history to file
-fn save_history(history: &[String]) {
-    let Some(path) = history_file_path() else {
-        return;
-    };
-
-    let Ok(mut file) = File::create(&path) else {
-        return;
-    };
-
-    for cmd in history.iter().take(MAX_COMMAND_HISTORY) {
-        let _ = writeln!(file, "{cmd}");
-    }
-}
 
 /// History display mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -129,10 +84,8 @@ pub struct App {
     pub command_output: String,
     /// Whether last command succeeded
     pub command_success: bool,
-    /// Command history
-    pub command_history: Vec<String>,
-    /// Current position in history (for navigation)
-    pub history_index: Option<usize>,
+    /// Command history (managed by CommandHistory module)
+    pub command_history: CommandHistory,
     /// Current history display mode (reflog vs commit log)
     pub history_mode: HistoryMode,
     /// Popup state (for full-screen overlays: output, diff, etc.)
@@ -205,8 +158,7 @@ impl App {
             command_input: String::new(),
             command_output: String::new(),
             command_success: true,
-            command_history: load_history(),
-            history_index: None,
+            command_history: CommandHistory::new(),
             history_mode: HistoryMode::default(),
             popup: PopupState::default(),
             expanded_commit: None,
@@ -237,14 +189,14 @@ impl App {
     pub fn enter_command_mode(&mut self) {
         self.view_mode = ViewMode::Command;
         self.command_input.clear();
-        self.history_index = None;
+        self.command_history.reset_navigation();
     }
 
     /// Exit command mode (return to normal)
     pub fn exit_command_mode(&mut self) {
         self.view_mode = ViewMode::Normal;
         self.command_input.clear();
-        self.history_index = None;
+        self.command_history.reset_navigation();
     }
 
     /// Enter alias browser using the menu stack
@@ -960,7 +912,7 @@ impl App {
                 }
             }
             KeyCode::Char('k') | KeyCode::Up => {
-                if self.selected == Some(0) && !self.command_history.is_empty() {
+                if self.selected == Some(0) && !self.command_history.commands().is_empty() {
                     // On command section - enter command mode and show history
                     self.enter_command_mode();
                     self.history_prev();
@@ -1104,13 +1056,13 @@ impl App {
             // Type characters
             KeyCode::Char(c) => {
                 self.command_input.push(c);
-                self.history_index = None;
+                self.command_history.reset_navigation();
             }
 
             // Backspace
             KeyCode::Backspace => {
                 self.command_input.pop();
-                self.history_index = None;
+                self.command_history.reset_navigation();
             }
 
             // History navigation
@@ -1332,7 +1284,7 @@ impl App {
 
     /// Open the output popup with current command output
     fn open_output_popup(&mut self) {
-        let command = self.command_history.last().cloned().unwrap_or_default();
+        let command = self.command_history.commands().last().cloned().unwrap_or_default();
         self.popup.open(PopupContent::CommandOutput {
             command,
             output: self.command_output.clone(),
@@ -1712,13 +1664,8 @@ impl App {
         // Execute via the executor
         let result = self.executor.execute(&request);
 
-        // Record in history (deduplicated)
-        if self.command_history.last().map(String::as_str) != Some(&request.display_name) {
-            self.command_history.push(request.display_name.clone());
-            if self.command_history.len() > MAX_COMMAND_HISTORY {
-                self.command_history.remove(0);
-            }
-        }
+        // Record in history (handles deduplication and persistence)
+        self.command_history.add(request.display_name.clone());
 
         // Store output for display
         self.command_output = result.display_output().to_string();
@@ -1770,7 +1717,7 @@ impl App {
             self.command_output = String::from("Error: Only git commands are allowed");
             self.command_success = false;
             self.command_input.clear();
-            self.history_index = None;
+            self.command_history.reset_navigation();
             return;
         }
 
@@ -1779,53 +1726,26 @@ impl App {
 
         // Clear input and reset history navigation
         self.command_input.clear();
-        self.history_index = None;
+        self.command_history.reset_navigation();
     }
 
     /// Navigate command history (older)
     fn history_prev(&mut self) {
-        if self.command_history.is_empty() {
-            return;
-        }
-
-        match self.history_index {
-            None => {
-                // Start from most recent
-                self.history_index = Some(self.command_history.len() - 1);
-            }
-            Some(idx) if idx > 0 => {
-                self.history_index = Some(idx - 1);
-            }
-            _ => {}
-        }
-
-        if let Some(idx) = self.history_index {
-            self.command_input = self.command_history[idx].clone();
+        if let Some(cmd) = self.command_history.navigate_older() {
+            self.command_input = cmd.to_string();
         }
     }
 
     /// Navigate command history (newer)
     fn history_next(&mut self) {
-        if self.command_history.is_empty() {
-            return;
-        }
-
-        match self.history_index {
-            Some(idx) if idx < self.command_history.len() - 1 => {
-                self.history_index = Some(idx + 1);
-                self.command_input = self.command_history[idx + 1].clone();
+        match self.command_history.navigate_newer() {
+            Some(cmd) => {
+                self.command_input = cmd.to_string();
             }
-            Some(_) => {
+            None => {
                 // Past end of history, clear input
-                self.history_index = None;
                 self.command_input.clear();
             }
-            None => {}
         }
-    }
-
-    /// Save command history to persistent storage
-    pub fn save_history(&self) {
-        save_history(&self.command_history);
     }
 }

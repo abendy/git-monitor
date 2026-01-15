@@ -1,8 +1,4 @@
-use std::{
-    path::PathBuf,
-    process::{Command, Stdio},
-    sync::mpsc::Sender,
-};
+use std::{path::PathBuf, sync::mpsc::Sender};
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -10,7 +6,7 @@ use tracing::warn;
 
 use crate::{
     actions::{Action, ActionRegistry, AppAction, AppState, Context},
-    command::{CommandExecutor, CommandHistory, CommandRequest, CommandSource},
+    command::{CommandExecutor, CommandHistory, CommandRequest, CommandSource, ExternalCommand},
     config::GitConfig,
     event::Event,
     feedback::{Feedback, FeedbackManager, PopupContent},
@@ -42,19 +38,6 @@ pub enum ViewMode {
     Normal,
     /// Command input mode (typing git commands)
     Command,
-}
-
-/// External command requiring TUI suspension
-#[derive(Debug, Clone)]
-pub enum ExternalCommand {
-    /// Show commit file diff with pager (uses core.pager from gitconfig)
-    PagerDiff { commit_sha: String, file_path: String },
-    /// Show commit file diff with difftool (uses diff.tool from gitconfig)
-    DiffTool { commit_sha: String, file_path: String },
-    /// Show working/staged file diff with pager
-    FilePagerDiff { file_path: String, staged: bool },
-    /// Show working/staged file diff with difftool
-    FileDiffTool { file_path: String, staged: bool },
 }
 
 /// Application state
@@ -643,67 +626,9 @@ impl App {
         std::thread::sleep(std::time::Duration::from_millis(100));
         tui.suspend()?;
 
-        let result = match &cmd {
-            ExternalCommand::PagerDiff { commit_sha, file_path } => {
-                // Use git show with --paginate to force pager usage
-                Command::new("git")
-                    .args(["--paginate", "show", commit_sha, "--", file_path])
-                    .current_dir(&self.repo_path)
-                    .stdin(Stdio::inherit())
-                    .stdout(Stdio::inherit())
-                    .stderr(Stdio::inherit())
-                    .status()
-            }
-            ExternalCommand::DiffTool { commit_sha, file_path } => {
-                // Use git difftool which respects diff.tool from gitconfig
-                Command::new("git")
-                    .args([
-                        "difftool",
-                        "--no-prompt",
-                        &format!("{commit_sha}~1..{commit_sha}"),
-                        "--",
-                        file_path,
-                    ])
-                    .current_dir(&self.repo_path)
-                    .stdin(Stdio::inherit())
-                    .stdout(Stdio::inherit())
-                    .stderr(Stdio::inherit())
-                    .status()
-            }
-            ExternalCommand::FilePagerDiff { file_path, staged } => {
-                // Use git diff with --paginate for working/staged files
-                let mut args = vec!["--paginate", "diff"];
-                if *staged {
-                    args.push("--staged");
-                }
-                args.extend(["--", file_path]);
-                Command::new("git")
-                    .args(&args)
-                    .current_dir(&self.repo_path)
-                    .stdin(Stdio::inherit())
-                    .stdout(Stdio::inherit())
-                    .stderr(Stdio::inherit())
-                    .status()
-            }
-            ExternalCommand::FileDiffTool { file_path, staged } => {
-                // Use git difftool for working/staged files
-                let mut args = vec!["difftool", "--no-prompt"];
-                if *staged {
-                    args.push("--staged");
-                }
-                args.extend(["--", file_path]);
-                Command::new("git")
-                    .args(&args)
-                    .current_dir(&self.repo_path)
-                    .stdin(Stdio::inherit())
-                    .stdout(Stdio::inherit())
-                    .stderr(Stdio::inherit())
-                    .status()
-            }
-        };
-
-        if let Err(e) = result {
-            self.feedback.error = Some(format!("Failed to run external command: {e}"));
+        // Execute the external command (inherits stdio)
+        if let Err(e) = cmd.execute(&self.repo_path) {
+            self.feedback.error = Some(format!("Failed to run {}: {e}", cmd.description()));
         }
 
         // Wait for user to press Enter before resuming TUI

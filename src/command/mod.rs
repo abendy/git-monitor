@@ -4,9 +4,11 @@
 //! with consistent output handling, history recording, and feedback.
 
 mod executor;
+mod external;
 mod history;
 
 pub use executor::{CommandExecutor, CommandResult};
+pub use external::ExternalCommand;
 pub use history::CommandHistory;
 
 use std::path::{Path, PathBuf};

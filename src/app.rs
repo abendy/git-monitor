@@ -51,6 +51,10 @@ pub enum ExternalCommand {
     PagerDiff { commit_sha: String, file_path: String },
     /// Show commit file diff with difftool (uses diff.tool from gitconfig)
     DiffTool { commit_sha: String, file_path: String },
+    /// Show working/staged file diff with pager
+    FilePagerDiff { file_path: String, staged: bool },
+    /// Show working/staged file diff with difftool
+    FileDiffTool { file_path: String, staged: bool },
 }
 
 /// Application state
@@ -666,6 +670,36 @@ impl App {
                     .stderr(Stdio::inherit())
                     .status()
             }
+            ExternalCommand::FilePagerDiff { file_path, staged } => {
+                // Use git diff with --paginate for working/staged files
+                let mut args = vec!["--paginate", "diff"];
+                if *staged {
+                    args.push("--staged");
+                }
+                args.extend(["--", file_path]);
+                Command::new("git")
+                    .args(&args)
+                    .current_dir(&self.repo_path)
+                    .stdin(Stdio::inherit())
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::inherit())
+                    .status()
+            }
+            ExternalCommand::FileDiffTool { file_path, staged } => {
+                // Use git difftool for working/staged files
+                let mut args = vec!["difftool", "--no-prompt"];
+                if *staged {
+                    args.push("--staged");
+                }
+                args.extend(["--", file_path]);
+                Command::new("git")
+                    .args(&args)
+                    .current_dir(&self.repo_path)
+                    .stdin(Stdio::inherit())
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::inherit())
+                    .status()
+            }
         };
 
         if let Err(e) = result {
@@ -1074,6 +1108,22 @@ impl App {
             // File actions
             AppAction::ToggleStage => self.toggle_stage(),
             AppAction::ShowDiff => self.show_diff(),
+            AppAction::FilePagerDiff => {
+                if let Some((path, is_staged, _)) = self.selected_file_info() {
+                    self.pending_external = Some(ExternalCommand::FilePagerDiff {
+                        file_path: path.to_string_lossy().to_string(),
+                        staged: is_staged,
+                    });
+                }
+            }
+            AppAction::FileDiffTool => {
+                if let Some((path, is_staged, _)) = self.selected_file_info() {
+                    self.pending_external = Some(ExternalCommand::FileDiffTool {
+                        file_path: path.to_string_lossy().to_string(),
+                        staged: is_staged,
+                    });
+                }
+            }
 
             // History actions
             AppAction::ToggleHistoryMode => self.toggle_history_mode(),

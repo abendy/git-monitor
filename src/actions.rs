@@ -64,6 +64,10 @@ pub enum AppAction {
     ToggleStage,
     /// Show diff for selected file
     ShowDiff,
+    /// Open working/staged file diff in pager
+    FilePagerDiff,
+    /// Open working/staged file diff in external difftool
+    FileDiffTool,
 
     // History actions
     /// Toggle between log and reflog
@@ -267,8 +271,22 @@ impl ActionRegistry {
             "d",
             "diff",
             AppAction::ShowDiff,
-            file_contexts,
+            file_contexts.clone(),
             20,
+        ));
+        actions.push(Action::app(
+            "Space",
+            "pager",
+            AppAction::FilePagerDiff,
+            file_contexts.clone(),
+            30,
+        ));
+        actions.push(Action::app(
+            "M",
+            "difftool",
+            AppAction::FileDiffTool,
+            file_contexts,
+            40,
         ));
 
         // --- History actions ---

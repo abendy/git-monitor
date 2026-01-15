@@ -15,7 +15,7 @@ use crate::{
     command::{CommandExecutor, CommandRequest, CommandSource, FeedbackPolicy},
     config::GitConfig,
     event::Event,
-    feedback::{PopupContent, PopupState},
+    feedback::{PopupContent, PopupState, AUTO_POPUP_LINE_THRESHOLD},
     git::{BranchInfo, CommitDetail, FileState, GitCommand, GitRepo, GitStatus},
     menu::{ActionMenu, AliasSectionMenu, MenuResult, MenuStack, PushConfirmMenu},
     tui::Tui,
@@ -28,9 +28,6 @@ const PAGE_SIZE: usize = 50;
 
 /// Maximum number of commands to keep in history
 const MAX_COMMAND_HISTORY: usize = 100;
-
-/// Auto-open popup if command output exceeds this many lines
-const AUTO_POPUP_LINE_THRESHOLD: usize = 5;
 
 /// History file name in home directory
 const HISTORY_FILE: &str = ".git-monitor-history";

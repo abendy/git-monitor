@@ -1631,8 +1631,8 @@ impl App {
 
     /// Handle tick events (periodic updates)
     fn on_tick(&mut self) {
-        // Tick is now just for UI updates, not git status refresh
-        // Status is refreshed via file watcher events
+        // Handle time-based feedback updates (toast auto-dismiss)
+        self.feedback.tick();
     }
 
     // ─────────────────────────────────────────────────────────────────────────

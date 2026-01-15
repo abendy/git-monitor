@@ -8,7 +8,7 @@ use ratatui::{
 use crate::{
     actions::{ActionRegistry, ActionType, AppAction, AppState, Context},
     app::{App, HistoryMode},
-    feedback::PopupContent,
+    feedback::{PopupContent, ToastLevel},
     git::{format_relative_time, CommandType, FileState, RefDecoration},
     tui::Frame,
 };
@@ -873,6 +873,7 @@ fn format_decorations(decorations: &[RefDecoration]) -> Vec<Span<'static>> {
 /// Render the footer with keybindings
 fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
     // Show different hints based on mode
+    // Priority: command mode > toast (transient) > error (persistent) > normal hints
     let content = if app.is_command_mode() {
         Line::from(vec![
             Span::styled(" Enter ", Style::default().bg(Color::DarkGray).bold()),
@@ -882,6 +883,15 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Span::styled(" Up/Down ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" history "),
         ])
+    } else if let Some(ref toast) = app.feedback.toast {
+        // Toast with level-based coloring
+        let color = match toast.level {
+            ToastLevel::Info => Color::Blue,
+            ToastLevel::Success => Color::Green,
+            ToastLevel::Warning => Color::Yellow,
+            ToastLevel::Error => Color::Red,
+        };
+        Line::from(Span::styled(toast.message.as_str(), Style::default().fg(color)))
     } else if let Some(ref error) = app.feedback.error {
         Line::from(Span::styled(
             error.as_str(),

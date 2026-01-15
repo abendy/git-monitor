@@ -12,6 +12,7 @@ mod feedback;
 mod git;
 mod input;
 mod menu;
+mod render;
 mod section;
 mod tui;
 mod ui;

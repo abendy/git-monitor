@@ -8,7 +8,7 @@ use ratatui::{
 use crate::{
     actions::{ActionRegistry, ActionType, AppAction, AppState, Context},
     app::{App, HistoryMode},
-    feedback::{PopupContent, ToastLevel},
+    feedback::PopupContent,
     git::{format_relative_time, CommandType, FileState, RefDecoration},
     tui::Frame,
 };
@@ -54,15 +54,15 @@ pub fn render(frame: &mut Frame<'_>, app: &mut App) {
         ])
         .split(area);
 
-    render_header(frame, app, layout[0]);
+    crate::render::header::render(frame, app, layout[0]);
 
     // Conditional rendering: popup replaces body, not overlays it
     if app.feedback.popup.is_open() {
         render_popup(frame, app, layout[1]);
-        render_popup_footer(frame, layout[2]);
+        crate::render::footer::render_popup(frame, layout[2]);
     } else {
         render_body(frame, app, layout[1]);
-        render_footer(frame, app, layout[2]);
+        crate::render::footer::render(frame, app, layout[2]);
     }
 
     // Help overlay (centered popup, separate from full-screen popup)
@@ -74,61 +74,6 @@ pub fn render(frame: &mut Frame<'_>, app: &mut App) {
     if app.menu_stack.is_active() {
         render_menu_stack(frame, app, area);
     }
-}
-
-/// Render the header bar
-fn render_header(frame: &mut Frame<'_>, app: &App, area: Rect) {
-    let branch_name = app
-        .status
-        .branch
-        .as_deref()
-        .unwrap_or("(no branch)");
-
-    let mut header_spans = vec![
-        Span::styled(" ⎇ ", Style::default().fg(Color::Cyan)),
-        Span::styled(branch_name, Style::default().fg(Color::Green).bold()),
-    ];
-
-    // Ahead/behind indicators
-    if app.status.ahead > 0 || app.status.behind > 0 {
-        header_spans.push(Span::raw(" "));
-        if app.status.ahead > 0 {
-            header_spans.push(Span::styled(
-                format!("↑{}", app.status.ahead),
-                Style::default().fg(Color::Green),
-            ));
-        }
-        if app.status.behind > 0 {
-            header_spans.push(Span::styled(
-                format!("↓{}", app.status.behind),
-                Style::default().fg(Color::Red),
-            ));
-        }
-    }
-
-    // Repo path
-    let path_str = app
-        .repo_path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("unknown");
-
-    header_spans.push(Span::raw(" │ "));
-    header_spans.push(Span::styled(path_str, Style::default().fg(Color::White)));
-    header_spans.push(Span::raw(" │ "));
-    header_spans.push(Span::styled("● watching", Style::default().fg(Color::Green)));
-
-    let header_text = Line::from(header_spans);
-
-    let header = Paragraph::new(header_text).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::DarkGray))
-            .title(" git-monitor ")
-            .title_style(Style::default().fg(Color::Cyan).bold()),
-    );
-
-    frame.render_widget(header, area);
 }
 
 /// Render the main body (single unified panel)
@@ -870,68 +815,6 @@ fn format_decorations(decorations: &[RefDecoration]) -> Vec<Span<'static>> {
     spans
 }
 
-/// Render the footer with keybindings
-fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
-    // Show different hints based on mode
-    // Priority: command mode > toast (transient) > error (persistent) > normal hints
-    let content = if app.is_command_mode() {
-        Line::from(vec![
-            Span::styled(" Enter ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" execute  "),
-            Span::styled(" Esc ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" cancel  "),
-            Span::styled(" Up/Down ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" history "),
-        ])
-    } else if let Some(ref toast) = app.feedback.toast {
-        // Toast with level-based coloring
-        let color = match toast.level {
-            ToastLevel::Info => Color::Blue,
-            ToastLevel::Success => Color::Green,
-            ToastLevel::Warning => Color::Yellow,
-            ToastLevel::Error => Color::Red,
-        };
-        Line::from(Span::styled(toast.message.as_str(), Style::default().fg(color)))
-    } else if let Some(ref error) = app.feedback.error {
-        Line::from(Span::styled(
-            error.as_str(),
-            Style::default().fg(Color::Red),
-        ))
-    } else {
-        // Universal hints: nav top/btm m menu | : cmd  w files  h history  b branches | help quit
-        Line::from(vec![
-            Span::styled(" j/k ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" nav  "),
-            Span::styled(" g/G ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" top/btm  "),
-            Span::styled(" m ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" menu "),
-            Span::styled(" │ ", Style::default().fg(Color::DarkGray)),
-            Span::styled(" : ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" cmd  "),
-            Span::styled(" w ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" files  "),
-            Span::styled(" h ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" history  "),
-            Span::styled(" b ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" branches "),
-            Span::styled(" │ ", Style::default().fg(Color::DarkGray)),
-            Span::styled(" ? ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" help "),
-            Span::styled(" q ", Style::default().bg(Color::DarkGray).bold()),
-            Span::raw(" quit "),
-        ])
-    };
-
-    let footer = Paragraph::new(content).alignment(Alignment::Center).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::DarkGray)),
-    );
-
-    frame.render_widget(footer, area);
-}
-
 /// Render help overlay
 fn render_help(frame: &mut Frame<'_>, area: Rect) {
     // Center the help box
@@ -1122,28 +1005,6 @@ fn render_popup(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
         .block(block);
 
     frame.render_widget(popup, area);
-}
-
-/// Render footer when popup is active
-fn render_popup_footer(frame: &mut Frame<'_>, area: Rect) {
-    let content = Line::from(vec![
-        Span::styled(" j/k ", Style::default().bg(Color::DarkGray).bold()),
-        Span::raw(" scroll  "),
-        Span::styled(" g/G ", Style::default().bg(Color::DarkGray).bold()),
-        Span::raw(" top/bottom  "),
-        Span::styled(" Ctrl+d/u ", Style::default().bg(Color::DarkGray).bold()),
-        Span::raw(" page  "),
-        Span::styled(" q ", Style::default().bg(Color::DarkGray).bold()),
-        Span::raw(" close "),
-    ]);
-
-    let footer = Paragraph::new(content).alignment(Alignment::Center).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::DarkGray)),
-    );
-
-    frame.render_widget(footer, area);
 }
 
 /// Create a centered rectangle

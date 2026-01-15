@@ -878,9 +878,16 @@ impl App {
 
             // External difftool (uses gitconfig diff.tool)
             KeyCode::Char('M') => {
-                if let (Some(sha), Some(file_idx)) =
+                // First check if we're on a working/staged file
+                if let Some((path, is_staged, _)) = self.selected_file_info() {
+                    self.pending_external = Some(ExternalCommand::FileDiffTool {
+                        file_path: path.to_string_lossy().to_string(),
+                        staged: is_staged,
+                    });
+                } else if let (Some(sha), Some(file_idx)) =
                     (self.expanded_commit.clone(), self.expanded_file_idx)
                 {
+                    // Commit file difftool
                     let file_path = self
                         .expanded_detail
                         .as_ref()
@@ -1002,9 +1009,12 @@ impl App {
 
             // Toggle expand/collapse for headers, or show commit details
             KeyCode::Char(' ') => {
-                // First check if we're on a staged/working file
-                if self.selected_file_info().is_some() {
-                    self.show_diff();
+                // First check if we're on a staged/working file - open in pager
+                if let Some((path, is_staged, _)) = self.selected_file_info() {
+                    self.pending_external = Some(ExternalCommand::FilePagerDiff {
+                        file_path: path.to_string_lossy().to_string(),
+                        staged: is_staged,
+                    });
                 } else if self.is_on_history_header() {
                     // Toggle history section expand/collapse
                     if self.history_collapsed {

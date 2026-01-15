@@ -5,11 +5,15 @@
 
 #![allow(dead_code)] // Module in progress - not yet fully integrated
 
+mod branches;
 mod command;
+mod history;
 mod staged;
 mod working;
 
+pub use branches::{BranchesSection, BranchesSectionData};
 pub use command::{CommandSection, CommandSectionData};
+pub use history::{HistorySection, HistorySectionData};
 pub use staged::{StagedSection, StagedSectionData};
 pub use working::{WorkingSection, WorkingSectionData};
 

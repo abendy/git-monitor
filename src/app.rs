@@ -14,8 +14,8 @@ use crate::{
     input::Keymap,
     menu::{ActionMenu, AliasSectionMenu, MenuResult, MenuStack, PushConfirmMenu},
     section::{
-        CommandSection, CommandSectionData, StagedSection, StagedSectionData, WorkingSection,
-        WorkingSectionData,
+        BranchesSection, BranchesSectionData, CommandSection, CommandSectionData, HistorySection,
+        HistorySectionData, StagedSection, StagedSectionData, WorkingSection, WorkingSectionData,
     },
     tui::Tui,
     ui,
@@ -111,6 +111,10 @@ pub struct App {
     pub staged_section: StagedSection,
     /// Working files section
     pub working_section: WorkingSection,
+    /// History section (commits/reflog)
+    pub history_section: HistorySection,
+    /// Branches section
+    pub branches_section: BranchesSection,
 }
 
 impl App {
@@ -171,6 +175,8 @@ impl App {
             command_section: CommandSection::new(),
             staged_section: StagedSection::new(),
             working_section: WorkingSection::new(),
+            history_section: HistorySection::new(),
+            branches_section: BranchesSection::new(),
         };
 
         // Update sections with initial state
@@ -274,6 +280,33 @@ impl App {
                 .into_iter()
                 .cloned()
                 .collect(),
+            command_mode_active: self.is_command_mode(),
+            action_registry: Some(self.action_registry.clone()),
+            app_state: Some(self.app_state()),
+        });
+
+        // Update history section
+        self.history_section.update(HistorySectionData {
+            activity: self.activity.clone(),
+            history_mode: self.history_mode,
+            is_collapsed: self.history_collapsed,
+            page: self.history_page,
+            current_branch: self.branches.iter().find(|b| b.is_current).cloned(),
+            status: self.status.clone(),
+            expanded_commit: self.expanded_commit.clone(),
+            expanded_detail: self.expanded_detail.clone(),
+            command_mode_active: self.is_command_mode(),
+            action_registry: Some(self.action_registry.clone()),
+            app_state: Some(self.app_state()),
+        });
+
+        // Update branches section
+        self.branches_section.update(BranchesSectionData {
+            branches: self.branches.clone(),
+            expanded_branch: self.expanded_branch.clone(),
+            expanded_branch_commits: self.expanded_branch_commits.clone(),
+            expanded_commit: self.expanded_commit.clone(),
+            expanded_detail: self.expanded_detail.clone(),
             command_mode_active: self.is_command_mode(),
             action_registry: Some(self.action_registry.clone()),
             app_state: Some(self.app_state()),

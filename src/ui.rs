@@ -7,7 +7,8 @@ use ratatui::{
 
 use crate::{
     actions::{ActionRegistry, ActionType, AppAction, AppState, Context},
-    app::{App, HistoryMode, PopupContent},
+    app::{App, HistoryMode},
+    feedback::PopupContent,
     git::{format_relative_time, CommandType, FileState, RefDecoration},
     tui::Frame,
 };

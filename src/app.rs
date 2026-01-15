@@ -15,6 +15,7 @@ use crate::{
     command::{CommandExecutor, CommandRequest, CommandSource, FeedbackPolicy},
     config::GitConfig,
     event::Event,
+    feedback::{PopupContent, PopupState},
     git::{BranchInfo, CommitDetail, FileState, GitCommand, GitRepo, GitStatus},
     menu::{ActionMenu, AliasSectionMenu, MenuResult, MenuStack, PushConfirmMenu},
     tui::Tui,
@@ -98,103 +99,6 @@ pub enum ExternalCommand {
     PagerDiff { commit_sha: String, file_path: String },
     /// Show commit file diff with difftool (uses diff.tool from gitconfig)
     DiffTool { commit_sha: String, file_path: String },
-}
-
-/// Content displayed in the popup
-#[derive(Debug, Clone, Default)]
-pub enum PopupContent {
-    /// No popup active
-    #[default]
-    None,
-    /// Command output (from : command mode)
-    CommandOutput {
-        command: String,
-        output: String,
-        success: bool,
-    },
-    /// File diff
-    Diff {
-        path: String,
-        content: String,
-        #[allow(dead_code)] // Reserved for future staged/unstaged indicator
-        is_staged: bool,
-    },
-}
-
-impl PopupContent {
-    /// Check if popup is active
-    pub fn is_active(&self) -> bool {
-        !matches!(self, PopupContent::None)
-    }
-
-    /// Get the number of lines without allocating
-    pub fn line_count(&self) -> usize {
-        match self {
-            PopupContent::None => 0,
-            PopupContent::CommandOutput { output, .. } => output.lines().count(),
-            PopupContent::Diff { content, .. } => content.lines().count(),
-        }
-    }
-
-    /// Get the title for the popup
-    pub fn title(&self) -> String {
-        match self {
-            PopupContent::None => String::new(),
-            PopupContent::CommandOutput { command, .. } => format!(" Output: {command} "),
-            PopupContent::Diff { path, .. } => format!(" Diff: {path} "),
-        }
-    }
-}
-
-/// Popup state with scroll position
-#[derive(Debug, Clone, Default)]
-pub struct PopupState {
-    /// Content being displayed
-    pub content: PopupContent,
-    /// Scroll offset (line number at top of view)
-    pub scroll_offset: usize,
-    /// Visible height from last render (for scroll calculations)
-    pub visible_height: usize,
-}
-
-impl PopupState {
-    /// Open popup with content
-    pub fn open(&mut self, content: PopupContent) {
-        self.content = content;
-        self.scroll_offset = 0;
-    }
-
-    /// Close popup
-    pub fn close(&mut self) {
-        self.content = PopupContent::None;
-        self.scroll_offset = 0;
-    }
-
-    /// Check if popup is open
-    pub fn is_open(&self) -> bool {
-        self.content.is_active()
-    }
-
-    /// Scroll down by n lines
-    pub fn scroll_down(&mut self, n: usize, max_lines: usize, visible_height: usize) {
-        let max_offset = max_lines.saturating_sub(visible_height);
-        self.scroll_offset = (self.scroll_offset + n).min(max_offset);
-    }
-
-    /// Scroll up by n lines
-    pub fn scroll_up(&mut self, n: usize) {
-        self.scroll_offset = self.scroll_offset.saturating_sub(n);
-    }
-
-    /// Jump to top
-    pub fn scroll_to_top(&mut self) {
-        self.scroll_offset = 0;
-    }
-
-    /// Jump to bottom
-    pub fn scroll_to_bottom(&mut self, max_lines: usize, visible_height: usize) {
-        self.scroll_offset = max_lines.saturating_sub(visible_height);
-    }
 }
 
 /// Application state
@@ -1346,14 +1250,6 @@ impl App {
 
     /// Handle keyboard input in popup mode
     fn handle_popup_key(&mut self, key: KeyEvent) {
-        // Use visible height from last render (defaults to 20 if not yet rendered)
-        let visible_height = if self.popup.visible_height > 0 {
-            self.popup.visible_height
-        } else {
-            20
-        };
-        let max_lines = self.popup.content.line_count();
-
         match key.code {
             // Close popup
             KeyCode::Esc | KeyCode::Char('q') => {
@@ -1362,7 +1258,7 @@ impl App {
 
             // Scroll down
             KeyCode::Char('j') | KeyCode::Down => {
-                self.popup.scroll_down(1, max_lines, visible_height);
+                self.popup.scroll_down(1);
             }
 
             // Scroll up
@@ -1372,12 +1268,12 @@ impl App {
 
             // Page down
             KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.popup.scroll_down(visible_height / 2, max_lines, visible_height);
+                self.popup.page_down();
             }
 
             // Page up
             KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.popup.scroll_up(visible_height / 2);
+                self.popup.page_up();
             }
 
             // Jump to top
@@ -1387,7 +1283,7 @@ impl App {
 
             // Jump to bottom
             KeyCode::Char('G') => {
-                self.popup.scroll_to_bottom(max_lines, visible_height);
+                self.popup.scroll_to_bottom();
             }
 
             _ => {}

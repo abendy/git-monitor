@@ -15,7 +15,8 @@ use crate::{
     menu::{ActionMenu, AliasSectionMenu, MenuResult, MenuStack, PushConfirmMenu},
     section::{
         BranchesSection, BranchesSectionData, CommandSection, CommandSectionData, HistorySection,
-        HistorySectionData, StagedSection, StagedSectionData, WorkingSection, WorkingSectionData,
+        HistorySectionData, Section, SectionId, SectionItemCounts, SectionRegistry, StagedSection,
+        StagedSectionData, WorkingSection, WorkingSectionData,
     },
     tui::Tui,
     ui,
@@ -115,6 +116,8 @@ pub struct App {
     pub history_section: HistorySection,
     /// Branches section
     pub branches_section: BranchesSection,
+    /// Section registry for index calculations
+    section_registry: SectionRegistry,
 }
 
 impl App {
@@ -177,6 +180,7 @@ impl App {
             working_section: WorkingSection::new(),
             history_section: HistorySection::new(),
             branches_section: BranchesSection::new(),
+            section_registry: SectionRegistry::new(),
         };
 
         // Update sections with initial state
@@ -311,6 +315,18 @@ impl App {
             action_registry: Some(self.action_registry.clone()),
             app_state: Some(self.app_state()),
         });
+    }
+
+    /// Get item counts for all sections (for registry calculations)
+    #[must_use]
+    pub fn section_item_counts(&self) -> SectionItemCounts {
+        SectionItemCounts::from_sections(
+            &self.command_section,
+            &self.staged_section,
+            &self.working_section,
+            &self.history_section,
+            &self.branches_section,
+        )
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -474,13 +490,10 @@ impl App {
 
     /// Get the index where branches section starts
     fn branches_start_index(&self) -> usize {
-        let files_total = self.status.staged_changes().len() + self.status.working_changes().len();
-        let history_items = if self.history_collapsed {
-            1 // Just header
-        } else {
-            1 + self.activity.len() // Header + commits
-        };
-        1 + files_total + history_items
+        let counts = self.section_item_counts();
+        self.section_registry
+            .section_start_index(SectionId::Branches, &counts)
+            .unwrap_or(0)
     }
 
     /// Check if currently selected item is the expanded commit
@@ -505,42 +518,14 @@ impl App {
             return Context::Global;
         };
 
-        // Index 0 is command section
-        if selected == 0 {
-            return Context::Command;
-        }
-
-        // Check if in expanded commit files
+        // Check if in expanded commit files (special case not in registry)
         if self.expanded_commit.is_some() && self.expanded_file_idx.is_some() {
             return Context::CommitFiles;
         }
 
-        // Check files section
-        if self.selected_file_info().is_some() {
-            let staged_len = self.status.staged_changes().len();
-            let file_idx = selected - 1;
-            if file_idx < staged_len {
-                return Context::StagedFiles;
-            }
-            return Context::WorkingFiles;
-        }
-
-        // Check history header
-        if self.is_on_history_header() {
-            return Context::HistoryHeader;
-        }
-
-        // Check history commits
-        if self.is_in_history() {
-            return Context::HistoryCommits;
-        }
-
-        // Check branch commits
-        if self.is_in_branches() {
-            return Context::BranchCommits;
-        }
-
-        Context::Global
+        // Use registry for standard section context resolution
+        let counts = self.section_item_counts();
+        self.section_registry.context_for_index(selected, &counts)
     }
 
     /// Get current app state for condition evaluation
@@ -1444,23 +1429,8 @@ impl App {
 
     /// Total count of all selectable items
     pub fn total_count(&self) -> usize {
-        let files_total = self.status.staged_changes().len() + self.status.working_changes().len();
-
-        // History section: 1 header + (commits if expanded)
-        let history_items = if self.history_collapsed {
-            1
-        } else {
-            1 + self.activity.len()
-        };
-
-        // Branches section: only expanded branch commits are selectable (not headers)
-        let branch_items = if self.expanded_branch.is_some() {
-            self.expanded_branch_commits.len()
-        } else {
-            0
-        };
-
-        1 + files_total + history_items + branch_items
+        let counts = self.section_item_counts();
+        self.section_registry.total_items(&counts)
     }
 
     /// Get the selected file info

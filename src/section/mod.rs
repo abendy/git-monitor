@@ -15,7 +15,7 @@ mod working;
 pub use branches::{BranchesSection, BranchesSectionData};
 pub use command::{CommandSection, CommandSectionData};
 pub use history::{HistorySection, HistorySectionData};
-pub use registry::{IndexLookup, SectionItemCounts, SectionRegistry};
+pub use registry::{SectionItemCounts, SectionRegistry};
 pub use staged::{StagedSection, StagedSectionData};
 pub use working::{WorkingSection, WorkingSectionData};
 

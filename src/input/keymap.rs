@@ -38,12 +38,14 @@ impl KeyBinding {
 
     /// Create a key binding with Ctrl modifier
     #[must_use]
+    #[allow(dead_code)] // Reserved for future Ctrl-key bindings
     pub const fn ctrl(code: KeyCode) -> Self {
         Self::new(code, KeyModifiers::CONTROL)
     }
 
     /// Create a key binding for Ctrl+char
     #[must_use]
+    #[allow(dead_code)] // Reserved for future Ctrl-key bindings
     pub const fn ctrl_char(c: char) -> Self {
         Self::ctrl(KeyCode::Char(c))
     }

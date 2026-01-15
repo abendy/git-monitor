@@ -15,7 +15,7 @@ use crate::{
     menu::{ActionMenu, AliasSectionMenu, MenuResult, MenuStack, PushConfirmMenu},
     section::{
         BranchesSection, BranchesSectionData, CommandSection, CommandSectionData, HistorySection,
-        HistorySectionData, Section, SectionId, SectionItemCounts, SectionRegistry, StagedSection,
+        HistorySectionData, SectionId, SectionItemCounts, SectionRegistry, StagedSection,
         StagedSectionData, WorkingSection, WorkingSectionData,
     },
     tui::Tui,

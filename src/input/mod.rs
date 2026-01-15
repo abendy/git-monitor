@@ -5,19 +5,4 @@
 
 mod keymap;
 
-pub use keymap::{KeyBinding, Keymap};
-
-use crate::actions::{AppAction, Context};
-
-/// Result of processing a key event
-#[derive(Debug, Clone)]
-pub enum InputResult {
-    /// Execute an app-level action
-    Action(AppAction),
-    /// Delegate to the active menu
-    DelegateToMenu,
-    /// Delegate to popup handler
-    DelegateToPopup,
-    /// Key was not handled
-    Unhandled,
-}
+pub use keymap::Keymap;

@@ -1,4 +1,8 @@
 //! Selection menu implementation.
+//!
+//! Not yet integrated - provides generic SelectMenu for future use.
+
+#![allow(dead_code)] // Module reserved for future selection menus
 
 use crossterm::event::{KeyCode, KeyEvent};
 

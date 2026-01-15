@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 
 /// Source of command execution - affects feedback behavior
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[allow(dead_code)] // Variants reserved for expanded feedback policy
 pub enum CommandSource {
     /// Direct keyboard shortcut
     #[default]
@@ -29,6 +30,7 @@ pub enum CommandSource {
 
 /// Policy for displaying command feedback
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[allow(dead_code)] // Variants reserved for expanded feedback policy
 pub enum FeedbackPolicy {
     /// Use source-based defaults
     #[default]
@@ -108,6 +110,7 @@ impl CommandRequest {
 
     /// Set the feedback policy
     #[must_use]
+    #[allow(dead_code)] // Builder method for future use
     pub fn with_feedback(mut self, policy: FeedbackPolicy) -> Self {
         self.feedback = policy;
         self
@@ -115,6 +118,7 @@ impl CommandRequest {
 
     /// Set whether to refresh after execution
     #[must_use]
+    #[allow(dead_code)] // Builder method for future use
     pub fn with_refresh(mut self, refresh: bool) -> Self {
         self.refresh_after = refresh;
         self
@@ -122,6 +126,7 @@ impl CommandRequest {
 
     /// Set custom working directory
     #[must_use]
+    #[allow(dead_code)] // Builder method for future use
     pub fn with_cwd(mut self, cwd: PathBuf) -> Self {
         self.cwd = Some(cwd);
         self

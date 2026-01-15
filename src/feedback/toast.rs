@@ -7,6 +7,7 @@ const TOAST_DURATION: Duration = Duration::from_secs(3);
 
 /// Toast severity/type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)] // Variants for toast styling
 pub enum ToastLevel {
     /// Informational (blue)
     Info,
@@ -42,24 +43,28 @@ impl Toast {
 
     /// Create an info toast
     #[must_use]
+    #[allow(dead_code)] // Convenience constructor
     pub fn info(message: impl Into<String>) -> Self {
         Self::new(message, ToastLevel::Info)
     }
 
     /// Create a success toast
     #[must_use]
+    #[allow(dead_code)] // Convenience constructor
     pub fn success(message: impl Into<String>) -> Self {
         Self::new(message, ToastLevel::Success)
     }
 
     /// Create a warning toast
     #[must_use]
+    #[allow(dead_code)] // Convenience constructor
     pub fn warning(message: impl Into<String>) -> Self {
         Self::new(message, ToastLevel::Warning)
     }
 
     /// Create an error toast
     #[must_use]
+    #[allow(dead_code)] // Convenience constructor
     pub fn error(message: impl Into<String>) -> Self {
         Self::new(message, ToastLevel::Error)
     }
@@ -72,6 +77,7 @@ impl Toast {
 
     /// Get remaining time as a fraction (0.0 to 1.0)
     #[must_use]
+    #[allow(dead_code)] // For animated progress bar
     pub fn remaining_fraction(&self) -> f32 {
         let elapsed = self.created.elapsed();
         if elapsed >= TOAST_DURATION {

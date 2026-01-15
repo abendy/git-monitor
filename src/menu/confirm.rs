@@ -1,4 +1,8 @@
 //! Confirmation dialog implementation.
+//!
+//! Not yet integrated - provides generic ConfirmMenu for future use.
+
+#![allow(dead_code)] // Module reserved for future generic confirm dialogs
 
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{

@@ -10,6 +10,7 @@ use super::CommandRequest;
 
 /// Result of command execution
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Fields reserved for future diagnostics
 pub struct CommandResult {
     /// Whether the command succeeded (exit code 0)
     pub success: bool,

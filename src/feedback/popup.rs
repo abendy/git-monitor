@@ -56,6 +56,7 @@ impl PopupContent {
 
     /// Get the content for iteration
     #[must_use]
+    #[allow(dead_code)] // API for future use
     pub fn content(&self) -> &str {
         match self {
             Self::None => "",
@@ -66,12 +67,14 @@ impl PopupContent {
 
     /// Check if this is a command output popup
     #[must_use]
+    #[allow(dead_code)] // API for future use
     pub fn is_command_output(&self) -> bool {
         matches!(self, Self::CommandOutput { .. })
     }
 
     /// Get success status for command output
     #[must_use]
+    #[allow(dead_code)] // API for future use
     pub fn is_success(&self) -> bool {
         match self {
             Self::CommandOutput { success, .. } => *success,
@@ -112,6 +115,7 @@ impl PopupState {
 
     /// Get the content
     #[must_use]
+    #[allow(dead_code)] // API for future use
     pub fn content(&self) -> &PopupContent {
         &self.content
     }
@@ -148,6 +152,7 @@ impl PopupState {
     }
 
     /// Set visible height (called by renderer)
+    #[allow(dead_code)] // API for future use
     pub fn set_visible_height(&mut self, height: usize) {
         self.visible_height = height;
     }

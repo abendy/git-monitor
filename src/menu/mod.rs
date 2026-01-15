@@ -10,10 +10,8 @@ mod select;
 mod stack;
 
 pub use action::ActionMenu;
-pub use alias::{AliasItemsMenu, AliasSectionMenu};
-pub use confirm::{Checkbox, ConfirmMenu};
+pub use alias::AliasSectionMenu;
 pub use push::PushConfirmMenu;
-pub use select::{SelectItem, SelectMenu};
 pub use stack::MenuStack;
 
 use crossterm::event::KeyEvent;
@@ -77,6 +75,7 @@ impl MenuItem {
 
     /// Create a separator
     #[must_use]
+    #[allow(dead_code)] // MenuItem factory for future menus
     pub fn separator() -> Self {
         Self {
             label: String::new(),
@@ -89,6 +88,7 @@ impl MenuItem {
 
     /// Create a header item
     #[must_use]
+    #[allow(dead_code)] // MenuItem factory for future menus
     pub fn header(label: impl Into<String>) -> Self {
         Self {
             label: label.into(),
@@ -101,6 +101,7 @@ impl MenuItem {
 
     /// Create a checkbox item
     #[must_use]
+    #[allow(dead_code)] // MenuItem factory for future menus
     pub fn checkbox(label: impl Into<String>, checked: bool) -> Self {
         Self {
             label: label.into(),
@@ -114,6 +115,7 @@ impl MenuItem {
 
 /// Visual style for menu items
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)] // Styles for rich menu rendering
 pub enum ItemStyle {
     /// Normal selectable item
     Normal,
@@ -144,6 +146,7 @@ pub enum MenuResult {
 }
 
 /// Action to execute after menu closes
+#[allow(dead_code)] // Variants for menu action handling
 pub enum MenuAction {
     /// Execute a command
     Command(crate::command::CommandRequest),

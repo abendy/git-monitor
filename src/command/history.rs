@@ -103,6 +103,7 @@ impl CommandHistory {
 
     /// Check if currently navigating history
     #[must_use]
+    #[allow(dead_code)] // API for future use
     pub fn is_navigating(&self) -> bool {
         self.nav_index.is_some()
     }

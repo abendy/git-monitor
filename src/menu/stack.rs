@@ -50,6 +50,7 @@ impl MenuStack {
 
     /// Get the depth of the menu stack
     #[must_use]
+    #[allow(dead_code)] // API for future use
     pub fn depth(&self) -> usize {
         self.stack.len()
     }

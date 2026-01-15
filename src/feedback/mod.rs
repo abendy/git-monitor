@@ -15,6 +15,7 @@ pub const AUTO_POPUP_LINE_THRESHOLD: usize = 5;
 
 /// Types of feedback that can be shown to the user
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Variants for comprehensive feedback API
 pub enum Feedback {
     /// Command completed - show output
     CommandOutput {
@@ -159,11 +160,13 @@ impl FeedbackManager {
     }
 
     /// Clear command output
+    #[allow(dead_code)] // API for future use
     pub fn clear_output(&mut self) {
         self.command_output = None;
     }
 
     /// Clear error message
+    #[allow(dead_code)] // API for future use
     pub fn clear_error(&mut self) {
         self.error = None;
     }

@@ -10,10 +10,10 @@ use tracing::warn;
 
 use crate::{
     actions::{Action, ActionRegistry, AppAction, AppState, Context},
-    command::{CommandExecutor, CommandHistory, CommandRequest, CommandSource, FeedbackPolicy},
+    command::{CommandExecutor, CommandHistory, CommandRequest, CommandSource},
     config::GitConfig,
     event::Event,
-    feedback::{PopupContent, PopupState, AUTO_POPUP_LINE_THRESHOLD},
+    feedback::{Feedback, FeedbackManager, PopupContent},
     git::{BranchInfo, CommitDetail, FileState, GitCommand, GitRepo, GitStatus},
     menu::{ActionMenu, AliasSectionMenu, MenuResult, MenuStack, PushConfirmMenu},
     tui::Tui,
@@ -76,20 +76,14 @@ pub struct App {
     pub show_help: bool,
     /// Current view mode
     pub view_mode: ViewMode,
-    /// Error message to display
-    pub error: Option<String>,
     /// Current command input buffer
     pub command_input: String,
-    /// Last command output (stdout/stderr combined)
-    pub command_output: String,
-    /// Whether last command succeeded
-    pub command_success: bool,
     /// Command history (managed by CommandHistory module)
     pub command_history: CommandHistory,
     /// Current history display mode (reflog vs commit log)
     pub history_mode: HistoryMode,
-    /// Popup state (for full-screen overlays: output, diff, etc.)
-    pub popup: PopupState,
+    /// Feedback manager (handles output, popups, toasts, errors)
+    pub feedback: FeedbackManager,
     /// SHA of currently expanded commit in history (None = collapsed)
     pub expanded_commit: Option<String>,
     /// Cached detail for expanded commit
@@ -154,13 +148,10 @@ impl App {
             selected: None,
             show_help: false,
             view_mode: ViewMode::default(),
-            error: None,
             command_input: String::new(),
-            command_output: String::new(),
-            command_success: true,
             command_history: CommandHistory::new(),
             history_mode: HistoryMode::default(),
-            popup: PopupState::default(),
+            feedback: FeedbackManager::new(),
             expanded_commit: None,
             expanded_detail: None,
             expanded_file_idx: None,
@@ -263,11 +254,11 @@ impl App {
         match self.repo.status() {
             Ok(status) => {
                 self.status = status;
-                self.error = None;
+                self.feedback.error = None;
             }
             Err(e) => {
                 warn!("Failed to refresh git status: {}", e);
-                self.error = Some(format!("Git error: {e}"));
+                self.feedback.error = Some(format!("Git error: {e}"));
             }
         }
 
@@ -480,14 +471,14 @@ impl App {
     fn open_commit_file_diff(&mut self, commit_sha: &str, file_path: &str) {
         match self.repo.commit_file_diff(commit_sha, file_path) {
             Ok(diff_content) => {
-                self.popup.open(PopupContent::Diff {
+                self.feedback.popup.open(PopupContent::Diff {
                     path: file_path.to_string(),
                     content: diff_content,
                     is_staged: false,
                 });
             }
             Err(e) => {
-                self.error = Some(format!("Failed to get diff: {e}"));
+                self.feedback.error = Some(format!("Failed to get diff: {e}"));
             }
         }
     }
@@ -563,7 +554,7 @@ impl App {
                 self.expanded_branch_commits = commits;
             }
             Err(e) => {
-                self.error = Some(format!("Failed to load branch history: {e}"));
+                self.feedback.error = Some(format!("Failed to load branch history: {e}"));
             }
         }
     }
@@ -597,7 +588,7 @@ impl App {
     fn checkout_selected_branch(&mut self) {
         let branch_name = match self.selected_branch() {
             Some(branch) if branch.is_current => {
-                self.error = Some("Already on this branch".to_string());
+                self.feedback.error = Some("Already on this branch".to_string());
                 return;
             }
             Some(branch) => branch.name.clone(),
@@ -606,11 +597,11 @@ impl App {
 
         match self.repo.checkout_branch(&branch_name) {
             Ok(()) => {
-                self.error = Some(format!("Switched to branch '{branch_name}'"));
+                self.feedback.error = Some(format!("Switched to branch '{branch_name}'"));
                 self.refresh_status();
             }
             Err(e) => {
-                self.error = Some(e.to_string());
+                self.feedback.error = Some(e.to_string());
             }
         }
     }
@@ -678,7 +669,7 @@ impl App {
         };
 
         if let Err(e) = result {
-            self.error = Some(format!("Failed to run external command: {e}"));
+            self.feedback.error = Some(format!("Failed to run external command: {e}"));
         }
 
         // Wait for user to press Enter before resuming TUI
@@ -710,7 +701,7 @@ impl App {
         }
 
         // Popup mode captures keys (full-screen overlays)
-        if self.popup.is_open() {
+        if self.feedback.popup.is_open() {
             self.handle_popup_key(key);
             return;
         }
@@ -944,9 +935,9 @@ impl App {
             KeyCode::Char('y') => {
                 if let Some(sha) = self.selected_activity_sha() {
                     if self.copy_to_clipboard(&sha) {
-                        self.error = Some(format!("Copied: {sha}"));
+                        self.feedback.error = Some(format!("Copied: {sha}"));
                     } else {
-                        self.error = Some("Failed to copy to clipboard".to_string());
+                        self.feedback.error = Some("Failed to copy to clipboard".to_string());
                     }
                 }
             }
@@ -959,18 +950,18 @@ impl App {
                     if let Some(detail) = &self.expanded_detail {
                         if self.expanded_commit.as_ref() == Some(&sha) {
                             if self.copy_to_clipboard(&detail.full_sha) {
-                                self.error = Some(format!("Copied: {}", detail.full_sha));
+                                self.feedback.error = Some(format!("Copied: {}", detail.full_sha));
                             } else {
-                                self.error = Some("Failed to copy to clipboard".to_string());
+                                self.feedback.error = Some("Failed to copy to clipboard".to_string());
                             }
                             return;
                         }
                     }
                     // Copy short sha
                     if self.copy_to_clipboard(&sha) {
-                        self.error = Some(format!("Copied: {sha}"));
+                        self.feedback.error = Some(format!("Copied: {sha}"));
                     } else {
-                        self.error = Some("Failed to copy to clipboard".to_string());
+                        self.feedback.error = Some("Failed to copy to clipboard".to_string());
                     }
                 }
             }
@@ -1027,7 +1018,7 @@ impl App {
 
             // Open output popup (when on command section with output)
             KeyCode::Char('o') => {
-                if self.selected == Some(0) && !self.command_output.is_empty() {
+                if self.selected == Some(0) && self.feedback.has_output() {
                     self.open_output_popup();
                 }
             }
@@ -1097,7 +1088,7 @@ impl App {
             AppAction::CopyShortSha => {
                 if let Some(sha) = self.selected_activity_sha() {
                     if self.copy_to_clipboard(&sha) {
-                        self.error = Some(format!("Copied: {sha}"));
+                        self.feedback.error = Some(format!("Copied: {sha}"));
                     }
                 }
             }
@@ -1106,13 +1097,13 @@ impl App {
                     if let Some(detail) = &self.expanded_detail {
                         if self.expanded_commit.as_ref() == Some(&sha) {
                             if self.copy_to_clipboard(&detail.full_sha) {
-                                self.error = Some(format!("Copied: {}", detail.full_sha));
+                                self.feedback.error = Some(format!("Copied: {}", detail.full_sha));
                             }
                             return;
                         }
                     }
                     if self.copy_to_clipboard(&sha) {
-                        self.error = Some(format!("Copied: {sha}"));
+                        self.feedback.error = Some(format!("Copied: {sha}"));
                     }
                 }
             }
@@ -1202,37 +1193,37 @@ impl App {
         match key.code {
             // Close popup
             KeyCode::Esc | KeyCode::Char('q') => {
-                self.popup.close();
+                self.feedback.popup.close();
             }
 
             // Scroll down
             KeyCode::Char('j') | KeyCode::Down => {
-                self.popup.scroll_down(1);
+                self.feedback.popup.scroll_down(1);
             }
 
             // Scroll up
             KeyCode::Char('k') | KeyCode::Up => {
-                self.popup.scroll_up(1);
+                self.feedback.popup.scroll_up(1);
             }
 
             // Page down
             KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.popup.page_down();
+                self.feedback.popup.page_down();
             }
 
             // Page up
             KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.popup.page_up();
+                self.feedback.popup.page_up();
             }
 
             // Jump to top
             KeyCode::Char('g') => {
-                self.popup.scroll_to_top();
+                self.feedback.popup.scroll_to_top();
             }
 
             // Jump to bottom
             KeyCode::Char('G') => {
-                self.popup.scroll_to_bottom();
+                self.feedback.popup.scroll_to_bottom();
             }
 
             _ => {}
@@ -1284,17 +1275,12 @@ impl App {
 
     /// Open the output popup with current command output
     fn open_output_popup(&mut self) {
-        let command = self.command_history.commands().last().cloned().unwrap_or_default();
-        self.popup.open(PopupContent::CommandOutput {
-            command,
-            output: self.command_output.clone(),
-            success: self.command_success,
-        });
+        self.feedback.expand_output();
     }
 
     /// Open a diff in the popup
     fn open_diff_popup(&mut self, path: String, content: String, is_staged: bool) {
-        self.popup.open(PopupContent::Diff {
+        self.feedback.popup.open(PopupContent::Diff {
             path,
             content,
             is_staged,
@@ -1306,7 +1292,7 @@ impl App {
         let branch = match &self.status.branch {
             Some(b) => b.clone(),
             None => {
-                self.error = Some("No branch checked out".to_string());
+                self.feedback.error = Some("No branch checked out".to_string());
                 return;
             }
         };
@@ -1444,7 +1430,7 @@ impl App {
         };
 
         if let Err(e) = result {
-            self.error = Some(format!("Error: {e}"));
+            self.feedback.error = Some(format!("Error: {e}"));
         } else {
             self.refresh_status();
         }
@@ -1473,7 +1459,7 @@ impl App {
                     self.open_diff_popup(path_str, header, is_staged);
                 }
                 Err(e) => {
-                    self.error = Some(format!("Error reading file: {e}"));
+                    self.feedback.error = Some(format!("Error reading file: {e}"));
                 }
             }
             return;
@@ -1484,7 +1470,7 @@ impl App {
                 self.open_diff_popup(path_str, content, is_staged);
             }
             Err(e) => {
-                self.error = Some(format!("Diff error: {e}"));
+                self.feedback.error = Some(format!("Diff error: {e}"));
             }
         }
     }
@@ -1667,32 +1653,15 @@ impl App {
         // Record in history (handles deduplication and persistence)
         self.command_history.add(request.display_name.clone());
 
-        // Store output for display
-        self.command_output = result.display_output().to_string();
-        self.command_success = result.success;
-
-        // Determine if popup should auto-open based on source and result
-        let should_popup = match request.feedback {
-            FeedbackPolicy::AlwaysPopup => true,
-            FeedbackPolicy::InlineOnly => false,
-            FeedbackPolicy::Silent => false,
-            FeedbackPolicy::External => false,
-            FeedbackPolicy::Default => {
-                // Source-based defaults:
-                // - ActionMenu/AliasBrowser: Always popup (deliberate selection deserves feedback)
-                // - Keyboard/Palette: Popup on failure or long output
-                match request.source {
-                    CommandSource::ActionMenu | CommandSource::AliasBrowser => true,
-                    CommandSource::Keyboard | CommandSource::Palette | CommandSource::Internal => {
-                        !result.success || result.line_count() > AUTO_POPUP_LINE_THRESHOLD
-                    }
-                }
-            }
-        };
-
-        if should_popup {
-            self.open_output_popup();
-        }
+        // Show feedback (handles inline output, popup logic, etc.)
+        self.feedback.show(
+            Feedback::CommandOutput {
+                command: request.display_name.clone(),
+                result,
+                source: request.source,
+            },
+            request.feedback,
+        );
 
         // Refresh git status if requested
         if request.refresh_after {
@@ -1714,8 +1683,7 @@ impl App {
         };
 
         if request.program != "git" {
-            self.command_output = String::from("Error: Only git commands are allowed");
-            self.command_success = false;
+            self.feedback.error = Some(String::from("Only git commands are allowed"));
             self.command_input.clear();
             self.command_history.reset_navigation();
             return;

@@ -57,7 +57,7 @@ pub fn render(frame: &mut Frame<'_>, app: &mut App) {
     render_header(frame, app, layout[0]);
 
     // Conditional rendering: popup replaces body, not overlays it
-    if app.popup.is_open() {
+    if app.feedback.popup.is_open() {
         render_popup(frame, app, layout[1]);
         render_popup_footer(frame, layout[2]);
     } else {
@@ -193,31 +193,33 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
     }
 
     // Command output (if any, and not when menu overlay is active)
-    if !app.command_output.is_empty() && !app.menu_stack.is_active() {
-        let output_color = if app.command_success {
-            Color::White
-        } else {
-            Color::Red
-        };
+    if let Some(cmd_output) = app.feedback.output() {
+        if !app.menu_stack.is_active() {
+            let output_color = if cmd_output.success {
+                Color::White
+            } else {
+                Color::Red
+            };
 
-        for line in app.command_output.lines().take(4) {
-            items.push(ListItem::new(Line::from(vec![
-                Span::raw("  "),
-                Span::styled("> ", Style::default().fg(Color::DarkGray)),
-                Span::styled(line, Style::default().fg(output_color)),
-            ])));
-        }
+            for line in cmd_output.output.lines().take(4) {
+                items.push(ListItem::new(Line::from(vec![
+                    Span::raw("  "),
+                    Span::styled("> ", Style::default().fg(Color::DarkGray)),
+                    Span::styled(line, Style::default().fg(output_color)),
+                ])));
+            }
 
-        let line_count = app.command_output.lines().count();
-        if line_count > 4 {
-            items.push(ListItem::new(Line::from(vec![
-                Span::styled(
-                    format!("    ... ({} more lines) ", line_count - 4),
-                    Style::default().fg(Color::DarkGray).italic(),
-                ),
-                Span::styled("o", Style::default().fg(Color::Cyan).bold()),
-                Span::styled(" to expand", Style::default().fg(Color::DarkGray).italic()),
-            ])));
+            let line_count = cmd_output.output.lines().count();
+            if line_count > 4 {
+                items.push(ListItem::new(Line::from(vec![
+                    Span::styled(
+                        format!("    ... ({} more lines) ", line_count - 4),
+                        Style::default().fg(Color::DarkGray).italic(),
+                    ),
+                    Span::styled("o", Style::default().fg(Color::Cyan).bold()),
+                    Span::styled(" to expand", Style::default().fg(Color::DarkGray).italic()),
+                ])));
+            }
         }
     }
 
@@ -880,7 +882,7 @@ fn render_footer(frame: &mut Frame<'_>, app: &App, area: Rect) {
             Span::styled(" Up/Down ", Style::default().bg(Color::DarkGray).bold()),
             Span::raw(" history "),
         ])
-    } else if let Some(ref error) = app.error {
+    } else if let Some(ref error) = app.feedback.error {
         Line::from(Span::styled(
             error.as_str(),
             Style::default().fg(Color::Red),
@@ -1057,38 +1059,38 @@ fn render_popup(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
     // Clear the area first to remove any artifacts from previous frame
     frame.render_widget(Clear, area);
 
-    let title = app.popup.content.title();
-    let total_lines = app.popup.content.line_count();
+    let title = app.feedback.popup.content.title();
+    let total_lines = app.feedback.popup.content.line_count();
     let visible_height = area.height.saturating_sub(2) as usize; // Account for borders
 
     // Store visible height for scroll calculations in key handler
-    app.popup.visible_height = visible_height;
+    app.feedback.popup.visible_height = visible_height;
 
     // Clamp scroll offset to valid range
     let max_offset = total_lines.saturating_sub(visible_height);
-    if app.popup.scroll_offset > max_offset {
-        app.popup.scroll_offset = max_offset;
+    if app.feedback.popup.scroll_offset > max_offset {
+        app.feedback.popup.scroll_offset = max_offset;
     }
 
     // Build scroll indicator
     let scroll_info = if total_lines > visible_height {
-        format!(" [{}/{}] ", app.popup.scroll_offset + 1, max_offset + 1)
+        format!(" [{}/{}] ", app.feedback.popup.scroll_offset + 1, max_offset + 1)
     } else {
         String::new()
     };
 
     // Get lines for display based on content type
-    let lines: Vec<Line<'_>> = match &app.popup.content {
+    let lines: Vec<Line<'_>> = match &app.feedback.popup.content {
         PopupContent::None => vec![],
         PopupContent::CommandOutput { output, success, .. } => output
             .lines()
-            .skip(app.popup.scroll_offset)
+            .skip(app.feedback.popup.scroll_offset)
             .take(visible_height)
             .map(|line| style_output_line(line, *success))
             .collect(),
         PopupContent::Diff { content, .. } => content
             .lines()
-            .skip(app.popup.scroll_offset)
+            .skip(app.feedback.popup.scroll_offset)
             .take(visible_height)
             .map(style_diff_line)
             .collect(),

@@ -153,8 +153,6 @@ impl Section for BranchesSection {
 
         // Branch entries - branch names shown, commits under expanded branch
         for branch in &other_branches {
-            let is_expanded = self.data.expanded_branch.as_deref() == Some(&branch.name);
-
             // Branch name color: remote=red, local=white
             let branch_color = if branch.is_remote {
                 Color::Red
@@ -167,11 +165,6 @@ impl Section for BranchesSection {
                 Style::default().fg(branch_color),
             )));
 
-            // Expanded branch commits - rendering delegated to ui.rs for now
-            // The section tracks the data, ui.rs handles the actual commit line rendering
-            if is_expanded {
-                // Placeholder - commit rendering happens in ui.rs
-            }
         }
 
         lines

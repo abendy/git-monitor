@@ -230,10 +230,6 @@ impl Section for HistorySection {
             lines.push(branch_line);
         }
 
-        // Commit entries - rendering delegated to ui.rs for now
-        // The section tracks the data, ui.rs handles the actual commit line rendering
-        // This is a placeholder that will be replaced when render/ module migration happens
-
         lines
     }
 

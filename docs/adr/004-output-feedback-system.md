@@ -208,11 +208,13 @@ Failure case:
 - Popup auto-opens consistently based on documented policy
 - Users can predict feedback based on how they triggered the command
 
-## Implementation Plan
+## Implementation Plan (Completed)
 
-1. Add `Toast` struct and rendering in header
-2. Implement `show_feedback()` method
-3. Refactor `execute_git_command()` to use `show_feedback()`
-4. Update inline command section with success/failure indicators
-5. Add tick-based toast dismissal
-6. Document feedback policy in help overlay
+*All steps completed as of 2026-01-14. See "What's Done" section for details.*
+
+1. ~~Add `Toast` struct and rendering in header~~
+2. ~~Implement `show_feedback()` method~~
+3. ~~Refactor `execute_git_command()` to use `show_feedback()`~~
+4. ~~Update inline command section with success/failure indicators~~
+5. ~~Add tick-based toast dismissal~~
+6. Document feedback policy in help overlay (partial - covered in KEYBINDINGS.md)

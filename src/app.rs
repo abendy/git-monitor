@@ -447,9 +447,7 @@ impl App {
         let Some(selected) = self.selected else {
             return false;
         };
-        let files_total = self.status.staged_changes().len() + self.status.working_changes().len();
-        // History header is at files_total + 1
-        selected == 1 + files_total
+        selected == self.history_start_index()
     }
 
     /// Check if selection is in the history commits section (not on header)
@@ -460,13 +458,9 @@ impl App {
         let Some(selected) = self.selected else {
             return false;
         };
-        let files_total = self.status.staged_changes().len() + self.status.working_changes().len();
-        let activity_len = self.activity.len();
-
-        // History header is at files_total + 1
-        // History commits start at files_total + 2
-        let history_commits_start = 1 + files_total + 1;
-        let history_commits_end = history_commits_start + activity_len;
+        // History header is at history_start_index(), commits start at +1
+        let history_commits_start = self.history_start_index() + 1;
+        let history_commits_end = history_commits_start + self.activity.len();
         selected >= history_commits_start && selected < history_commits_end
     }
 
@@ -486,6 +480,14 @@ impl App {
     /// Check if selection is on a branch header (always None - headers not selectable)
     fn is_on_branch_header(&self) -> Option<String> {
         None
+    }
+
+    /// Get the index where history section starts (the header)
+    fn history_start_index(&self) -> usize {
+        let counts = self.section_item_counts();
+        self.section_registry
+            .section_start_index(SectionId::History, &counts)
+            .unwrap_or(0)
     }
 
     /// Get the index where branches section starts
@@ -1466,12 +1468,9 @@ impl App {
     /// Get the selected commit's SHA (from history or expanded branch)
     fn selected_activity_sha(&self) -> Option<String> {
         let selected = self.selected?;
-        let files_total = self.status.staged_changes().len() + self.status.working_changes().len();
-
-        // History header is at files_total + 1
-        let history_header_idx = 1 + files_total;
 
         // Check if in history commits (not collapsed)
+        let history_header_idx = self.history_start_index();
         if !self.history_collapsed && selected > history_header_idx {
             let history_commits_start = history_header_idx + 1;
             let history_commits_end = history_commits_start + self.activity.len();

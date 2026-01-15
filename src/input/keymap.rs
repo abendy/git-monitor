@@ -116,17 +116,19 @@ impl Keymap {
 
     /// Add default keybindings
     fn add_default_bindings(&mut self) {
-        // Global navigation
-        self.bind_global(KeyBinding::char('q'), AppAction::Quit);
+        // Global actions
+        // Note: 'q' and Esc have context-dependent behavior (quit vs close popup),
+        // so they're handled in imperative handlers, not here.
         self.bind_global(KeyBinding::char('?'), AppAction::ShowHelp);
-        self.bind_global(KeyBinding::char('g'), AppAction::Refresh);
+        self.bind_global(KeyBinding::char('r'), AppAction::Refresh);
         self.bind_global(KeyBinding::char('P'), AppAction::Push);
-        self.bind_global(KeyBinding::key(KeyCode::Esc), AppAction::Quit);
+        self.bind_global(KeyBinding::char('p'), AppAction::Pull);
+        self.bind_global(KeyBinding::char('f'), AppAction::Fetch);
 
         // Jump shortcuts
         self.bind_global(KeyBinding::char('w'), AppAction::JumpToWorking);
-        self.bind_global(KeyBinding::char('h'), AppAction::JumpToHistory);
         self.bind_global(KeyBinding::char('b'), AppAction::JumpToBranches);
+        // Note: 'h' has complex behavior (jump vs toggle), handled imperatively
 
         // Command section
         self.bind(
@@ -175,14 +177,15 @@ impl Keymap {
             KeyBinding::char('R'),
             AppAction::InteractiveRebase,
         );
+        // Pagination uses [ and ] per docs/KEYBINDINGS.md
         self.bind(
             Context::HistoryCommits,
-            KeyBinding::char('n'),
+            KeyBinding::char(']'),
             AppAction::NextPage,
         );
         self.bind(
             Context::HistoryCommits,
-            KeyBinding::char('p'),
+            KeyBinding::char('['),
             AppAction::PrevPage,
         );
 
@@ -232,9 +235,15 @@ mod tests {
     #[test]
     fn lookup_global_binding() {
         let keymap = Keymap::with_defaults();
-        let event = KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE);
+        // '?' is globally bound to ShowHelp
+        let event = KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE);
         let action = keymap.lookup(event, Context::Global);
-        assert_eq!(action, Some(AppAction::Quit));
+        assert_eq!(action, Some(AppAction::ShowHelp));
+
+        // 'r' is globally bound to Refresh
+        let event = KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE);
+        let action = keymap.lookup(event, Context::Global);
+        assert_eq!(action, Some(AppAction::Refresh));
     }
 
     #[test]

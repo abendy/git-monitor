@@ -11,6 +11,7 @@ use crate::{
     event::Event,
     feedback::{Feedback, FeedbackManager, PopupContent},
     git::{BranchInfo, CommitDetail, FileState, GitCommand, GitRepo, GitStatus},
+    input::Keymap,
     menu::{ActionMenu, AliasSectionMenu, MenuResult, MenuStack, PushConfirmMenu},
     section::{
         CommandSection, CommandSectionData, StagedSection, StagedSectionData, WorkingSection,
@@ -99,6 +100,8 @@ pub struct App {
     executor: CommandExecutor,
     /// Menu stack for modal dialogs
     pub menu_stack: MenuStack,
+    /// Declarative keymap for action lookup
+    keymap: Keymap,
     // ─────────────────────────────────────────────────────────────────────────
     // Section instances (for modular architecture)
     // ─────────────────────────────────────────────────────────────────────────
@@ -164,6 +167,7 @@ impl App {
             action_registry,
             executor,
             menu_stack: MenuStack::new(),
+            keymap: Keymap::with_defaults(),
             command_section: CommandSection::new(),
             staged_section: StagedSection::new(),
             working_section: WorkingSection::new(),
@@ -738,6 +742,13 @@ impl App {
         // Help overlay captures keys
         if self.show_help {
             self.show_help = false;
+            return;
+        }
+
+        // Try declarative keymap lookup first
+        let context = self.current_context();
+        if let Some(action) = self.keymap.lookup(key, context) {
+            self.execute_app_action(action);
             return;
         }
 

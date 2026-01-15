@@ -11,6 +11,8 @@
 pub mod body;
 pub mod footer;
 pub mod header;
+pub mod help;
+pub mod menu;
 pub mod popup;
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};

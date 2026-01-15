@@ -5,6 +5,7 @@
 
 # Cargo
 Cargo.lock
+.cargo/
 
 # IDE
 .idea/

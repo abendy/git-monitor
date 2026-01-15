@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use chrono::{DateTime, Local, TimeZone};
+use chrono::{DateTime, Local, Offset, TimeZone};
 use git2::{Repository, Status, StatusOptions};
 
 /// Status of a file in the repository
@@ -911,7 +911,7 @@ impl GitRepo {
             let secs = time.seconds();
             let offset_mins = time.offset_minutes();
             let offset = chrono::FixedOffset::east_opt(offset_mins * 60)
-                .unwrap_or_else(|| chrono::FixedOffset::east_opt(0).unwrap());
+                .unwrap_or(chrono::Utc.fix());
             DateTime::from_timestamp(secs, 0)
                 .map(|dt| dt.with_timezone(&offset).with_timezone(&Local))
                 .unwrap_or_else(Local::now)
@@ -926,7 +926,7 @@ impl GitRepo {
             let secs = time.seconds();
             let offset_mins = time.offset_minutes();
             let offset = chrono::FixedOffset::east_opt(offset_mins * 60)
-                .unwrap_or_else(|| chrono::FixedOffset::east_opt(0).unwrap());
+                .unwrap_or(chrono::Utc.fix());
             DateTime::from_timestamp(secs, 0)
                 .map(|dt| dt.with_timezone(&offset).with_timezone(&Local))
                 .unwrap_or_else(Local::now)

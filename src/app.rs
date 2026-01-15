@@ -1582,14 +1582,13 @@ impl App {
                 }
 
                 // Check if we're on an expanded branch's last commit
-                if self.expanded_branch.is_some() {
+                if let Some(expanded_name) = self.expanded_branch.clone() {
                     let branches_start = self.branches_start_index();
                     let last_commit_idx = branches_start + self.expanded_branch_commits.len() - 1;
 
                     if idx == last_commit_idx {
                         // Find next branch
                         let branch_names: Vec<String> = self.other_branches().iter().map(|b| b.name.clone()).collect();
-                        let expanded_name = self.expanded_branch.as_ref().unwrap().clone();
                         let mut found = false;
                         let mut next_branch: Option<String> = None;
                         for name in &branch_names {
@@ -1633,12 +1632,11 @@ impl App {
                 let history_header_idx = 1 + files_total;
 
                 // Check if we're on the first commit of an expanded branch
-                if self.expanded_branch.is_some() {
+                if let Some(expanded_name) = self.expanded_branch.clone() {
                     let branches_start = self.branches_start_index();
                     if idx == branches_start {
                         // On first commit of expanded branch - go to previous branch or history
                         let other_branches = self.other_branches();
-                        let expanded_name = self.expanded_branch.as_ref().unwrap().clone();
                         let mut prev_branch: Option<String> = None;
 
                         for branch in other_branches {

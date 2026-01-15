@@ -12,6 +12,10 @@ use crate::{
     feedback::{Feedback, FeedbackManager, PopupContent},
     git::{BranchInfo, CommitDetail, FileState, GitCommand, GitRepo, GitStatus},
     menu::{ActionMenu, AliasSectionMenu, MenuResult, MenuStack, PushConfirmMenu},
+    section::{
+        CommandSection, CommandSectionData, StagedSection, StagedSectionData, WorkingSection,
+        WorkingSectionData,
+    },
     tui::Tui,
     ui,
     watcher::{RepoWatcher, WatchEvent},
@@ -95,6 +99,15 @@ pub struct App {
     executor: CommandExecutor,
     /// Menu stack for modal dialogs
     pub menu_stack: MenuStack,
+    // ─────────────────────────────────────────────────────────────────────────
+    // Section instances (for modular architecture)
+    // ─────────────────────────────────────────────────────────────────────────
+    /// Command input section
+    pub command_section: CommandSection,
+    /// Staged files section
+    pub staged_section: StagedSection,
+    /// Working files section
+    pub working_section: WorkingSection,
 }
 
 impl App {
@@ -124,7 +137,7 @@ impl App {
         // Initialize command executor
         let executor = CommandExecutor::new(&repo_path);
 
-        Ok(Self {
+        let mut app = Self {
             repo_path,
             repo,
             status,
@@ -151,7 +164,15 @@ impl App {
             action_registry,
             executor,
             menu_stack: MenuStack::new(),
-        })
+            command_section: CommandSection::new(),
+            staged_section: StagedSection::new(),
+            working_section: WorkingSection::new(),
+        };
+
+        // Update sections with initial state
+        app.update_sections();
+
+        Ok(app)
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -168,6 +189,7 @@ impl App {
         self.view_mode = ViewMode::Command;
         self.command_input.clear();
         self.command_history.reset_navigation();
+        self.update_sections();
     }
 
     /// Exit command mode (return to normal)
@@ -175,6 +197,7 @@ impl App {
         self.view_mode = ViewMode::Normal;
         self.command_input.clear();
         self.command_history.reset_navigation();
+        self.update_sections();
     }
 
     /// Enter alias browser using the menu stack
@@ -207,6 +230,50 @@ impl App {
 
         let menu = ActionMenu::new(context, actions, self.repo_path.clone());
         self.menu_stack.push(Box::new(menu));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Section management
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Update all sections with current app state
+    ///
+    /// Called after state changes (refresh, mode change, etc.) to keep
+    /// section data in sync with app state.
+    pub fn update_sections(&mut self) {
+        // Update command section
+        self.command_section.update(CommandSectionData {
+            input: self.command_input.clone(),
+            is_active: self.is_command_mode(),
+            output: self.feedback.output().cloned(),
+            menu_active: self.menu_stack.is_active(),
+        });
+
+        // Update staged section
+        self.staged_section.update(StagedSectionData {
+            files: self
+                .status
+                .staged_changes()
+                .into_iter()
+                .cloned()
+                .collect(),
+            command_mode_active: self.is_command_mode(),
+            action_registry: Some(self.action_registry.clone()),
+            app_state: Some(self.app_state()),
+        });
+
+        // Update working section
+        self.working_section.update(WorkingSectionData {
+            files: self
+                .status
+                .working_changes()
+                .into_iter()
+                .cloned()
+                .collect(),
+            command_mode_active: self.is_command_mode(),
+            action_registry: Some(self.action_registry.clone()),
+            app_state: Some(self.app_state()),
+        });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -256,6 +323,9 @@ impl App {
         if let Ok(branches) = self.repo.list_branches() {
             self.branches = branches;
         }
+
+        // Update section data
+        self.update_sections();
     }
 
     /// Refresh activity based on current history mode and page

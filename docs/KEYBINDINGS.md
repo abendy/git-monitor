@@ -32,7 +32,8 @@
 | `Space` | Expand/collapse commit |
 | `[` / `]` | Previous/next page |
 | `y` | Copy short SHA |
-| `c` | Copy full SHA |
+| `Y` | Copy full SHA (when expanded) |
+| `c` | Copy SHA (full if expanded, short otherwise) |
 | `R` | Interactive rebase onto commit |
 
 ## Commit Files (when expanded)

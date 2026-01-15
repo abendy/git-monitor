@@ -10,6 +10,7 @@ mod config;
 mod event;
 mod feedback;
 mod git;
+mod input;
 mod menu;
 mod section;
 mod tui;

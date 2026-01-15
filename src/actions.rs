@@ -82,6 +82,8 @@ pub enum AppAction {
     NextPage,
     /// Previous page in history
     PrevPage,
+    /// Interactive rebase onto selected commit
+    InteractiveRebase,
 
     // Commit file actions
     /// Open diff in pager
@@ -324,6 +326,13 @@ impl ActionRegistry {
             AppAction::CopyFullSha,
             vec![Context::HistoryCommits, Context::BranchCommits],
             40,
+        ));
+        actions.push(Action::app(
+            "R",
+            "rebase -i",
+            AppAction::InteractiveRebase,
+            vec![Context::HistoryCommits],
+            50,
         ));
 
         // --- Commit file actions ---

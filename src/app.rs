@@ -932,6 +932,13 @@ impl App {
                 }
             }
 
+            // Interactive rebase onto selected commit (history only)
+            KeyCode::Char('R') => {
+                if self.is_in_history() {
+                    self.execute_app_action(AppAction::InteractiveRebase);
+                }
+            }
+
             // Toggle expand/collapse for headers, or show commit details
             KeyCode::Char(' ') => {
                 // First check if we're on a staged/working file - open in pager
@@ -1094,6 +1101,12 @@ impl App {
             }
             AppAction::NextPage => self.next_history_page(),
             AppAction::PrevPage => self.prev_history_page(),
+            AppAction::InteractiveRebase => {
+                // Start interactive rebase onto the selected commit
+                if let Some(sha) = self.selected_activity_sha() {
+                    self.pending_external = Some(ExternalCommand::InteractiveRebase { onto: sha });
+                }
+            }
 
             // Commit file actions
             AppAction::PagerDiff => {

@@ -8,6 +8,7 @@
 //!
 //! Migration is incremental: components are moved from ui.rs as they're refactored.
 
+pub mod body;
 pub mod footer;
 pub mod header;
 pub mod popup;

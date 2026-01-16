@@ -51,7 +51,7 @@ cargo test -- --nocapture
 The project uses strict lints configured in `Cargo.toml`:
 
 ```bash
-# Format code
+# Format code (nightly via rust-toolchain.toml)
 cargo fmt
 
 # Run clippy (pedantic + nursery lints enabled)

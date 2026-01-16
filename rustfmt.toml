@@ -7,6 +7,9 @@ edition = "2021"
 max_width = 100
 tab_spaces = 4
 newline_style = "Unix"
+chain_width = 40
+fn_call_width = 40
+struct_lit_width = 18
 
 # Imports
 imports_granularity = "Module"

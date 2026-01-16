@@ -20,6 +20,8 @@ pub enum Context {
     HistoryCommits,
     /// On a file within expanded commit
     CommitFiles,
+    /// On a branch header
+    BranchHeader,
     /// On a commit in expanded branch
     BranchCommits,
     /// Actions available everywhere
@@ -37,7 +39,8 @@ impl Context {
             Self::HistoryHeader => "History",
             Self::HistoryCommits => "History",
             Self::CommitFiles => "Commit Files",
-            Self::BranchCommits => "Branch",
+            Self::BranchHeader => "Branch",
+            Self::BranchCommits => "Branch Commits",
             Self::Global => "Global",
         }
     }
@@ -370,8 +373,15 @@ impl ActionRegistry {
             "Enter",
             "checkout",
             AppAction::Checkout,
-            vec![Context::BranchCommits],
+            vec![Context::BranchHeader],
             10,
+        ));
+        actions.push(Action::app(
+            "Space",
+            "expand",
+            AppAction::ExpandBranch,
+            vec![Context::BranchHeader],
+            20,
         ));
 
         // --- Global actions (available everywhere) ---
@@ -530,10 +540,10 @@ impl ActionRegistry {
         } else if cmd.contains("log") || cmd.contains("show") {
             vec![Context::HistoryCommits, Context::BranchCommits]
         } else if cmd.contains("branch") || cmd.contains("switch") {
-            vec![Context::BranchCommits]
+            vec![Context::BranchHeader]
         } else if cmd.contains("checkout") && !cmd.contains("branch") {
             // Checkout can apply to files or branches
-            vec![Context::WorkingFiles, Context::BranchCommits]
+            vec![Context::WorkingFiles, Context::BranchHeader]
         } else if cmd.contains("push") || cmd.contains("pull") || cmd.contains("fetch") {
             vec![Context::Global]
         } else if cmd.contains("rebase") || cmd.contains("reset") {

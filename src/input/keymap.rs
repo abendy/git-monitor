@@ -238,12 +238,17 @@ impl Keymap {
 
         // Branch section
         self.bind(
-            Context::BranchCommits,
+            Context::BranchHeader,
             KeyBinding::key(KeyCode::Enter),
             AppAction::Checkout,
         );
         self.bind(
-            Context::BranchCommits,
+            Context::BranchHeader,
+            KeyBinding::char(' '),
+            AppAction::ExpandBranch,
+        );
+        self.bind(
+            Context::BranchHeader,
             KeyBinding::char('e'),
             AppAction::ExpandBranch,
         );

@@ -64,8 +64,14 @@ impl BranchesSection {
             .collect()
     }
 
+    /// Find the index of the expanded branch within the other-branches list.
+    fn expanded_branch_index(&self, branches: &[&BranchInfo]) -> Option<usize> {
+        let expanded = self.data.expanded_branch.as_deref()?;
+        branches.iter().position(|b| b.name == expanded)
+    }
+
     /// Render context hints for branch actions
-    fn render_hints(&self) -> Line<'static> {
+    fn render_hints(&self, context: Context) -> Line<'static> {
         let Some(ref registry) = self.data.action_registry else {
             return Line::from("");
         };
@@ -73,7 +79,7 @@ impl BranchesSection {
             return Line::from("");
         };
 
-        let actions = registry.hint_actions_for_context(Context::BranchCommits, state);
+        let actions = registry.hint_actions_for_context(context, state);
 
         if actions.is_empty() {
             return Line::from("");
@@ -471,16 +477,24 @@ impl Section for BranchesSection {
     }
 
     fn contexts(&self) -> Vec<Context> {
-        vec![Context::BranchCommits]
+        vec![Context::BranchHeader, Context::BranchCommits]
     }
 
     fn item_count(&self) -> usize {
-        // Branches section items = expanded branch commits (branches themselves aren't selectable)
-        if self.data.expanded_branch.is_some() {
+        // Branches section items = branch headers + expanded branch commits.
+        let branches = self.other_branches();
+        let header_count = branches.len();
+        if header_count == 0 {
+            return 0;
+        }
+
+        let commit_count = if self.expanded_branch_index(&branches).is_some() {
             self.data.expanded_branch_commits.len()
         } else {
             0
-        }
+        };
+
+        header_count + commit_count
     }
 
     fn render(&self, state: &SectionState) -> Vec<Line<'static>> {
@@ -505,17 +519,45 @@ impl Section for BranchesSection {
                 .add_modifier(Modifier::BOLD),
         )));
 
+        let expanded_idx = self.expanded_branch_index(&other_branches);
+        let commit_len = if expanded_idx.is_some() {
+            self.data.expanded_branch_commits.len()
+        } else {
+            0
+        };
+        let commit_start = expanded_idx.map(|idx| idx + 1);
+
         // Hints (only when focused)
         if in_section {
-            lines.push(self.render_hints());
+            let hint_context = state.local_selection.map_or(Context::BranchHeader, |local_index| {
+                if let Some(expanded_idx) = expanded_idx {
+                    let commit_start = expanded_idx + 1;
+                    let commit_end = commit_start + commit_len;
+                    if (commit_start..commit_end).contains(&local_index) {
+                        Context::BranchCommits
+                    } else {
+                        Context::BranchHeader
+                    }
+                } else {
+                    Context::BranchHeader
+                }
+            });
+            lines.push(self.render_hints(hint_context));
         }
 
-        // Track current commit index for selection mapping
-        let mut commit_idx: usize = 0;
-        let branch_commit_count = self.data.expanded_branch_commits.len();
-
         // Branch entries - branch names shown, commits under expanded branch
-        for branch in &other_branches {
+        for (branch_idx, branch) in other_branches.iter().enumerate() {
+            let header_local_index = if let Some(expanded_idx) = expanded_idx {
+                if branch_idx > expanded_idx {
+                    branch_idx + commit_len
+                } else {
+                    branch_idx
+                }
+            } else {
+                branch_idx
+            };
+            let header_selected = state.local_selection == Some(header_local_index) && in_section;
+            let prefix = if header_selected { "▸ " } else { "  " };
             let is_expanded = self.data.expanded_branch.as_deref() == Some(&branch.name);
 
             // Branch name color: remote=red, local=white
@@ -525,28 +567,39 @@ impl Section for BranchesSection {
                 Color::White
             };
 
-            lines.push(Line::from(Span::styled(
-                format!("  {}", branch.name),
-                Style::default().fg(branch_color),
-            )));
+            let branch_style = if header_selected {
+                Style::default()
+                    .fg(branch_color)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(branch_color)
+            };
+
+            lines.push(Line::from(vec![
+                Span::raw(prefix),
+                Span::styled(branch.name.clone(), branch_style),
+            ]));
 
             // If this branch is expanded, show its commits
             if is_expanded {
+                let Some(commit_start) = commit_start else {
+                    continue;
+                };
                 for (i, cmd) in self
                     .data
                     .expanded_branch_commits
                     .iter()
                     .enumerate()
                 {
-                    let selected = state.local_selection == Some(commit_idx) && in_section;
-                    let is_last = i == branch_commit_count - 1;
+                    let local_index = commit_start + i;
+                    let selected = state.local_selection == Some(local_index) && in_section;
+                    let is_last = i + 1 == commit_len;
                     lines.push(self.render_commit_line(
                         cmd,
                         selected,
                         is_last,
                         state.render_width,
                     ));
-                    commit_idx += 1;
 
                     // If this commit is expanded, render detail lines
                     if self.data.expanded_commit.as_ref() == cmd.sha.as_ref() {

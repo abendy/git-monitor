@@ -58,7 +58,8 @@ pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
         ))
     } else {
         // Universal hints: nav top/btm m menu | : cmd  w files  h history  b branches | help quit
-        Line::from(vec![
+        {
+            let mut spans = vec![
             Span::styled(
                 " j/k ",
                 Style::default()
@@ -80,6 +81,17 @@ pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" menu "),
+            ];
+            if editor_available() {
+                spans.push(Span::styled(
+                    " e ",
+                    Style::default()
+                        .bg(Color::DarkGray)
+                        .add_modifier(Modifier::BOLD),
+                ));
+                spans.push(Span::raw(" edit "));
+            }
+            spans.extend(vec![
             Span::styled(
                 " │ ",
                 Style::default().fg(Color::DarkGray),
@@ -130,7 +142,9 @@ pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" quit "),
-        ])
+            ]);
+            Line::from(spans)
+        }
     };
 
     let footer = Paragraph::new(content)
@@ -186,4 +200,10 @@ pub fn render_popup(frame: &mut Frame<'_>, area: Rect) {
         );
 
     frame.render_widget(footer, area);
+}
+
+fn editor_available() -> bool {
+    std::env::var("EDITOR")
+        .ok()
+        .is_some_and(|value| !value.trim().is_empty())
 }

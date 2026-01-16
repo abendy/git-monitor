@@ -74,6 +74,8 @@ pub enum AppAction {
     FilePagerDiff,
     /// Open working/staged file diff in external difftool
     FileDiffTool,
+    /// Open selected file (or repo) in $EDITOR
+    OpenEditor,
 
     // History actions
     /// Toggle between log and reflog
@@ -455,18 +457,25 @@ impl ActionRegistry {
             53,
         ));
         actions.push(Action::app(
+            KeyBinding::char('e'),
+            "edit",
+            AppAction::OpenEditor,
+            vec![Context::Global],
+            54,
+        ));
+        actions.push(Action::app(
             KeyBinding::char('?'),
             "help",
             AppAction::ShowHelp,
             vec![Context::Global],
-            54,
+            55,
         ));
         actions.push(Action::app(
             KeyBinding::char('q'),
             "quit",
             AppAction::Quit,
             vec![Context::Global],
-            55,
+            56,
         ));
 
         // --- Navigation (global) ---

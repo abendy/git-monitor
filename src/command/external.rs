@@ -29,6 +29,8 @@ pub enum ExternalCommand {
         /// Base commit for rebase (e.g., "HEAD~3", commit SHA)
         onto: String,
     },
+    /// Open a file or directory in $EDITOR
+    OpenEditor { editor: String, path: String },
 }
 
 impl ExternalCommand {
@@ -47,19 +49,20 @@ impl ExternalCommand {
     /// Build the command without executing it.
     #[must_use]
     fn build_command(&self) -> Command {
-        let mut cmd = Command::new("git");
-
         match self {
             Self::PagerDiff {
                 commit_sha,
                 file_path,
             } => {
+                let mut cmd = Command::new("git");
                 cmd.args(["--paginate", "show", commit_sha, "--", file_path]);
+                cmd
             }
             Self::DiffTool {
                 commit_sha,
                 file_path,
             } => {
+                let mut cmd = Command::new("git");
                 cmd.args([
                     "difftool",
                     "--no-prompt",
@@ -67,29 +70,37 @@ impl ExternalCommand {
                     "--",
                     file_path,
                 ]);
+                cmd
             }
             Self::FilePagerDiff { file_path, staged } => {
+                let mut cmd = Command::new("git");
                 let mut args = vec!["--paginate", "diff"];
                 if *staged {
                     args.push("--staged");
                 }
                 args.extend(["--", file_path]);
                 cmd.args(&args);
+                cmd
             }
             Self::FileDiffTool { file_path, staged } => {
+                let mut cmd = Command::new("git");
                 let mut args = vec!["difftool", "--no-prompt"];
                 if *staged {
                     args.push("--staged");
                 }
                 args.extend(["--", file_path]);
                 cmd.args(&args);
+                cmd
             }
             Self::InteractiveRebase { onto } => {
+                let mut cmd = Command::new("git");
                 cmd.args(["rebase", "-i", onto]);
+                cmd
+            }
+            Self::OpenEditor { editor, path } => {
+                build_editor_command(editor, path)
             }
         }
-
-        cmd
     }
 
     /// Human-readable description for display/logging
@@ -119,8 +130,22 @@ impl ExternalCommand {
                 }
             }
             Self::InteractiveRebase { onto } => format!("git rebase -i {onto}"),
+            Self::OpenEditor { editor, path } => format!("{editor} {path}"),
         }
     }
+}
+
+fn build_editor_command(editor: &str, path: &str) -> Command {
+    let mut parts = editor.split_whitespace();
+    let program = parts.next().unwrap_or(editor);
+    let mut cmd = Command::new(program);
+
+    for arg in parts {
+        cmd.arg(arg);
+    }
+
+    cmd.arg(path);
+    cmd
 }
 
 #[cfg(test)]

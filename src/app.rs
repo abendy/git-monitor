@@ -11,7 +11,7 @@ use crate::command::{
 };
 use crate::config::GitConfig;
 use crate::event::Event;
-use crate::feedback::{Feedback, FeedbackManager, PopupContent};
+use crate::feedback::{Feedback, FeedbackManager, PopupContent, Toast};
 use crate::git::{BranchInfo, CommitDetail, FileState, GitCommand, GitRepo, GitStatus};
 use crate::input::Keymap;
 use crate::menu::{ActionMenu, AliasSectionMenu, MenuResult, MenuStack, PushConfirmMenu};
@@ -1319,6 +1319,7 @@ impl App {
                     });
                 }
             }
+            AppAction::OpenEditor => self.open_editor(),
 
             // History actions
             AppAction::ToggleHistoryMode => self.toggle_history_mode(),
@@ -1442,6 +1443,27 @@ impl App {
             AppAction::JumpToHistory => self.jump_to_history(),
             AppAction::JumpToBranches => self.jump_to_branches(),
         }
+    }
+
+    fn open_editor(&mut self) {
+        let editor = std::env::var("EDITOR")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+
+        let Some(editor) = editor else {
+            self.feedback.toast = Some(Toast::warning(
+                "EDITOR not set. Example: export EDITOR=vim",
+            ));
+            return;
+        };
+
+        let path = self
+            .selected_file_info()
+            .map(|(path, _is_staged, _state)| path.to_string_lossy().to_string())
+            .unwrap_or_else(|| ".".to_string());
+
+        self.pending_external = Some(ExternalCommand::OpenEditor { editor, path });
     }
 
     /// Handle keyboard input in popup mode

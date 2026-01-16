@@ -47,6 +47,7 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
             AppAction::Pull,
             AppAction::Fetch,
             AppAction::Refresh,
+            AppAction::OpenEditor,
             AppAction::ShowHelp,
             AppAction::Quit,
         ],

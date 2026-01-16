@@ -20,6 +20,7 @@
 | `Space` | Open diff in pager |
 | `d` / `Enter` | Show inline diff |
 | `M` | Open in difftool |
+| `e` | Open file in `$EDITOR` (or repo when none selected) |
 | `P` | Push (when ahead) |
 | `p` | Pull (when behind) |
 | `f` | Fetch |

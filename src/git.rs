@@ -736,7 +736,7 @@ impl GitRepo {
         Ok(commands)
     }
 
-    /// Get commits unique to a branch (not reachable from current branch)
+    /// Get commits reachable from a branch tip
     /// Always includes at least the tip commit so branches are never empty
     pub fn commit_log_for_branch(&self, branch_name: &str) -> Result<Vec<GitCommand>> {
         let mut commands = Vec::new();
@@ -758,13 +758,6 @@ impl GitRepo {
             Some(oid) => oid,
             None => return Ok(commands),
         };
-
-        // Compare against current branch (HEAD) to show only unique commits
-        let current_branch_oid = self
-            .repo
-            .head()
-            .ok()
-            .and_then(|h| h.target());
 
         // Collect refs for decorations
         let refs_map = self.collect_refs();
@@ -796,7 +789,7 @@ impl GitRepo {
                 }
             };
 
-        // Walk commits from the branch tip, excluding current branch
+        // Walk commits from the branch tip
         let mut revwalk = self
             .repo
             .revwalk()
@@ -804,9 +797,6 @@ impl GitRepo {
         revwalk
             .push(branch_oid)
             .context("Failed to push branch OID")?;
-        if let Some(current_oid) = current_branch_oid {
-            let _ = revwalk.hide(current_oid); // Exclude commits reachable from current branch
-        }
         revwalk.set_sorting(git2::Sort::TIME)?;
 
         for oid_result in revwalk {
@@ -833,7 +823,7 @@ impl GitRepo {
         Ok(commands)
     }
 
-    /// List all branches (local and remote) with their info
+    /// List local branches with their info
     pub fn list_branches(&self) -> Result<Vec<BranchInfo>> {
         let mut branches = Vec::new();
 
@@ -843,23 +833,6 @@ impl GitRepo {
             .head()
             .ok()
             .and_then(|h| h.shorthand().map(String::from));
-
-        // Get upstream branch name to filter it from remote list
-        let upstream_name = current_branch
-            .as_ref()
-            .and_then(|branch_name| {
-                self.repo
-                    .find_branch(branch_name, git2::BranchType::Local)
-                    .ok()
-                    .and_then(|branch| branch.upstream().ok())
-                    .and_then(|upstream| {
-                        upstream
-                            .name()
-                            .ok()
-                            .flatten()
-                            .map(String::from)
-                    })
-            });
 
         // Iterate through local branches
         let branch_iter = self
@@ -887,48 +860,14 @@ impl GitRepo {
             });
         }
 
-        // Iterate through remote branches
-        let remote_iter = self
-            .repo
-            .branches(Some(git2::BranchType::Remote))?;
-
-        for branch_result in remote_iter {
-            let (branch, _branch_type) = branch_result?;
-
-            let name = match branch.name()? {
-                Some(n) => n.to_string(),
-                None => continue,
-            };
-
-            // Skip HEAD refs (e.g., origin/HEAD)
-            if name.ends_with("/HEAD") {
-                continue;
-            }
-
-            // Skip upstream of current branch (already shown in history header)
-            if upstream_name.as_ref() == Some(&name) {
-                continue;
-            }
-
-            branches.push(BranchInfo {
-                name,
-                is_current: false,
-                is_remote: true,
-            });
-        }
-
-        // Sort: current branch first, then local branches, then remote branches
+        // Sort: current branch first, then local branches
         branches.sort_by(|a, b| {
             match (a.is_current, b.is_current) {
                 (true, false) => return std::cmp::Ordering::Less,
                 (false, true) => return std::cmp::Ordering::Greater,
                 _ => {}
             }
-            match (a.is_remote, b.is_remote) {
-                (false, true) => std::cmp::Ordering::Less,
-                (true, false) => std::cmp::Ordering::Greater,
-                _ => a.name.cmp(&b.name),
-            }
+            a.name.cmp(&b.name)
         });
 
         Ok(branches)

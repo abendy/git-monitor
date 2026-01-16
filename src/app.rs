@@ -188,6 +188,7 @@ impl App {
 
         // Update sections with initial state
         app.update_sections();
+        app.select_default_section();
 
         Ok(app)
     }
@@ -1791,9 +1792,18 @@ impl App {
             Some(idx) if idx > 0 => {
                 self.close_expanded_commit();
 
+                if self.history_collapsed
+                    && !self.activity.is_empty()
+                    && idx == self.branches_start_index()
+                {
+                    self.expand_history();
+                    let history_header_idx = self.history_start_index();
+                    self.selected = Some(history_header_idx + self.activity.len());
+                    return;
+                }
+
                 // Normal navigation
-                let new_idx = idx - 1;
-                self.selected = Some(new_idx);
+                self.selected = Some(idx - 1);
             }
             _ => {}
         }
@@ -1812,6 +1822,32 @@ impl App {
             self.selected = Some(len - 1);
             self.close_expanded_commit();
         }
+    }
+
+    fn select_default_section(&mut self) {
+        let counts = self.section_item_counts();
+
+        if counts.working > 0 {
+            if let Some(start) = self
+                .section_registry
+                .section_start_index(SectionId::Working, &counts)
+            {
+                self.selected = Some(start);
+                return;
+            }
+        }
+
+        if counts.staged > 0 {
+            if let Some(start) = self
+                .section_registry
+                .section_start_index(SectionId::Staged, &counts)
+            {
+                self.selected = Some(start);
+                return;
+            }
+        }
+
+        self.selected = Some(0);
     }
 
     /// Close expanded commit detail

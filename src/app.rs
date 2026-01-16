@@ -1105,10 +1105,12 @@ impl App {
                         None if file_count > 0 => {
                             // Move from header to first file
                             self.expanded_file_idx = Some(0);
+                            self.update_sections();
                         }
                         Some(idx) if idx + 1 < file_count => {
                             // Move to next file
                             self.expanded_file_idx = Some(idx + 1);
+                            self.update_sections();
                         }
                         Some(_) | None => {
                             // At last file or no files - move to next commit
@@ -1136,10 +1138,12 @@ impl App {
                         Some(0) => {
                             // Move from first file back to header
                             self.expanded_file_idx = None;
+                            self.update_sections();
                         }
                         Some(idx) => {
                             // Move to previous file
                             self.expanded_file_idx = Some(idx - 1);
+                            self.update_sections();
                         }
                         None => {
                             // On header - move to previous item
@@ -1223,7 +1227,6 @@ impl App {
                 } else if let Some(sha) = self.selected_activity_sha() {
                     // Commit item handling (in history or expanded branch)
                     if self.expanded_commit.as_ref() == Some(&sha) {
-                        // Already expanded - check if we're on a file
                         if let Some(file_idx) = self.expanded_file_idx {
                             // Open external pager diff (uses gitconfig core.pager)
                             let file_path = self
@@ -1239,14 +1242,10 @@ impl App {
                                 });
                             }
                         } else {
-                            // On commit header - collapse
-                            self.close_expanded_commit();
+                            self.toggle_commit_detail(&sha);
                         }
                     } else {
-                        // Expand - fetch details
-                        self.expanded_commit = Some(sha.clone());
-                        self.expanded_detail = self.repo.commit_detail(&sha).ok();
-                        self.expanded_file_idx = None;
+                        self.toggle_commit_detail(&sha);
                     }
                 }
             }
@@ -1333,11 +1332,8 @@ impl App {
             // History actions
             AppAction::ToggleHistoryMode => self.toggle_history_mode(),
             AppAction::ExpandCommit => {
-                // Handled via space key behavior
                 if let Some(sha) = self.selected_activity_sha() {
-                    self.expanded_commit = Some(sha.clone());
-                    self.expanded_detail = self.repo.commit_detail(&sha).ok();
-                    self.expanded_file_idx = None;
+                    self.toggle_commit_detail(&sha);
                 }
             }
             AppAction::CopyShortSha => {
@@ -1431,7 +1427,12 @@ impl App {
             AppAction::Checkout => self.checkout_selected_branch(),
             AppAction::ExpandBranch => {
                 if let Some(branch_name) = self.is_on_branch_header() {
-                    self.expand_branch(&branch_name);
+                    if self.expanded_branch.as_deref() == Some(&branch_name) {
+                        self.collapse_branch();
+                        self.update_sections();
+                    } else {
+                        self.expand_branch(&branch_name);
+                    }
                 }
             }
 
@@ -1756,13 +1757,10 @@ impl App {
             Some(idx) => {
                 self.close_expanded_commit();
 
-                // Use registry-based index calculation for consistency
-                let history_header_idx = self.history_start_index();
-
                 // Are we on the last history commit about to move to branches?
                 let on_last_history_commit = !self.history_collapsed
                     && !self.activity.is_empty()
-                    && idx == history_header_idx + self.activity.len();
+                    && idx == self.history_start_index() + self.activity.len();
 
                 if on_last_history_commit {
                     // Moving from last history commit to first branch's first commit
@@ -1783,12 +1781,6 @@ impl App {
                 // Normal navigation
                 let new_idx = idx + 1;
                 self.selected = Some(new_idx);
-
-                // Skip history header - auto-expand and go to first commit
-                if new_idx == history_header_idx && !self.activity.is_empty() {
-                    self.expand_history();
-                    self.selected = Some(new_idx + 1);
-                }
             }
         }
     }
@@ -1799,17 +1791,9 @@ impl App {
             Some(idx) if idx > 0 => {
                 self.close_expanded_commit();
 
-                // Use registry-based index calculation for consistency
-                let history_header_idx = self.history_start_index();
-
                 // Normal navigation
                 let new_idx = idx - 1;
                 self.selected = Some(new_idx);
-
-                // Skip history header - go to previous item (last file or command)
-                if new_idx == history_header_idx {
-                    self.selected = Some(new_idx - 1);
-                }
             }
             _ => {}
         }
@@ -1832,9 +1816,29 @@ impl App {
 
     /// Close expanded commit detail
     fn close_expanded_commit(&mut self) {
+        if self.expanded_commit.is_none()
+            && self.expanded_detail.is_none()
+            && self.expanded_file_idx.is_none()
+        {
+            return;
+        }
+
         self.expanded_commit = None;
         self.expanded_detail = None;
         self.expanded_file_idx = None;
+        self.update_sections();
+    }
+
+    fn toggle_commit_detail(&mut self, sha: &str) {
+        if self.expanded_commit.as_deref() == Some(sha) {
+            self.close_expanded_commit();
+            return;
+        }
+
+        self.expanded_commit = Some(sha.to_string());
+        self.expanded_detail = self.repo.commit_detail(sha).ok();
+        self.expanded_file_idx = None;
+        self.update_sections();
     }
 
     /// Handle tick events (periodic updates)

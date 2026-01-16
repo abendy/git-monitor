@@ -189,7 +189,7 @@ impl Keymap {
         );
         self.bind(
             Context::HistoryCommits,
-            KeyBinding::key(KeyCode::Enter),
+            KeyBinding::char(' '),
             AppAction::ExpandCommit,
         );
         self.bind(
@@ -217,6 +217,12 @@ impl Keymap {
             Context::HistoryCommits,
             KeyBinding::char('['),
             AppAction::PrevPage,
+        );
+
+        self.bind(
+            Context::BranchCommits,
+            KeyBinding::char(' '),
+            AppAction::ExpandCommit,
         );
 
         // Commit files

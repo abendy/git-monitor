@@ -36,89 +36,19 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
 
     let mut items: Vec<ListItem<'_>> = Vec::new();
 
-    // Command section (always at top, index 0)
+    // Command section - delegate to CommandSection::render()
+    // Command is always at index 0
     let cmd_selected = app.selected == Some(0) && !app.menu_stack.is_active();
-    let cmd_prefix = if cmd_selected { "▸ " } else { "  " };
+    let command_state = SectionState {
+        is_focused: cmd_selected,
+        local_selection: if cmd_selected { Some(0) } else { None },
+        global_selection: app.selected,
+        render_width: area.width,
+    };
 
-    if app.is_command_mode() {
-        // Active command input
-        items.push(ListItem::new(Line::from(vec![
-            Span::raw(cmd_prefix),
-            Span::styled(
-                ": ",
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(&app.command_input, Style::default().fg(Color::White)),
-            Span::styled("_", Style::default().fg(Color::Cyan)), // Cursor
-        ])));
-    } else if cmd_selected {
-        // Selected but not active - show hint
-        items.push(ListItem::new(Line::from(vec![
-            Span::raw(cmd_prefix),
-            Span::styled(
-                ": ",
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                "type command   ",
-                Style::default().fg(Color::DarkGray).italic(),
-            ),
-            Span::styled("a ", Style::default().fg(Color::Cyan)),
-            Span::styled("aliases", Style::default().fg(Color::DarkGray).italic()),
-        ])));
-    } else {
-        // Not selected or showing aliases
-        items.push(ListItem::new(Line::from(vec![
-            Span::raw(cmd_prefix),
-            Span::styled(": ", Style::default().fg(Color::DarkGray)),
-            Span::styled("command  ", Style::default().fg(Color::DarkGray)),
-            Span::styled("a ", Style::default().fg(Color::Cyan)),
-            Span::styled("aliases", Style::default().fg(Color::DarkGray)),
-        ])));
+    for line in app.command_section.render(&command_state) {
+        items.push(ListItem::new(line));
     }
-
-    // Command output (if any, and not when menu overlay is active)
-    if let Some(cmd_output) = app.feedback.output() {
-        if !app.menu_stack.is_active() {
-            let output_color = if cmd_output.success {
-                Color::White
-            } else {
-                Color::Red
-            };
-
-            for line in cmd_output.output.lines().take(4) {
-                items.push(ListItem::new(Line::from(vec![
-                    Span::raw("  "),
-                    Span::styled("> ", Style::default().fg(Color::DarkGray)),
-                    Span::styled(line, Style::default().fg(output_color)),
-                ])));
-            }
-
-            let line_count = cmd_output.output.lines().count();
-            if line_count > 4 {
-                items.push(ListItem::new(Line::from(vec![
-                    Span::styled(
-                        format!("    ... ({} more lines) ", line_count - 4),
-                        Style::default().fg(Color::DarkGray).italic(),
-                    ),
-                    Span::styled(
-                        "o",
-                        Style::default()
-                            .fg(Color::Cyan)
-                            .add_modifier(Modifier::BOLD),
-                    ),
-                    Span::styled(" to expand", Style::default().fg(Color::DarkGray).italic()),
-                ])));
-            }
-        }
-    }
-
-    // Spacer after command section
-    items.push(ListItem::new(Line::from("")));
 
     // Staged section - delegate to StagedSection::render()
     if staged_len > 0 {

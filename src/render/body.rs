@@ -61,19 +61,6 @@ fn render_context_hint(
     Line::from(spans)
 }
 
-/// Get color for file state
-const fn state_color(state: FileState) -> Color {
-    match state {
-        FileState::Modified => Color::Yellow,
-        FileState::Added => Color::Green,
-        FileState::Deleted => Color::Red,
-        FileState::Renamed => Color::Cyan,
-        FileState::Untracked => Color::DarkGray,
-        FileState::Conflicted => Color::Magenta,
-        FileState::Unmodified | FileState::Ignored => Color::White,
-    }
-}
-
 /// Get color for command type
 const fn command_color(cmd: CommandType) -> Color {
     match cmd {
@@ -211,57 +198,30 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         }
     }
 
-    // Working section
-    if !working_changes.is_empty() {
-        if !staged_changes.is_empty() {
+    // Working section - delegate to WorkingSection::render()
+    if working_len > 0 {
+        if staged_len > 0 {
             items.push(ListItem::new(Line::from("")));
         }
 
-        // Check if selection is within working section
+        // Build section state: working items are at indices [1+staged_len, 1+staged_len+working_len)
         let working_start = 1 + staged_len;
-        let working_end = working_start + working_len;
         let in_working = app
             .selected
-            .is_some_and(|s| s >= working_start && s < working_end && !app.is_command_mode());
-        let arrow = if in_working { "▾" } else { "▸" };
-        items.push(ListItem::new(Line::from(Span::styled(
-            format!("  {arrow} Working ({working_len})"),
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        ))));
+            .is_some_and(|s| s >= working_start && s < working_start + working_len);
+        let local_selection = if in_working {
+            app.selected.map(|s| s - working_start) // Convert global to local
+        } else {
+            None
+        };
+        let working_state = SectionState {
+            is_focused: in_working,
+            local_selection,
+            global_selection: app.selected,
+        };
 
-        // Hint for file actions (only show when in working section)
-        if in_working {
-            items.push(ListItem::new(render_context_hint(
-                &app.action_registry,
-                Context::WorkingFiles,
-                &app.app_state(),
-            )));
-        }
-
-        for (i, file) in working_changes.iter().enumerate() {
-            // Index 0 is command, staged starts at 1, working starts at 1 + staged_len
-            let global_idx = working_start + i;
-            // Don't show selection when command mode is active (focus is on input)
-            let selected = Some(global_idx) == app.selected && !app.is_command_mode();
-            let prefix = if selected { "▸ " } else { "  " };
-            let status_char = file.working.as_char();
-            let color = state_color(file.working);
-            let path = file.path.to_string_lossy();
-
-            let style = if selected {
-                Style::default().fg(color).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(color)
-            };
-
-            items.push(ListItem::new(Line::from(vec![
-                Span::raw(prefix),
-                Span::styled("○ ", Style::default().fg(Color::Yellow)),
-                Span::styled(format!("{status_char} "), style),
-                Span::styled(path.to_string(), style),
-            ])));
+        for line in app.working_section.render(&working_state) {
+            items.push(ListItem::new(line));
         }
     }
 

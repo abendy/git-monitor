@@ -6,10 +6,9 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 
-use super::{Section, SectionAction, SectionId, SectionKeybinding, SectionState};
+use super::{Section, SectionAction, SectionId, SectionState};
 use crate::actions::{ActionRegistry, AppAction, AppState, Context};
 use crate::git::{BranchInfo, CommitDetail, GitCommand};
-use crate::input::KeyBinding;
 use crate::section::{
     render_commit_detail, render_commit_line, render_context_hint,
 };
@@ -277,28 +276,4 @@ impl Section for BranchesSection {
         }
     }
 
-    fn keybindings(&self) -> Vec<SectionKeybinding> {
-        vec![
-            SectionKeybinding::new(
-                KeyBinding::char(' '),
-                "Expand",
-                "Expand/collapse branch commits",
-            ),
-            SectionKeybinding::new(
-                KeyBinding::key(KeyCode::Enter),
-                "Checkout",
-                "Checkout branch or commit",
-            ),
-            SectionKeybinding::new(
-                KeyBinding::char('y'),
-                "Copy SHA",
-                "Copy short commit SHA",
-            ),
-            SectionKeybinding::new(
-                KeyBinding::char('c'),
-                "Copy SHA",
-                "Copy commit SHA",
-            ),
-        ]
-    }
 }

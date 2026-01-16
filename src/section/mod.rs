@@ -133,11 +133,11 @@ pub enum RefreshPolicy {
     Never,
 }
 
-/// A keybinding declared by a section
+/// A keybinding declared by a section.
 ///
-/// Sections declare their keybindings for documentation and help display.
-/// This enables sections to be self-describing, supporting future external
-/// sections that bring their own bindings.
+/// Built-in sections use ActionRegistry for keybindings. This metadata is
+/// reserved for external sections that need to self-describe bindings without
+/// touching the core registry.
 #[derive(Debug, Clone)]
 pub struct SectionKeybinding {
     /// The key combination that triggers this action
@@ -207,10 +207,11 @@ pub trait Section: Send + Sync {
         RefreshPolicy::OnFileChange
     }
 
-    /// Keybindings available when this section is focused
+    /// Keybindings available when this section is focused.
     ///
-    /// Sections declare their keybindings for help display and documentation.
-    /// This is declarative metadata - actual key handling is in `handle_key()`.
+    /// Built-in sections should not implement this; ActionRegistry is the
+    /// canonical source for built-in bindings. External sections can return
+    /// metadata here for documentation.
     fn keybindings(&self) -> Vec<SectionKeybinding> {
         Vec::new()
     }

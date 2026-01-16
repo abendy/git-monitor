@@ -6,13 +6,12 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::{Line, Span};
 
-use super::{Section, SectionAction, SectionId, SectionKeybinding, SectionState};
+use super::{Section, SectionAction, SectionId, SectionState};
 use crate::actions::{ActionRegistry, ActionType, AppAction, AppState, Context};
 use crate::app::HistoryMode;
 use crate::git::{
     BranchInfo, CommitDetail, GitCommand, GitStatus,
 };
-use crate::input::KeyBinding;
 use crate::section::{
     render_commit_detail, render_commit_line, render_context_hint,
 };
@@ -394,43 +393,4 @@ impl Section for HistorySection {
         }
     }
 
-    fn keybindings(&self) -> Vec<SectionKeybinding> {
-        vec![
-            SectionKeybinding::new(
-                KeyBinding::char('h'),
-                "Toggle",
-                "Toggle between commit log and reflog",
-            ),
-            SectionKeybinding::new(
-                KeyBinding::char(' '),
-                "Expand",
-                "Expand/collapse commit details",
-            ),
-            SectionKeybinding::new(
-                KeyBinding::char('y'),
-                "Copy SHA",
-                "Copy short commit SHA",
-            ),
-            SectionKeybinding::new(
-                KeyBinding::char('c'),
-                "Copy SHA",
-                "Copy commit SHA",
-            ),
-            SectionKeybinding::new(
-                KeyBinding::char('['),
-                "Prev Page",
-                "Previous page of history",
-            ),
-            SectionKeybinding::new(
-                KeyBinding::char(']'),
-                "Next Page",
-                "Next page of history",
-            ),
-            SectionKeybinding::new(
-                KeyBinding::char('R'),
-                "Rebase",
-                "Interactive rebase onto commit",
-            ),
-        ]
-    }
 }

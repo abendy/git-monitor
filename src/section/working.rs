@@ -6,10 +6,9 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 
-use super::{Section, SectionAction, SectionId, SectionKeybinding, SectionState};
+use super::{Section, SectionAction, SectionId, SectionState};
 use crate::actions::{Action, ActionRegistry, AppState, Context};
 use crate::git::{FileState, FileStatus};
-use crate::input::KeyBinding;
 
 /// Get color for file state
 const fn state_color(state: FileState) -> Color {
@@ -203,28 +202,4 @@ impl Section for WorkingSection {
         }
     }
 
-    fn keybindings(&self) -> Vec<SectionKeybinding> {
-        vec![
-            SectionKeybinding::new(
-                KeyBinding::char('s'),
-                "Stage",
-                "Stage file to index",
-            ),
-            SectionKeybinding::new(
-                KeyBinding::char(' '),
-                "Pager",
-                "Open diff in pager",
-            ),
-            SectionKeybinding::new(
-                KeyBinding::char('d'),
-                "Diff",
-                "Show inline diff",
-            ),
-            SectionKeybinding::new(
-                KeyBinding::char('M'),
-                "Difftool",
-                "Open in external diff tool",
-            ),
-        ]
-    }
 }

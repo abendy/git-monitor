@@ -15,9 +15,7 @@ use ratatui::{
 };
 
 use crate::{
-    actions::{ActionRegistry, AppState, Context},
     app::App,
-    git::{format_relative_time, CommandType, FileState, RefDecoration},
     section::{Section, SectionState},
     tui::Frame,
 };
@@ -25,57 +23,6 @@ use crate::{
 /// Render the main body panel
 pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
     render_main_panel(frame, app, area);
-}
-
-/// Render context-specific hints as a Line
-fn render_context_hint(
-    registry: &ActionRegistry,
-    context: Context,
-    state: &AppState,
-) -> Line<'static> {
-    let actions = registry.hint_actions_for_context(context, state);
-
-    if actions.is_empty() {
-        return Line::from("");
-    }
-
-    let mut spans = vec![Span::raw("  ")];
-
-    for (i, action) in actions.iter().take(5).enumerate() {
-        if i > 0 {
-            spans.push(Span::styled(" · ", Style::default().fg(Color::DarkGray)));
-        }
-        spans.push(Span::styled(
-            format!("{} ", action.key),
-            Style::default().fg(Color::Cyan),
-        ));
-        spans.push(Span::styled(
-            action.label.clone(),
-            Style::default().fg(Color::DarkGray).italic(),
-        ));
-    }
-
-    Line::from(spans)
-}
-
-/// Get color for command type
-const fn command_color(cmd: CommandType) -> Color {
-    match cmd {
-        CommandType::Commit => Color::Green,
-        CommandType::Checkout => Color::Cyan,
-        CommandType::Merge => Color::Magenta,
-        CommandType::Rebase => Color::Yellow,
-        CommandType::Pull => Color::Blue,
-        CommandType::Push => Color::Blue,
-        CommandType::Reset => Color::Red,
-        CommandType::CherryPick => Color::Magenta,
-        CommandType::Revert => Color::Red,
-        CommandType::Branch => Color::Cyan,
-        CommandType::Clone | CommandType::Init => Color::Green,
-        CommandType::Fetch => Color::Blue,
-        CommandType::Stash => Color::Yellow,
-        CommandType::Other => Color::DarkGray,
-    }
 }
 
 /// Render the unified main panel (command + staged + working + activity)
@@ -265,7 +212,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         current_idx = history_end;
     }
 
-    // Branches section (other branches, excluding current)
+    // Branches section - delegate to BranchesSection::render()
     let other_branches: Vec<_> = app.branches.iter().filter(|b| !b.is_current).collect();
     if !other_branches.is_empty() {
         // Add spacer if there's content above
@@ -273,60 +220,30 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             items.push(ListItem::new(Line::from("")));
         }
 
-        // Check if selection is within branches section
+        // Build section state for branches
+        // Branches section selectable items are the expanded branch commits
         let branches_start = current_idx;
+        let branches_item_count = app.branches_section.item_count();
+        let branches_end = branches_start + branches_item_count;
+
         let in_branches = app
             .selected
-            .is_some_and(|s| s >= branches_start && !app.is_command_mode());
-        let arrow = if in_branches { "▾" } else { "▸" };
-        items.push(ListItem::new(Line::from(Span::styled(
-            format!("  {arrow} Branches ({})", other_branches.len()),
-            Style::default()
-                .fg(Color::Magenta)
-                .add_modifier(Modifier::BOLD),
-        ))));
+            .is_some_and(|s| s >= branches_start && s < branches_end && !app.is_command_mode());
+        let local_selection = if in_branches {
+            app.selected.map(|s| s - branches_start)
+        } else {
+            None
+        };
 
-        // Hint for branch actions (only show when in branches section)
-        if in_branches {
-            items.push(ListItem::new(render_context_hint(
-                &app.action_registry,
-                Context::BranchCommits,
-                &app.app_state(),
-            )));
-        }
+        let branches_state = SectionState {
+            is_focused: in_branches,
+            local_selection,
+            global_selection: app.selected,
+            render_width: area.width,
+        };
 
-        for branch in other_branches.iter() {
-            let is_expanded = app.expanded_branch.as_deref() == Some(&branch.name);
-
-            // Branch names are not selectable - just labels
-            // Remote branches shown in red, local in white
-            let branch_color = if branch.is_remote {
-                Color::Red
-            } else {
-                Color::White
-            };
-            items.push(ListItem::new(Line::from(Span::styled(
-                format!("  {}", branch.name),
-                Style::default().fg(branch_color),
-            ))));
-
-            // If this branch is expanded, show its commits
-            if is_expanded {
-                let branch_commit_count = app.expanded_branch_commits.len();
-                for (i, cmd) in app.expanded_branch_commits.iter().enumerate() {
-                    let selected = Some(current_idx) == app.selected && !app.is_command_mode();
-                    let is_last = i == branch_commit_count - 1;
-                    items.push(render_commit_line(cmd, selected, is_last, area.width, true));
-                    current_idx += 1;
-
-                    // If this commit is expanded, render detail lines
-                    if app.expanded_commit.as_ref() == cmd.sha.as_ref() {
-                        if let Some(detail) = &app.expanded_detail {
-                            render_commit_detail(&mut items, app, detail);
-                        }
-                    }
-                }
-            }
+        for line in app.branches_section.render(&branches_state) {
+            items.push(ListItem::new(line));
         }
     }
 
@@ -351,352 +268,4 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
     );
 
     frame.render_widget(list, area);
-}
-
-/// Render a single commit line (used for both History and branch commits)
-/// `is_last` indicates if this is the last (oldest) commit in the section
-/// `use_tree_style` uses tree connectors (├─/└─) for branch hierarchy vs simple (│/╵) for history
-fn render_commit_line<'a>(
-    cmd: &'a crate::git::GitCommand,
-    selected: bool,
-    is_last: bool,
-    area_width: u16,
-    use_tree_style: bool,
-) -> ListItem<'a> {
-    let selection_prefix = if selected { "▸" } else { " " };
-    // Tree style: indent + tree chars to show nesting under branch header
-    // Simple style: just vertical line for history
-    // Remote-only commits use a branch-off indicator
-    let (indent, graph_char) = if cmd.is_remote_only {
-        ("", "├—")
-    } else if use_tree_style {
-        ("   ", if is_last { "└─" } else { "├─" })
-    } else {
-        ("", if is_last { "╵" } else { "│" })
-    };
-
-    let time_str = format_relative_time(cmd.timestamp);
-    let icon = cmd.command_type.icon();
-    let color = command_color(cmd.command_type);
-    let sha_str = cmd.sha.as_deref().unwrap_or("-------");
-
-    // Build decoration spans
-    let decoration_spans = format_decorations(&cmd.decorations);
-    let decoration_width: usize = decoration_spans.iter().map(|s| s.content.len()).sum();
-
-    // Truncate message if too long (account for sha, time, decorations, graph, indent)
-    // Tree style uses 3-char indent + 2-char graph (├─/└─), simple uses 1-char (│/╵)
-    let extra_width = if use_tree_style { 4 } else { 0 };
-    let base_width = 35 + decoration_width + extra_width;
-    let max_msg_len = area_width.saturating_sub(base_width as u16) as usize;
-    let message = if cmd.message.len() > max_msg_len && max_msg_len > 3 {
-        format!("{}...", &cmd.message[..max_msg_len.saturating_sub(3)])
-    } else if max_msg_len <= 3 {
-        String::new()
-    } else {
-        cmd.message.clone()
-    };
-
-    let style = if selected {
-        Style::default().add_modifier(Modifier::BOLD)
-    } else {
-        Style::default()
-    };
-
-    // Remote-only commits use dimmer colors and red graph indicator
-    let (graph_color, sha_color, msg_color) = if cmd.is_remote_only {
-        (Color::Red, Color::Red, Color::DarkGray)
-    } else {
-        (Color::DarkGray, Color::Yellow, Color::White)
-    };
-
-    let mut spans = vec![
-        Span::raw(format!("{selection_prefix} {indent}")),
-        Span::styled(format!("{graph_char} "), Style::default().fg(graph_color)),
-        Span::styled(format!("{sha_str} "), style.fg(sha_color)),
-        Span::styled(format!("{time_str}  "), style.fg(Color::DarkGray)),
-        Span::styled(format!("{icon} "), style.fg(color)),
-    ];
-
-    // Check for special commit prefixes (fixup!, squash!, amend!, wip)
-    // For remote-only commits, use dimmer colors throughout
-    let special_prefixes = ["fixup!", "squash!", "amend!"];
-    let wip_prefixes = ["wip:", "wip ", "WIP:", "WIP "];
-
-    if let Some(prefix) = special_prefixes.iter().find(|p| message.starts_with(*p)) {
-        spans.push(Span::styled(
-            prefix.to_string(),
-            style.fg(Color::Magenta).add_modifier(Modifier::BOLD),
-        ));
-        spans.push(Span::styled(
-            message[prefix.len()..].to_string(),
-            style.fg(msg_color),
-        ));
-    } else if let Some(prefix) = wip_prefixes.iter().find(|p| message.starts_with(*p)) {
-        spans.push(Span::styled(
-            prefix.to_string(),
-            style.fg(Color::Yellow).add_modifier(Modifier::BOLD),
-        ));
-        spans.push(Span::styled(
-            message[prefix.len()..].to_string(),
-            style.fg(msg_color),
-        ));
-    } else {
-        spans.push(Span::styled(message, style.fg(msg_color)));
-    }
-
-    // Add decorations if any
-    if !decoration_spans.is_empty() {
-        spans.push(Span::raw(" "));
-        spans.extend(decoration_spans);
-    }
-
-    ListItem::new(Line::from(spans))
-}
-
-/// Render expanded commit detail (author, date, files, etc.)
-fn render_commit_detail<'a>(
-    items: &mut Vec<ListItem<'a>>,
-    app: &'a App,
-    detail: &'a crate::git::CommitDetail,
-) {
-    // Empty line
-    items.push(ListItem::new(Line::raw("")));
-
-    // Author
-    items.push(ListItem::new(Line::from(vec![
-        Span::raw("    Author:    "),
-        Span::styled(&detail.author_name, Style::default().fg(Color::Green)),
-        Span::raw(" <"),
-        Span::styled(&detail.author_email, Style::default().fg(Color::Cyan)),
-        Span::raw(">"),
-    ])));
-
-    // Committer (if different from author)
-    if detail.committer_name != detail.author_name || detail.committer_email != detail.author_email
-    {
-        items.push(ListItem::new(Line::from(vec![
-            Span::raw("    Committer: "),
-            Span::styled(&detail.committer_name, Style::default().fg(Color::Green)),
-            Span::raw(" <"),
-            Span::styled(&detail.committer_email, Style::default().fg(Color::Cyan)),
-            Span::raw(">"),
-        ])));
-    }
-
-    // Date
-    items.push(ListItem::new(Line::from(vec![
-        Span::raw("    Date:      "),
-        Span::styled(
-            detail
-                .author_time
-                .format("%Y-%m-%d %H:%M:%S %z")
-                .to_string(),
-            Style::default().fg(Color::Yellow),
-        ),
-    ])));
-
-    // Full SHA
-    items.push(ListItem::new(Line::from(vec![
-        Span::raw("    Commit:    "),
-        Span::styled(&detail.full_sha, Style::default().fg(Color::Yellow)),
-    ])));
-
-    // GPG info (if present)
-    if let Some(gpg) = &detail.gpg_status {
-        items.push(ListItem::new(Line::from(vec![
-            Span::raw("    GPG:       "),
-            Span::styled(gpg, Style::default().fg(Color::Magenta)),
-        ])));
-    }
-
-    // Empty line before message
-    items.push(ListItem::new(Line::raw("")));
-
-    // Commit message (indented, may be multi-line)
-    for msg_line in detail.message.lines() {
-        items.push(ListItem::new(Line::from(vec![
-            Span::raw("    "),
-            Span::raw(msg_line.to_string()),
-        ])));
-    }
-
-    // Files section with stats
-    if !detail.files.is_empty() {
-        items.push(ListItem::new(Line::raw("")));
-        items.push(ListItem::new(Line::from(vec![
-            Span::styled(
-                format!("    {} file(s) changed  ", detail.files.len()),
-                Style::default().fg(Color::DarkGray),
-            ),
-            Span::styled(
-                format!("+{}", detail.insertions),
-                Style::default().fg(Color::Green),
-            ),
-            Span::styled(" / ", Style::default().fg(Color::DarkGray)),
-            Span::styled(
-                format!("-{}", detail.deletions),
-                Style::default().fg(Color::Red),
-            ),
-        ])));
-
-        // Hint for commit file actions (only show when a file is selected)
-        if matches!(app.current_context(), Context::CommitFiles) {
-            // Use extra indent for commit files hints
-            let hint =
-                render_context_hint(&app.action_registry, Context::CommitFiles, &app.app_state());
-            let mut spans = vec![Span::raw("  ")]; // Extra indent
-            spans.extend(hint.spans);
-            items.push(ListItem::new(Line::from(spans)));
-        }
-
-        for (file_idx, file) in detail.files.iter().enumerate() {
-            let is_file_selected = app.expanded_file_idx == Some(file_idx);
-            let (status_char, color) = match file.status {
-                FileState::Added => ('A', Color::Green),
-                FileState::Modified => ('M', Color::Yellow),
-                FileState::Deleted => ('D', Color::Red),
-                FileState::Renamed => ('R', Color::Cyan),
-                _ => ('?', Color::White),
-            };
-
-            let file_prefix = if is_file_selected { "  ▸ " } else { "    " };
-            let file_style = if is_file_selected {
-                Style::default().add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-            };
-
-            let mut spans = vec![
-                Span::styled(file_prefix.to_string(), file_style),
-                Span::styled(format!("{status_char}"), file_style.fg(color)),
-                Span::raw("  "),
-                Span::styled(file.path.clone(), file_style),
-            ];
-
-            // Add per-file stats if there are changes
-            if file.insertions > 0 || file.deletions > 0 {
-                spans.push(Span::raw("  "));
-                if file.insertions > 0 {
-                    spans.push(Span::styled(
-                        format!("+{}", file.insertions),
-                        file_style.fg(Color::Green),
-                    ));
-                }
-                if file.insertions > 0 && file.deletions > 0 {
-                    spans.push(Span::raw("/"));
-                }
-                if file.deletions > 0 {
-                    spans.push(Span::styled(
-                        format!("-{}", file.deletions),
-                        file_style.fg(Color::Red),
-                    ));
-                }
-            }
-
-            items.push(ListItem::new(Line::from(spans)));
-        }
-    }
-
-    // Separator line
-    items.push(ListItem::new(Line::raw("")));
-}
-
-/// Format decorations (branches, tags) into styled spans
-fn format_decorations(decorations: &[RefDecoration]) -> Vec<Span<'static>> {
-    if decorations.is_empty() {
-        return Vec::new();
-    }
-
-    let mut spans = Vec::new();
-    spans.push(Span::styled("(", Style::default().fg(Color::DarkGray)));
-
-    let mut first = true;
-    let mut has_head = false;
-    let mut head_branch: Option<&str> = None;
-
-    // Check for HEAD and find its branch
-    for dec in decorations {
-        if matches!(dec, RefDecoration::Head) {
-            has_head = true;
-        }
-    }
-
-    // Find local branch that HEAD points to
-    if has_head {
-        for dec in decorations {
-            if let RefDecoration::LocalBranch(name) = dec {
-                head_branch = Some(name);
-                break;
-            }
-        }
-    }
-
-    // Format: HEAD → branch for the HEAD + branch combo
-    if has_head {
-        if let Some(branch) = head_branch {
-            spans.push(Span::styled(
-                "HEAD → ",
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
-            ));
-            spans.push(Span::styled(
-                branch.to_string(),
-                Style::default()
-                    .fg(Color::Green)
-                    .add_modifier(Modifier::BOLD),
-            ));
-            first = false;
-        } else {
-            spans.push(Span::styled(
-                "HEAD",
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
-            ));
-            first = false;
-        }
-    }
-
-    // Add remaining decorations
-    for dec in decorations {
-        // Skip HEAD (already handled) and the branch HEAD points to
-        if matches!(dec, RefDecoration::Head) {
-            continue;
-        }
-        if let RefDecoration::LocalBranch(name) = dec {
-            if head_branch == Some(name) {
-                continue;
-            }
-        }
-
-        if !first {
-            spans.push(Span::styled(", ", Style::default().fg(Color::DarkGray)));
-        }
-        first = false;
-
-        match dec {
-            RefDecoration::LocalBranch(name) => {
-                spans.push(Span::styled(
-                    name.clone(),
-                    Style::default().fg(Color::Green),
-                ));
-            }
-            RefDecoration::RemoteBranch(name) => {
-                spans.push(Span::styled(name.clone(), Style::default().fg(Color::Red)));
-            }
-            RefDecoration::Tag(name) => {
-                spans.push(Span::styled("tag: ", Style::default().fg(Color::DarkGray)));
-                spans.push(Span::styled(
-                    name.clone(),
-                    Style::default().fg(Color::Yellow),
-                ));
-            }
-            RefDecoration::Head => {} // Already handled
-        }
-    }
-
-    spans.push(Span::styled(")", Style::default().fg(Color::DarkGray)));
-    spans
 }

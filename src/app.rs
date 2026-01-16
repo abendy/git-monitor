@@ -299,6 +299,7 @@ impl App {
             expanded_branch_commits: self.expanded_branch_commits.clone(),
             expanded_commit: self.expanded_commit.clone(),
             expanded_detail: self.expanded_detail.clone(),
+            expanded_file_idx: self.expanded_file_idx,
             command_mode_active: self.is_command_mode(),
             action_registry: Some(self.action_registry.clone()),
             app_state: Some(self.app_state()),

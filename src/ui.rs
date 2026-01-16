@@ -35,7 +35,7 @@ pub fn render(frame: &mut Frame<'_>, app: &mut App) {
 
     // Help overlay (centered popup, separate from full-screen popup)
     if app.show_help {
-        crate::render::help::render(frame, area);
+        crate::render::help::render(frame, area, app);
     }
 
     // Menu stack overlay (modular menu system)

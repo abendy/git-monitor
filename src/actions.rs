@@ -3,7 +3,10 @@
 //! Provides context-aware actions that change based on cursor position,
 //! supporting app actions, CLI commands, and git aliases.
 
+use crossterm::event::KeyCode;
+
 use crate::config::Alias;
+use crate::input::KeyBinding;
 
 /// Application context - represents where the user currently is
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -187,6 +190,8 @@ impl AppState {
 pub struct Action {
     /// Keyboard shortcut (e.g., "s", "Space", "Ctrl+d")
     pub key: String,
+    /// Structured binding for keymap lookup
+    pub binding: Option<KeyBinding>,
     /// Display label for the action
     pub label: String,
     /// Type of action
@@ -202,14 +207,15 @@ pub struct Action {
 impl Action {
     /// Create a new app action (always available)
     fn app(
-        key: &str,
+        binding: KeyBinding,
         label: &str,
         action: AppAction,
         contexts: Vec<Context>,
         priority: u8,
     ) -> Self {
         Self {
-            key: key.to_string(),
+            key: binding.label(),
+            binding: Some(binding),
             label: label.to_string(),
             action_type: ActionType::App(action),
             contexts,
@@ -220,7 +226,7 @@ impl Action {
 
     /// Create a new app action with a condition
     fn app_when(
-        key: &str,
+        binding: KeyBinding,
         label: &str,
         action: AppAction,
         contexts: Vec<Context>,
@@ -228,7 +234,8 @@ impl Action {
         condition: ActionCondition,
     ) -> Self {
         Self {
-            key: key.to_string(),
+            key: binding.label(),
+            binding: Some(binding),
             label: label.to_string(),
             action_type: ActionType::App(action),
             contexts,
@@ -242,6 +249,7 @@ impl Action {
     pub fn from_alias(alias: &Alias, contexts: Vec<Context>) -> Self {
         Self {
             key: format!(":{}", alias.name),
+            binding: None,
             label: alias.command.clone(),
             action_type: ActionType::Alias(alias.clone()),
             contexts,
@@ -272,28 +280,35 @@ impl ActionRegistry {
         // --- File actions (staged + working) ---
         let file_contexts = vec![Context::StagedFiles, Context::WorkingFiles];
         actions.push(Action::app(
-            "s",
+            KeyBinding::char('s'),
             "stage/unstage",
             AppAction::ToggleStage,
             file_contexts.clone(),
             10,
         ));
         actions.push(Action::app(
-            "d",
+            KeyBinding::char('d'),
             "diff",
             AppAction::ShowDiff,
             file_contexts.clone(),
             20,
         ));
         actions.push(Action::app(
-            "Space",
+            KeyBinding::key(KeyCode::Enter),
+            "diff",
+            AppAction::ShowDiff,
+            file_contexts.clone(),
+            21,
+        ));
+        actions.push(Action::app(
+            KeyBinding::char(' '),
             "pager",
             AppAction::FilePagerDiff,
             file_contexts.clone(),
             30,
         ));
         actions.push(Action::app(
-            "M",
+            KeyBinding::char('M'),
             "difftool",
             AppAction::FileDiffTool,
             file_contexts,
@@ -302,42 +317,49 @@ impl ActionRegistry {
 
         // --- History actions ---
         actions.push(Action::app(
-            "h",
+            KeyBinding::char('h'),
             "log/reflog",
             AppAction::ToggleHistoryMode,
-            vec![Context::HistoryCommits],
+            vec![Context::HistoryHeader, Context::HistoryCommits],
             10,
         ));
         actions.push(Action::app(
-            "Space",
+            KeyBinding::char(' '),
             "expand",
             AppAction::ExpandCommit,
             vec![Context::HistoryCommits, Context::BranchCommits],
             20,
         ));
         actions.push(Action::app(
-            "[",
+            KeyBinding::char('['),
             "prev page",
             AppAction::PrevPage,
             vec![Context::HistoryHeader, Context::HistoryCommits],
             30,
         ));
         actions.push(Action::app(
-            "]",
+            KeyBinding::char(']'),
             "next page",
             AppAction::NextPage,
             vec![Context::HistoryHeader, Context::HistoryCommits],
             31,
         ));
         actions.push(Action::app(
-            "c",
-            "copy sha",
-            AppAction::CopyFullSha,
+            KeyBinding::char('y'),
+            "copy short",
+            AppAction::CopyShortSha,
             vec![Context::HistoryCommits, Context::BranchCommits],
             40,
         ));
         actions.push(Action::app(
-            "R",
+            KeyBinding::char('c'),
+            "copy sha",
+            AppAction::CopyFullSha,
+            vec![Context::HistoryCommits, Context::BranchCommits],
+            41,
+        ));
+        actions.push(Action::app(
+            KeyBinding::char('R'),
             "rebase -i",
             AppAction::InteractiveRebase,
             vec![Context::HistoryCommits],
@@ -347,21 +369,21 @@ impl ActionRegistry {
         // --- Commit file actions ---
         let commit_file_ctx = vec![Context::CommitFiles];
         actions.push(Action::app(
-            "Space",
+            KeyBinding::char(' '),
             "pager",
             AppAction::PagerDiff,
             commit_file_ctx.clone(),
             10,
         ));
         actions.push(Action::app(
-            "d",
+            KeyBinding::char('d'),
             "inline diff",
             AppAction::InlineDiff,
             commit_file_ctx.clone(),
             20,
         ));
         actions.push(Action::app(
-            "M",
+            KeyBinding::char('M'),
             "difftool",
             AppAction::DiffTool,
             commit_file_ctx,
@@ -370,14 +392,14 @@ impl ActionRegistry {
 
         // --- Branch actions ---
         actions.push(Action::app(
-            "Enter",
+            KeyBinding::key(KeyCode::Enter),
             "checkout",
             AppAction::Checkout,
             vec![Context::BranchHeader],
             10,
         ));
         actions.push(Action::app(
-            "Space",
+            KeyBinding::char(' '),
             "expand",
             AppAction::ExpandBranch,
             vec![Context::BranchHeader],
@@ -387,7 +409,7 @@ impl ActionRegistry {
         // --- Global actions (available everywhere) ---
         // Push only shows when ahead of remote
         actions.push(Action::app_when(
-            "P",
+            KeyBinding::char('P'),
             "push",
             AppAction::Push,
             vec![Context::Global],
@@ -396,7 +418,7 @@ impl ActionRegistry {
         ));
         // Pull only shows when behind remote
         actions.push(Action::app_when(
-            "p",
+            KeyBinding::char('p'),
             "pull",
             AppAction::Pull,
             vec![Context::Global],
@@ -405,42 +427,42 @@ impl ActionRegistry {
         ));
         // Fetch always available (lowercase f)
         actions.push(Action::app(
-            "f",
+            KeyBinding::char('f'),
             "fetch",
             AppAction::Fetch,
             vec![Context::Global],
             51,
         ));
         actions.push(Action::app(
-            "r",
+            KeyBinding::char('r'),
             "refresh",
             AppAction::Refresh,
             vec![Context::Global],
             51,
         ));
         actions.push(Action::app(
-            ":",
+            KeyBinding::char(':'),
             "command",
             AppAction::EnterCommandMode,
             vec![Context::Global],
             52,
         ));
         actions.push(Action::app(
-            "a",
+            KeyBinding::char('a'),
             "aliases",
             AppAction::BrowseAliases,
             vec![Context::Global],
             53,
         ));
         actions.push(Action::app(
-            "?",
+            KeyBinding::char('?'),
             "help",
             AppAction::ShowHelp,
             vec![Context::Global],
             54,
         ));
         actions.push(Action::app(
-            "q",
+            KeyBinding::char('q'),
             "quit",
             AppAction::Quit,
             vec![Context::Global],
@@ -449,21 +471,21 @@ impl ActionRegistry {
 
         // --- Navigation (global) ---
         actions.push(Action::app(
-            "w",
+            KeyBinding::char('w'),
             "working",
             AppAction::JumpToWorking,
             vec![Context::Global],
             60,
         ));
         actions.push(Action::app(
-            "h",
+            KeyBinding::char('h'),
             "history",
             AppAction::JumpToHistory,
             vec![Context::Global],
             61,
         ));
         actions.push(Action::app(
-            "b",
+            KeyBinding::char('b'),
             "branches",
             AppAction::JumpToBranches,
             vec![Context::Global],
@@ -471,6 +493,11 @@ impl ActionRegistry {
         ));
 
         Self { actions }
+    }
+
+    #[must_use]
+    pub fn actions(&self) -> &[Action] {
+        &self.actions
     }
 
     /// Get actions for a specific context (includes Global actions)

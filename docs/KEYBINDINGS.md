@@ -32,7 +32,6 @@
 | `Space` | Expand/collapse commit |
 | `[` / `]` | Previous/next page |
 | `y` | Copy short SHA |
-| `Y` | Copy full SHA (when expanded) |
 | `c` | Copy SHA (full if expanded, short otherwise) |
 | `R` | Interactive rebase onto commit |
 
@@ -48,8 +47,9 @@
 
 | Key | Action |
 |-----|--------|
-| `Space` | Expand/collapse branch |
+| `Space` | Expand/collapse branch or commit |
 | `Enter` | Checkout branch |
+| `y` | Copy short SHA |
 | `c` | Copy commit SHA |
 
 ## Command Mode

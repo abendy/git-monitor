@@ -379,12 +379,12 @@ impl Section for HistorySection {
     fn keybindings(&self) -> Vec<SectionKeybinding> {
         vec![
             SectionKeybinding::new(
-                KeyBinding::char('t'),
+                KeyBinding::char('h'),
                 "Toggle",
                 "Toggle between commit log and reflog",
             ),
             SectionKeybinding::new(
-                KeyBinding::key(KeyCode::Enter),
+                KeyBinding::char(' '),
                 "Expand",
                 "Expand/collapse commit details",
             ),
@@ -394,9 +394,9 @@ impl Section for HistorySection {
                 "Copy short commit SHA",
             ),
             SectionKeybinding::new(
-                KeyBinding::char('Y'),
-                "Copy Full",
-                "Copy full commit SHA",
+                KeyBinding::char('c'),
+                "Copy SHA",
+                "Copy commit SHA",
             ),
             SectionKeybinding::new(
                 KeyBinding::char('['),

@@ -280,7 +280,7 @@ impl Section for BranchesSection {
     fn keybindings(&self) -> Vec<SectionKeybinding> {
         vec![
             SectionKeybinding::new(
-                KeyBinding::char('e'),
+                KeyBinding::char(' '),
                 "Expand",
                 "Expand/collapse branch commits",
             ),
@@ -291,6 +291,11 @@ impl Section for BranchesSection {
             ),
             SectionKeybinding::new(
                 KeyBinding::char('y'),
+                "Copy SHA",
+                "Copy short commit SHA",
+            ),
+            SectionKeybinding::new(
+                KeyBinding::char('c'),
                 "Copy SHA",
                 "Copy commit SHA",
             ),

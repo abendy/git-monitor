@@ -149,6 +149,7 @@ impl App {
 
         // Initialize command executor
         let executor = CommandExecutor::new(&repo_path);
+        let keymap = Keymap::from_registry(&action_registry);
 
         let mut app = Self {
             repo_path,
@@ -177,7 +178,7 @@ impl App {
             action_registry,
             executor,
             menu_stack: MenuStack::new(),
-            keymap: Keymap::with_defaults(),
+            keymap,
             command_section: CommandSection::new(),
             staged_section: StagedSection::new(),
             working_section: WorkingSection::new(),
@@ -966,17 +967,6 @@ impl App {
             // Refresh
             KeyCode::Char('r') => {
                 self.refresh_status();
-            }
-
-            // History mode toggle / focus
-            KeyCode::Char('h') => {
-                if self.is_in_history() {
-                    // Already in history, toggle mode
-                    self.toggle_history_mode();
-                } else {
-                    // Just jump to history section
-                    self.jump_to_history();
-                }
             }
 
             // History pagination: next page (only in history section)

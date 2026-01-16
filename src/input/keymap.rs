@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::actions::{AppAction, Context};
+use crate::actions::{ActionRegistry, ActionType, AppAction, Context};
 
 /// A key binding (key code + modifiers)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -49,6 +49,38 @@ impl KeyBinding {
     pub const fn ctrl_char(c: char) -> Self {
         Self::ctrl(KeyCode::Char(c))
     }
+
+    #[must_use]
+    pub fn label(&self) -> String {
+        let mut parts = Vec::new();
+
+        if self.modifiers.contains(KeyModifiers::CONTROL) {
+            parts.push("Ctrl");
+        }
+        if self.modifiers.contains(KeyModifiers::ALT) {
+            parts.push("Alt");
+        }
+        if self.modifiers.contains(KeyModifiers::SHIFT) {
+            parts.push("Shift");
+        }
+
+        let key = match self.code {
+            KeyCode::Char(' ') => "Space".to_string(),
+            KeyCode::Enter => "Enter".to_string(),
+            KeyCode::Esc => "Esc".to_string(),
+            KeyCode::Tab => "Tab".to_string(),
+            KeyCode::Backspace => "Backspace".to_string(),
+            KeyCode::Char(c) => c.to_string(),
+            KeyCode::F(n) => format!("F{n}"),
+            _ => format!("{:?}", self.code),
+        };
+
+        if parts.is_empty() {
+            key
+        } else {
+            format!("{}+{}", parts.join("+"), key)
+        }
+    }
 }
 
 impl From<KeyEvent> for KeyBinding {
@@ -82,9 +114,8 @@ impl Keymap {
     /// Create a keymap with default bindings
     #[must_use]
     pub fn with_defaults() -> Self {
-        let mut keymap = Self::new();
-        keymap.add_default_bindings();
-        keymap
+        let registry = ActionRegistry::new();
+        Self::from_registry(&registry)
     }
 
     /// Add a global binding
@@ -116,148 +147,32 @@ impl Keymap {
         self.global.get(&binding).copied()
     }
 
-    /// Add default keybindings
-    fn add_default_bindings(&mut self) {
-        // Global actions
-        // Note: 'q' and Esc have context-dependent behavior (quit vs close popup),
-        // so they're handled in imperative handlers, not here.
-        self.bind_global(
-            KeyBinding::char('?'),
-            AppAction::ShowHelp,
-        );
-        self.bind_global(
-            KeyBinding::char('r'),
-            AppAction::Refresh,
-        );
-        self.bind_global(KeyBinding::char('P'), AppAction::Push);
-        self.bind_global(KeyBinding::char('p'), AppAction::Pull);
-        self.bind_global(KeyBinding::char('f'), AppAction::Fetch);
+    /// Build keybindings from the action registry
+    #[must_use]
+    pub fn from_registry(registry: &ActionRegistry) -> Self {
+        let mut keymap = Self::new();
 
-        // Jump shortcuts
-        self.bind_global(
-            KeyBinding::char('w'),
-            AppAction::JumpToWorking,
-        );
-        self.bind_global(
-            KeyBinding::char('b'),
-            AppAction::JumpToBranches,
-        );
-        // Note: 'h' has complex behavior (jump vs toggle), handled imperatively
+        for action in registry.actions() {
+            let ActionType::App(app_action) = action.action_type else {
+                continue;
+            };
+            let Some(binding) = action.binding else {
+                continue;
+            };
 
-        // Command section
-        self.bind(
-            Context::Command,
-            KeyBinding::char(':'),
-            AppAction::EnterCommandMode,
-        );
-        self.bind(
-            Context::Command,
-            KeyBinding::char('a'),
-            AppAction::BrowseAliases,
-        );
+            if action.contexts.contains(&Context::Global) {
+                keymap.bind_global(binding, app_action);
+            }
 
-        // File sections (staged and working)
-        // Note: 'm' for action menu is handled separately (opens modal dialog)
-        for context in [Context::StagedFiles, Context::WorkingFiles] {
-            self.bind(
-                context,
-                KeyBinding::char('s'),
-                AppAction::ToggleStage,
-            );
-            self.bind(
-                context,
-                KeyBinding::char('d'),
-                AppAction::ShowDiff,
-            );
-            self.bind(
-                context,
-                KeyBinding::char(' '),
-                AppAction::FilePagerDiff,
-            );
-            self.bind(
-                context,
-                KeyBinding::char('M'),
-                AppAction::FileDiffTool,
-            );
+            for context in &action.contexts {
+                if *context == Context::Global {
+                    continue;
+                }
+                keymap.bind(*context, binding, app_action);
+            }
         }
 
-        // History section
-        self.bind(
-            Context::HistoryHeader,
-            KeyBinding::char('t'),
-            AppAction::ToggleHistoryMode,
-        );
-        self.bind(
-            Context::HistoryCommits,
-            KeyBinding::char(' '),
-            AppAction::ExpandCommit,
-        );
-        self.bind(
-            Context::HistoryCommits,
-            KeyBinding::char('y'),
-            AppAction::CopyShortSha,
-        );
-        self.bind(
-            Context::HistoryCommits,
-            KeyBinding::char('Y'),
-            AppAction::CopyFullSha,
-        );
-        self.bind(
-            Context::HistoryCommits,
-            KeyBinding::char('R'),
-            AppAction::InteractiveRebase,
-        );
-        // Pagination uses [ and ] per docs/KEYBINDINGS.md
-        self.bind(
-            Context::HistoryCommits,
-            KeyBinding::char(']'),
-            AppAction::NextPage,
-        );
-        self.bind(
-            Context::HistoryCommits,
-            KeyBinding::char('['),
-            AppAction::PrevPage,
-        );
-
-        self.bind(
-            Context::BranchCommits,
-            KeyBinding::char(' '),
-            AppAction::ExpandCommit,
-        );
-
-        // Commit files
-        self.bind(
-            Context::CommitFiles,
-            KeyBinding::char(' '),
-            AppAction::PagerDiff,
-        );
-        self.bind(
-            Context::CommitFiles,
-            KeyBinding::char('d'),
-            AppAction::InlineDiff,
-        );
-        self.bind(
-            Context::CommitFiles,
-            KeyBinding::char('M'),
-            AppAction::DiffTool,
-        );
-
-        // Branch section
-        self.bind(
-            Context::BranchHeader,
-            KeyBinding::key(KeyCode::Enter),
-            AppAction::Checkout,
-        );
-        self.bind(
-            Context::BranchHeader,
-            KeyBinding::char(' '),
-            AppAction::ExpandBranch,
-        );
-        self.bind(
-            Context::BranchHeader,
-            KeyBinding::char('e'),
-            AppAction::ExpandBranch,
-        );
+        keymap
     }
 }
 

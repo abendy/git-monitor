@@ -90,6 +90,10 @@ pub struct App {
     pub history_collapsed: bool,
     /// Current page offset for history pagination (0-indexed)
     pub history_page: usize,
+    /// Total history items for current mode
+    pub history_total_items: usize,
+    /// Total pages for history pagination
+    pub history_total_pages: usize,
     /// Which non-current branch is expanded (showing its commits)
     pub expanded_branch: Option<String>,
     /// Cached commits for the expanded branch
@@ -131,10 +135,7 @@ impl App {
             .unwrap_or_else(|| path.clone());
 
         let status = repo.status().unwrap_or_default();
-        // Load commit log by default (matches HistoryMode::default())
-        let activity = repo
-            .commit_log(0, PAGE_SIZE)
-            .unwrap_or_default();
+        let activity = Vec::new();
         let config = GitConfig::load(&repo_path).unwrap_or_default();
         let branches = repo.list_branches().unwrap_or_default();
 
@@ -172,6 +173,8 @@ impl App {
             branches,
             history_collapsed: false,
             history_page: 0,
+            history_total_items: 0,
+            history_total_pages: 0,
             expanded_branch: None,
             expanded_branch_commits: Vec::new(),
             pending_external: None,
@@ -187,6 +190,7 @@ impl App {
             section_registry: SectionRegistry::new(),
         };
 
+        app.refresh_activity();
         // Update sections with initial state
         app.update_sections();
         app.select_default_section();
@@ -304,6 +308,8 @@ impl App {
                 history_mode: self.history_mode,
                 is_collapsed: self.history_collapsed,
                 page: self.history_page,
+                total_items: self.history_total_items,
+                total_pages: self.history_total_pages,
                 current_branch: self
                     .branches
                     .iter()
@@ -412,6 +418,24 @@ impl App {
 
     /// Refresh activity based on current history mode and page
     fn refresh_activity(&mut self) {
+        self.history_total_items = match self.history_mode {
+            HistoryMode::Reflog => self.repo.reflog_total().unwrap_or(0),
+            HistoryMode::CommitLog => {
+                self.repo.commit_log_total().unwrap_or(0)
+            }
+        };
+        self.history_total_pages = if self.history_total_items == 0 {
+            0
+        } else {
+            (self.history_total_items + PAGE_SIZE - 1) / PAGE_SIZE
+        };
+
+        if self.history_total_pages == 0 {
+            self.history_page = 0;
+        } else if self.history_page >= self.history_total_pages {
+            self.history_page = self.history_total_pages - 1;
+        }
+
         let skip = self.history_page * PAGE_SIZE;
         let result = match self.history_mode {
             HistoryMode::Reflog => self.repo.reflog(skip, PAGE_SIZE),
@@ -431,16 +455,16 @@ impl App {
         };
         self.history_page = 0; // Reset to first page when switching modes
         self.refresh_activity();
+        self.update_sections();
     }
 
     /// Go to next history page
     fn next_history_page(&mut self) {
-        // Only advance if we got a full page (more data likely exists)
-        // Use >= because remote-only commits may add extra items beyond PAGE_SIZE
-        if self.activity.len() >= PAGE_SIZE {
+        if self.history_page + 1 < self.history_total_pages {
             self.history_page += 1;
             self.refresh_activity();
             self.select_first_history_commit();
+            self.update_sections();
         }
     }
 
@@ -450,6 +474,7 @@ impl App {
             self.history_page -= 1;
             self.refresh_activity();
             self.select_first_history_commit();
+            self.update_sections();
         }
     }
 
@@ -469,6 +494,7 @@ impl App {
         if self.history_page != 0 {
             self.history_page = 0;
             self.refresh_activity();
+            self.update_sections();
         }
     }
 

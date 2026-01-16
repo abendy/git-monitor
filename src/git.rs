@@ -607,6 +607,16 @@ impl GitRepo {
         Ok(commands)
     }
 
+    /// Get total reflog entries
+    pub fn reflog_total(&self) -> Result<usize> {
+        let reflog = match self.repo.reflog("HEAD") {
+            Ok(reflog) => reflog,
+            Err(_) => return Ok(0),
+        };
+
+        Ok(reflog.iter().count())
+    }
+
     fn make_commit_command(
         &self,
         commit: &git2::Commit<'_>,
@@ -691,6 +701,41 @@ impl GitRepo {
         }
 
         commands
+    }
+
+    fn count_commits(
+        &self,
+        start_oid: git2::Oid,
+        hide_oid: Option<git2::Oid>,
+    ) -> usize {
+        let mut revwalk = match self.repo.revwalk() {
+            Ok(revwalk) => revwalk,
+            Err(_) => return 0,
+        };
+        if revwalk.push(start_oid).is_err() {
+            return 0;
+        }
+        if let Some(hide_oid) = hide_oid {
+            let _ = revwalk.hide(hide_oid);
+        }
+        let _ = revwalk.set_sorting(git2::Sort::TIME);
+
+        revwalk.filter_map(Result::ok).count()
+    }
+
+    /// Get total commit count for HEAD history
+    pub fn commit_log_total(&self) -> Result<usize> {
+        let head = match self.repo.head() {
+            Ok(head) => head,
+            Err(_) => return Ok(0),
+        };
+
+        let head_oid = match head.target() {
+            Some(oid) => oid,
+            None => return Ok(0),
+        };
+
+        Ok(self.count_commits(head_oid, None))
     }
 
     /// Get commit history (git log) with pagination, including remote-only commits if tracking

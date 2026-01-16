@@ -28,6 +28,10 @@ pub struct HistorySectionData {
     pub is_collapsed: bool,
     /// Current page number
     pub page: usize,
+    /// Total items in history (for pagination)
+    pub total_items: usize,
+    /// Total pages in history (for pagination)
+    pub total_pages: usize,
     /// Current branch info (for header display)
     pub current_branch: Option<BranchInfo>,
     /// Repository status (ahead/behind/upstream)
@@ -197,6 +201,26 @@ impl HistorySection {
 
         Some(Line::from(spans))
     }
+
+    /// Render pagination status beneath the history list
+    fn render_pagination(&self) -> Line<'static> {
+        let total_items = self.data.total_items;
+        let total_pages = self.data.total_pages;
+        let current_page = if total_pages == 0 {
+            0
+        } else {
+            self.data.page + 1
+        };
+
+        let label = format!(
+            "  [ prev · page ]  {current_page}/{total_pages} of {total_items} items"
+        );
+
+        Line::from(Span::styled(
+            label,
+            Style::default().fg(Color::DarkGray),
+        ))
+    }
 }
 
 impl Default for HistorySection {
@@ -256,7 +280,7 @@ impl Section for HistorySection {
             .fg(Color::Cyan)
             .add_modifier(Modifier::BOLD);
 
-        let mut header_spans = vec![
+        let header_spans = vec![
             Span::raw(header_prefix),
             Span::styled(
                 format!("{collapse_indicator} "),
@@ -267,14 +291,6 @@ impl Section for HistorySection {
                 header_style,
             ),
         ];
-
-        // Page indicator
-        if self.data.page > 0 {
-            header_spans.push(Span::styled(
-                format!(" [page {}]", self.data.page + 1),
-                Style::default().fg(Color::DarkGray),
-            ));
-        }
 
         lines.push(Line::from(header_spans));
 
@@ -321,6 +337,8 @@ impl Section for HistorySection {
                 }
             }
         }
+
+        lines.push(self.render_pagination());
 
         lines
     }

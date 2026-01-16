@@ -6,6 +6,7 @@
 #![allow(dead_code)] // Module in progress - not yet fully integrated
 
 mod branches;
+mod commit;
 mod command;
 mod history;
 mod registry;
@@ -13,6 +14,9 @@ mod staged;
 mod working;
 
 pub use branches::{BranchesSection, BranchesSectionData};
+pub use commit::{
+    render_commit_detail, render_commit_line, render_context_hint,
+};
 pub use command::{CommandSection, CommandSectionData};
 use crossterm::event::KeyEvent;
 pub use history::{HistorySection, HistorySectionData};

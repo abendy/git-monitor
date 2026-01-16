@@ -607,6 +607,92 @@ impl GitRepo {
         Ok(commands)
     }
 
+    fn make_commit_command(
+        &self,
+        commit: &git2::Commit<'_>,
+        refs_map: &HashMap<String, Vec<RefDecoration>>,
+        is_remote_only: bool,
+    ) -> GitCommand {
+        let message = commit.summary().unwrap_or("").to_string();
+        let time = commit.time();
+        let timestamp = Local
+            .timestamp_opt(time.seconds(), 0)
+            .single()
+            .unwrap_or_else(Local::now);
+        let short_sha = format!("{:.7}", commit.id());
+        let decorations = refs_map
+            .get(&short_sha)
+            .cloned()
+            .unwrap_or_default();
+        GitCommand {
+            timestamp,
+            command_type: CommandType::Commit,
+            message,
+            sha: Some(short_sha),
+            decorations,
+            is_remote_only,
+        }
+    }
+
+    fn walk_commits(
+        &self,
+        start_oid: git2::Oid,
+        hide_oid: Option<git2::Oid>,
+        skip: usize,
+        limit: Option<usize>,
+        refs_map: &HashMap<String, Vec<RefDecoration>>,
+        is_remote_only: bool,
+    ) -> Vec<GitCommand> {
+        let mut commands = Vec::new();
+        let mut revwalk = match self.repo.revwalk() {
+            Ok(revwalk) => revwalk,
+            Err(_) => return commands,
+        };
+        if revwalk.push(start_oid).is_err() {
+            return commands;
+        }
+        if let Some(hide_oid) = hide_oid {
+            let _ = revwalk.hide(hide_oid);
+        }
+        let _ = revwalk.set_sorting(git2::Sort::TIME);
+
+        if let Some(limit) = limit {
+            for oid_result in revwalk.skip(skip).take(limit) {
+                let oid = match oid_result {
+                    Ok(oid) => oid,
+                    Err(_) => continue,
+                };
+                let commit = match self.repo.find_commit(oid) {
+                    Ok(c) => c,
+                    Err(_) => continue,
+                };
+                commands.push(self.make_commit_command(
+                    &commit,
+                    refs_map,
+                    is_remote_only,
+                ));
+            }
+        } else {
+            for oid_result in revwalk.skip(skip) {
+                let oid = match oid_result {
+                    Ok(oid) => oid,
+                    Err(_) => continue,
+                };
+                let commit = match self.repo.find_commit(oid) {
+                    Ok(c) => c,
+                    Err(_) => continue,
+                };
+                commands.push(self.make_commit_command(
+                    &commit,
+                    refs_map,
+                    is_remote_only,
+                ));
+            }
+        }
+
+        commands
+    }
+
     /// Get commit history (git log) with pagination, including remote-only commits if tracking
     /// upstream Remote-only commits are only shown on the first page (skip = 0)
     pub fn commit_log(&self, skip: usize, limit: usize) -> Result<Vec<GitCommand>> {
@@ -628,34 +714,6 @@ impl GitRepo {
         // Collect refs for decorations
         let refs_map = self.collect_refs();
 
-        // Helper to create GitCommand from commit
-        let make_command = |commit: &git2::Commit<'_>,
-                            refs_map: &HashMap<String, Vec<RefDecoration>>,
-                            is_remote_only: bool| {
-            let message = commit
-                .summary()
-                .unwrap_or("")
-                .to_string();
-            let time = commit.time();
-            let timestamp = Local
-                .timestamp_opt(time.seconds(), 0)
-                .single()
-                .unwrap_or_else(Local::now);
-            let short_sha = format!("{:.7}", commit.id());
-            let decorations = refs_map
-                .get(&short_sha)
-                .cloned()
-                .unwrap_or_default();
-            GitCommand {
-                timestamp,
-                command_type: CommandType::Commit,
-                message,
-                sha: Some(short_sha),
-                decorations,
-                is_remote_only,
-            }
-        };
-
         // Check for upstream and get remote-only commits + merge base (only on first page)
         if skip == 0 && head.is_branch() {
             if let Some(branch_name) = head.shorthand() {
@@ -673,59 +731,38 @@ impl GitRepo {
                                 merge_base_sha = Some(format!("{:.7}", base_oid));
                             }
 
-                            // Walk commits from upstream that are not reachable from HEAD
-                            if let Ok(mut revwalk) = self.repo.revwalk() {
-                                let _ = revwalk.push(upstream_oid);
-                                let _ = revwalk.hide(head_oid);
-                                revwalk
-                                    .set_sorting(git2::Sort::TIME)
-                                    .ok();
-
-                                for oid_result in revwalk {
-                                    let oid = match oid_result {
-                                        Ok(oid) => oid,
-                                        Err(_) => continue,
-                                    };
-                                    if let Ok(commit) = self.repo.find_commit(oid) {
-                                        remote_only_commands
-                                            .push(make_command(&commit, &refs_map, true));
-                                    }
-                                }
-                            }
+                            remote_only_commands = self.walk_commits(
+                                upstream_oid,
+                                Some(head_oid),
+                                0,
+                                None,
+                                &refs_map,
+                                true,
+                            );
                         }
                     }
                 }
             }
         }
 
-        // Walk local commits from HEAD
-        let mut revwalk = self
-            .repo
-            .revwalk()
-            .context("Failed to create revwalk")?;
-        revwalk
-            .push(head_oid)
-            .context("Failed to push HEAD")?;
-        revwalk.set_sorting(git2::Sort::TIME)?;
-
         let mut inserted_remote = false;
-        for oid_result in revwalk.skip(skip).take(limit) {
-            let oid = match oid_result {
-                Ok(oid) => oid,
-                Err(_) => continue,
-            };
+        let main_commits = self.walk_commits(
+            head_oid,
+            None,
+            skip,
+            Some(limit),
+            &refs_map,
+            false,
+        );
 
-            let short_sha = format!("{:.7}", oid);
-
-            // Insert remote-only commits right before the merge base (only on first page)
+        for cmd in main_commits {
+            let short_sha = cmd.sha.clone().unwrap_or_default();
             if !inserted_remote && merge_base_sha.as_ref() == Some(&short_sha) {
                 commands.append(&mut remote_only_commands);
                 inserted_remote = true;
             }
 
-            if let Ok(commit) = self.repo.find_commit(oid) {
-                commands.push(make_command(&commit, &refs_map, false));
-            }
+            commands.push(cmd);
         }
 
         // If we never hit the merge base (e.g., it's beyond our limit), append at end
@@ -739,8 +776,6 @@ impl GitRepo {
     /// Get commits reachable from a branch tip
     /// Always includes at least the tip commit so branches are never empty
     pub fn commit_log_for_branch(&self, branch_name: &str) -> Result<Vec<GitCommand>> {
-        let mut commands = Vec::new();
-
         // Find the branch (try local first, then remote)
         let branch = self
             .repo
@@ -756,67 +791,27 @@ impl GitRepo {
         let branch_ref = branch.get();
         let branch_oid = match branch_ref.target() {
             Some(oid) => oid,
-            None => return Ok(commands),
+            None => return Ok(Vec::new()),
         };
 
         // Collect refs for decorations
         let refs_map = self.collect_refs();
+        let mut commands = self.walk_commits(
+            branch_oid,
+            None,
+            0,
+            None,
+            &refs_map,
+            false,
+        );
 
-        // Helper to create GitCommand from commit
-        let make_command =
-            |commit: &git2::Commit<'_>, refs_map: &HashMap<String, Vec<RefDecoration>>| {
-                let message = commit
-                    .summary()
-                    .unwrap_or("")
-                    .to_string();
-                let time = commit.time();
-                let timestamp = Local
-                    .timestamp_opt(time.seconds(), 0)
-                    .single()
-                    .unwrap_or_else(Local::now);
-                let short_sha = format!("{:.7}", commit.id());
-                let decorations = refs_map
-                    .get(&short_sha)
-                    .cloned()
-                    .unwrap_or_default();
-                GitCommand {
-                    timestamp,
-                    command_type: CommandType::Commit,
-                    message,
-                    sha: Some(short_sha),
-                    decorations,
-                    is_remote_only: false,
-                }
-            };
-
-        // Walk commits from the branch tip
-        let mut revwalk = self
-            .repo
-            .revwalk()
-            .context("Failed to create revwalk")?;
-        revwalk
-            .push(branch_oid)
-            .context("Failed to push branch OID")?;
-        revwalk.set_sorting(git2::Sort::TIME)?;
-
-        for oid_result in revwalk {
-            let oid = match oid_result {
-                Ok(oid) => oid,
-                Err(_) => continue,
-            };
-
-            let commit = match self.repo.find_commit(oid) {
-                Ok(c) => c,
-                Err(_) => continue,
-            };
-
-            commands.push(make_command(&commit, &refs_map));
-        }
-
-        // Always show at least the tip commit (for branches like main that share ancestry)
         if commands.is_empty() {
             if let Ok(tip_commit) = self.repo.find_commit(branch_oid) {
-                commands.push(make_command(&tip_commit, &refs_map));
+                commands.push(self.make_commit_command(
+                    &tip_commit,
+                    &refs_map,
+                    false,
+                ));
             }
         }
 

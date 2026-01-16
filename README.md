@@ -7,14 +7,28 @@ A real-time TUI for monitoring and interacting with git repositories.
 
 ## Features
 
-- **Live file watching** - Auto-refreshes when files change
-- **Unified changes view** - Staged and working files in one panel
-- **Git history** - Browse commit log or reflog with pagination
-- **Branch management** - View, expand, and checkout branches
-- **Contextual actions** - Smart action menu shows relevant commands
-- **Git alias integration** - Browse and execute aliases from gitconfig
-- **Command mode** - Run git commands with history navigation
-- **External tools** - Integrates with your pager and difftool
+- **File watching** - auto-refresh via notify
+- **Unified view** - staged, working, history, branches
+- **Action registry** - context detection and conditions
+- **Menu system** - composable stack navigation for nested dialogs
+- **Command execution** - unified path with feedback routing
+- **Source-aware feedback** - keyboard vs menu vs alias triggers different behavior
+- **Alias integration** - gitconfig aliases surfaced as contextual actions
+- **Declarative keymap** - context-based lookup
+- **External tools** - pager and difftool integration
+- **Command palette** - run arbitrary git commands
+- **Push confirmation** - menu with force and set-upstream options
+- **Commit expansion** - file-level navigation within commits
+
+## Planned
+
+- **Workflow engine** - multi-step sequences with data passing
+- **Error handling** - conflict resolution, abort/continue/skip
+- **Built-in workflows** - git-absorb, smart push, interactive stash, rebase
+- **Section platform** - sections as extension points
+- **External sections** - binary protocol with JSON output
+- **Remote data** - GitHub PRs, Issues, CI via external sections
+- **Custom keybindings** - user-defined via config
 
 ## Screenshot
 
@@ -57,20 +71,6 @@ git-monitor
 # Run in specific directory
 git-monitor --path /path/to/repo
 ```
-
-## Key Commands
-
-| Key | Action |
-|-----|--------|
-| `j`/`k` | Navigate up/down |
-| `s` | Stage/unstage file |
-| `d` | Show diff |
-| `m` | Open action menu |
-| `:` | Command mode |
-| `?` | Help overlay |
-| `q` | Quit |
-
-See [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md) for complete reference.
 
 ## Requirements
 

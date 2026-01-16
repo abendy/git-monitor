@@ -1,11 +1,7 @@
-use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        mpsc, Arc,
-    },
-    thread,
-    time::{Duration, Instant},
-};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use crossterm::event::{self, Event as CrosstermEvent, KeyEvent, MouseEvent};
@@ -66,12 +62,18 @@ impl EventHandler {
                             }
                         }
                         Ok(CrosstermEvent::Mouse(mouse)) => {
-                            if event_tx.send(Event::Mouse(mouse)).is_err() {
+                            if event_tx
+                                .send(Event::Mouse(mouse))
+                                .is_err()
+                            {
                                 break;
                             }
                         }
                         Ok(CrosstermEvent::Resize(width, height)) => {
-                            if event_tx.send(Event::Resize(width, height)).is_err() {
+                            if event_tx
+                                .send(Event::Resize(width, height))
+                                .is_err()
+                            {
                                 break;
                             }
                         }
@@ -94,12 +96,14 @@ impl EventHandler {
 
     /// Pause event handling (for external commands)
     pub fn pause(&self) {
-        self.paused.store(true, Ordering::Relaxed);
+        self.paused
+            .store(true, Ordering::Relaxed);
     }
 
     /// Resume event handling
     pub fn resume(&self) {
-        self.paused.store(false, Ordering::Relaxed);
+        self.paused
+            .store(false, Ordering::Relaxed);
     }
 
     /// Get a sender for external events (file watcher, etc.)

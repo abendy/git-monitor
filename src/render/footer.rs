@@ -2,14 +2,14 @@
 //!
 //! Displays context-sensitive hints, toasts, errors, and command mode help.
 
-use ratatui::{
-    layout::{Alignment, Rect},
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, Borders, Paragraph},
-};
+use ratatui::layout::{Alignment, Rect};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Paragraph};
 
-use crate::{app::App, feedback::ToastLevel, tui::Frame};
+use crate::app::App;
+use crate::feedback::ToastLevel;
+use crate::tui::Frame;
 
 /// Render the footer with keybindings and status
 pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
@@ -80,7 +80,10 @@ pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" menu "),
-            Span::styled(" │ ", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                " │ ",
+                Style::default().fg(Color::DarkGray),
+            ),
             Span::styled(
                 " : ",
                 Style::default()
@@ -109,7 +112,10 @@ pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" branches "),
-            Span::styled(" │ ", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                " │ ",
+                Style::default().fg(Color::DarkGray),
+            ),
             Span::styled(
                 " ? ",
                 Style::default()

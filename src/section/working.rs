@@ -3,17 +3,12 @@
 //! Displays unstaged changes in the working directory with contextual actions.
 
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
-};
-
-use crate::{
-    actions::{Action, ActionRegistry, AppState, Context},
-    git::{FileState, FileStatus},
-};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
 
 use super::{Section, SectionAction, SectionId, SectionState};
+use crate::actions::{Action, ActionRegistry, AppState, Context};
+use crate::git::{FileState, FileStatus};
 
 /// Get color for file state
 const fn state_color(state: FileState) -> Color {
@@ -82,13 +77,19 @@ impl WorkingSection {
 
         for (i, action) in actions.iter().take(5).enumerate() {
             if i > 0 {
-                spans.push(Span::styled(" · ", Style::default().fg(Color::DarkGray)));
+                spans.push(Span::styled(
+                    " · ",
+                    Style::default().fg(Color::DarkGray),
+                ));
             }
             spans.push(Span::styled(
                 format!("{} ", action.key),
                 Style::default().fg(Color::Cyan),
             ));
-            spans.push(Span::styled(action.label.clone(), italic_gray));
+            spans.push(Span::styled(
+                action.label.clone(),
+                italic_gray,
+            ));
         }
 
         Line::from(spans)
@@ -144,15 +145,18 @@ impl Section for WorkingSection {
 
         // File entries
         for (i, file) in self.data.files.iter().enumerate() {
-            let selected =
-                state.local_selection == Some(i) && state.is_focused && !self.data.command_mode_active;
+            let selected = state.local_selection == Some(i)
+                && state.is_focused
+                && !self.data.command_mode_active;
             let prefix = if selected { "▸ " } else { "  " };
             let status_char = file.working.as_char();
             let color = state_color(file.working);
             let path = file.path.to_string_lossy();
 
             let style = if selected {
-                Style::default().fg(color).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(color)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(color)
             };

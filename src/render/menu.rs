@@ -4,7 +4,8 @@
 
 use ratatui::layout::Rect;
 
-use crate::{app::App, tui::Frame};
+use crate::app::App;
+use crate::tui::Frame;
 
 /// Render the menu stack overlay
 pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {

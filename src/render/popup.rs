@@ -3,14 +3,14 @@
 //! When a popup is active, it replaces the body content entirely
 //! rather than overlaying it, to avoid rendering artifacts.
 
-use ratatui::{
-    layout::Rect,
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph},
-};
+use ratatui::layout::Rect;
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 
-use crate::{app::App, feedback::PopupContent, tui::Frame};
+use crate::app::App;
+use crate::feedback::PopupContent;
+use crate::tui::Frame;
 
 /// Render the full-screen popup (replaces body when active)
 pub fn render(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
@@ -44,7 +44,9 @@ pub fn render(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
     // Get lines for display based on content type
     let lines: Vec<Line<'_>> = match &app.feedback.popup.content {
         PopupContent::None => vec![],
-        PopupContent::CommandOutput { output, success, .. } => output
+        PopupContent::CommandOutput {
+            output, success, ..
+        } => output
             .lines()
             .skip(app.feedback.popup.scroll_offset)
             .take(visible_height)
@@ -86,7 +88,9 @@ fn style_output_line(line: &str, success: bool) -> Line<'static> {
     let line = line.replace('\t', "    ");
     Line::from(Span::styled(
         format!(" {line}"),
-        Style::default().fg(color).bg(Color::Reset),
+        Style::default()
+            .fg(color)
+            .bg(Color::Reset),
     ))
 }
 
@@ -94,15 +98,25 @@ fn style_output_line(line: &str, success: bool) -> Line<'static> {
 fn style_diff_line(line: &str) -> Line<'static> {
     let line = line.replace('\t', "    ");
     let style = if line.starts_with('+') && !line.starts_with("+++") {
-        Style::default().fg(Color::Green).bg(Color::Reset)
+        Style::default()
+            .fg(Color::Green)
+            .bg(Color::Reset)
     } else if line.starts_with('-') && !line.starts_with("---") {
-        Style::default().fg(Color::Red).bg(Color::Reset)
+        Style::default()
+            .fg(Color::Red)
+            .bg(Color::Reset)
     } else if line.starts_with("@@") {
-        Style::default().fg(Color::Cyan).bg(Color::Reset)
+        Style::default()
+            .fg(Color::Cyan)
+            .bg(Color::Reset)
     } else if line.starts_with("diff") || line.starts_with("index") {
-        Style::default().fg(Color::Yellow).bg(Color::Reset)
+        Style::default()
+            .fg(Color::Yellow)
+            .bg(Color::Reset)
     } else {
-        Style::default().fg(Color::White).bg(Color::Reset)
+        Style::default()
+            .fg(Color::White)
+            .bg(Color::Reset)
     };
     Line::from(Span::styled(format!(" {line}"), style))
 }

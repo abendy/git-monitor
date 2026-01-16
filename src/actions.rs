@@ -198,7 +198,13 @@ pub struct Action {
 
 impl Action {
     /// Create a new app action (always available)
-    fn app(key: &str, label: &str, action: AppAction, contexts: Vec<Context>, priority: u8) -> Self {
+    fn app(
+        key: &str,
+        label: &str,
+        action: AppAction,
+        contexts: Vec<Context>,
+        priority: u8,
+    ) -> Self {
         Self {
             key: key.to_string(),
             label: label.to_string(),
@@ -351,7 +357,13 @@ impl ActionRegistry {
             commit_file_ctx.clone(),
             20,
         ));
-        actions.push(Action::app("M", "difftool", AppAction::DiffTool, commit_file_ctx, 30));
+        actions.push(Action::app(
+            "M",
+            "difftool",
+            AppAction::DiffTool,
+            commit_file_ctx,
+            30,
+        ));
 
         // --- Branch actions ---
         actions.push(Action::app(
@@ -494,7 +506,8 @@ impl ActionRegistry {
         for alias in aliases {
             let contexts = Self::infer_alias_context(alias);
             if !contexts.is_empty() {
-                self.actions.push(Action::from_alias(alias, contexts));
+                self.actions
+                    .push(Action::from_alias(alias, contexts));
             }
         }
     }

@@ -1,7 +1,8 @@
 //! Alias browser menus.
 
-use crossterm::event::{KeyCode, KeyEvent};
 use std::path::PathBuf;
+
+use crossterm::event::{KeyCode, KeyEvent};
 
 use super::{Menu, MenuAction, MenuItem, MenuResult};
 use crate::command::{CommandRequest, CommandSource};
@@ -34,8 +35,10 @@ impl Menu for AliasSectionMenu {
         self.sections
             .iter()
             .map(|section| {
-                MenuItem::new(&section.name)
-                    .with_description(format!("{} aliases", section.aliases.len()))
+                MenuItem::new(&section.name).with_description(format!(
+                    "{} aliases",
+                    section.aliases.len()
+                ))
             })
             .collect()
     }

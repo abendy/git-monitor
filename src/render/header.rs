@@ -2,14 +2,13 @@
 //!
 //! Displays branch name, ahead/behind status, repository path, and watch status.
 
-use ratatui::{
-    layout::Rect,
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, Borders, Paragraph},
-};
+use ratatui::layout::Rect;
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Paragraph};
 
-use crate::{app::App, tui::Frame};
+use crate::app::App;
+use crate::tui::Frame;
 
 /// Render the header bar
 pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
@@ -54,9 +53,15 @@ pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
         .unwrap_or("unknown");
 
     header_spans.push(Span::raw(" │ "));
-    header_spans.push(Span::styled(path_str, Style::default().fg(Color::White)));
+    header_spans.push(Span::styled(
+        path_str,
+        Style::default().fg(Color::White),
+    ));
     header_spans.push(Span::raw(" │ "));
-    header_spans.push(Span::styled("● watching", Style::default().fg(Color::Green)));
+    header_spans.push(Span::styled(
+        "● watching",
+        Style::default().fg(Color::Green),
+    ));
 
     let header_text = Line::from(header_spans);
 

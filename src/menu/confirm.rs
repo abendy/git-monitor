@@ -5,13 +5,11 @@
 #![allow(dead_code)] // Module reserved for future generic confirm dialogs
 
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{
-    layout::Rect,
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph},
-    Frame,
-};
+use ratatui::layout::Rect;
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph};
+use ratatui::Frame;
 
 use super::{Menu, MenuItem, MenuResult};
 
@@ -82,7 +80,8 @@ impl ConfirmMenu {
     /// Add an info line
     #[must_use]
     pub fn with_info(mut self, label: impl Into<String>, value: impl Into<String>) -> Self {
-        self.info.push((label.into(), value.into()));
+        self.info
+            .push((label.into(), value.into()));
         self
     }
 
@@ -212,7 +211,10 @@ impl Menu for ConfirmMenu {
         // Info lines
         for (label, value) in &self.info {
             lines.push(Line::from(vec![
-                Span::styled(format!("{label}: "), Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    format!("{label}: "),
+                    Style::default().fg(Color::DarkGray),
+                ),
                 Span::styled(value, Style::default().fg(Color::Cyan)),
             ]));
         }
@@ -276,7 +278,10 @@ impl Menu for ConfirmMenu {
             Span::raw(if button_focused { "▸ " } else { "  " }),
             Span::styled(" Confirm (y) ", button_style),
             Span::styled("  ", Style::default()),
-            Span::styled("Cancel (n/Esc)", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                "Cancel (n/Esc)",
+                Style::default().fg(Color::DarkGray),
+            ),
         ]));
 
         let para = Paragraph::new(lines).block(
@@ -284,7 +289,11 @@ impl Menu for ConfirmMenu {
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(Color::Yellow))
                 .title(format!(" {} ", self.title))
-                .title_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                .title_style(
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
         );
 
         frame.render_widget(para, area);

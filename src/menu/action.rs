@@ -1,14 +1,13 @@
 //! Action menu for contextual actions.
 
-use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{
-    layout::Rect,
-    style::{Color, Modifier, Style, Stylize},
-    text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem},
-    Frame,
-};
 use std::path::PathBuf;
+
+use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::layout::Rect;
+use ratatui::style::{Color, Modifier, Style, Stylize};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Clear, List, ListItem};
+use ratatui::Frame;
 
 use super::{Menu, MenuAction, MenuItem, MenuResult};
 use crate::actions::{Action, ActionType, Context};
@@ -54,8 +53,11 @@ impl Menu for ActionMenu {
                     ActionType::Cli(_) => "⌘ ",
                     ActionType::Alias(_) => "⎇ ",
                 };
-                MenuItem::new(format!("{}{}", type_indicator, action.label))
-                    .with_key(&action.key)
+                MenuItem::new(format!(
+                    "{}{}",
+                    type_indicator, action.label
+                ))
+                .with_key(&action.key)
             })
             .collect()
     }
@@ -144,7 +146,10 @@ impl Menu for ActionMenu {
 
             items.push(ListItem::new(Line::from(vec![
                 Span::raw(prefix),
-                Span::styled(format!("{:<8}", action.key), style.fg(Color::Cyan)),
+                Span::styled(
+                    format!("{:<8}", action.key),
+                    style.fg(Color::Cyan),
+                ),
                 Span::raw(type_indicator),
                 Span::styled(action.label.clone(), style),
             ])));
@@ -153,12 +158,30 @@ impl Menu for ActionMenu {
         // Add footer hint
         items.push(ListItem::new(Line::from("")));
         items.push(ListItem::new(Line::from(vec![
-            Span::styled("  j/k ", Style::default().fg(Color::Cyan)),
-            Span::styled("navigate  ", Style::default().fg(Color::DarkGray)),
-            Span::styled("Enter ", Style::default().fg(Color::Cyan)),
-            Span::styled("execute  ", Style::default().fg(Color::DarkGray)),
-            Span::styled("m/Esc ", Style::default().fg(Color::Cyan)),
-            Span::styled("close", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                "  j/k ",
+                Style::default().fg(Color::Cyan),
+            ),
+            Span::styled(
+                "navigate  ",
+                Style::default().fg(Color::DarkGray),
+            ),
+            Span::styled(
+                "Enter ",
+                Style::default().fg(Color::Cyan),
+            ),
+            Span::styled(
+                "execute  ",
+                Style::default().fg(Color::DarkGray),
+            ),
+            Span::styled(
+                "m/Esc ",
+                Style::default().fg(Color::Cyan),
+            ),
+            Span::styled(
+                "close",
+                Style::default().fg(Color::DarkGray),
+            ),
         ])));
 
         let title = format!(" {} Actions ", self.context_name());

@@ -7,11 +7,11 @@ mod executor;
 mod external;
 mod history;
 
+use std::path::{Path, PathBuf};
+
 pub use executor::{CommandExecutor, CommandResult};
 pub use external::ExternalCommand;
 pub use history::CommandHistory;
-
-use std::path::{Path, PathBuf};
 
 /// Source of command execution - affects feedback behavior
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -69,7 +69,10 @@ pub struct CommandRequest {
 impl CommandRequest {
     /// Create a new git command request
     pub fn git(args: impl IntoIterator<Item = impl Into<String>>) -> Self {
-        let args: Vec<String> = args.into_iter().map(Into::into).collect();
+        let args: Vec<String> = args
+            .into_iter()
+            .map(Into::into)
+            .collect();
         let display_name = format!("git {}", args.join(" "));
         Self {
             program: "git".to_string(),
@@ -90,7 +93,10 @@ impl CommandRequest {
         }
 
         let program = parts[0].to_string();
-        let args: Vec<String> = parts[1..].iter().map(|s| (*s).to_string()).collect();
+        let args: Vec<String> = parts[1..]
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect();
 
         Some(Self {
             program,
@@ -144,7 +150,10 @@ impl CommandRequest {
     /// Create a git alias command request
     pub fn git_alias(name: &str, command: &str, repo_path: &Path) -> Self {
         // Git aliases are expanded as "git <command>"
-        let args: Vec<String> = command.split_whitespace().map(String::from).collect();
+        let args: Vec<String> = command
+            .split_whitespace()
+            .map(String::from)
+            .collect();
         Self {
             program: "git".to_string(),
             args,

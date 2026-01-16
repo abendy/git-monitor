@@ -14,13 +14,12 @@ mod working;
 
 pub use branches::{BranchesSection, BranchesSectionData};
 pub use command::{CommandSection, CommandSectionData};
+use crossterm::event::KeyEvent;
 pub use history::{HistorySection, HistorySectionData};
+use ratatui::text::Line;
 pub use registry::{SectionItemCounts, SectionRegistry};
 pub use staged::{StagedSection, StagedSectionData};
 pub use working::{WorkingSection, WorkingSectionData};
-
-use crossterm::event::KeyEvent;
-use ratatui::text::Line;
 
 use crate::actions::{Action, Context};
 
@@ -72,11 +71,26 @@ pub enum SectionAction {
 impl std::fmt::Debug for SectionAction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Command(req) => f.debug_tuple("Command").field(req).finish(),
-            Self::Feedback(_) => f.debug_tuple("Feedback").field(&"...").finish(),
-            Self::OpenMenu(_) => f.debug_tuple("OpenMenu").field(&"<menu>").finish(),
-            Self::AppAction(action) => f.debug_tuple("AppAction").field(action).finish(),
-            Self::Navigate(nav) => f.debug_tuple("Navigate").field(nav).finish(),
+            Self::Command(req) => f
+                .debug_tuple("Command")
+                .field(req)
+                .finish(),
+            Self::Feedback(_) => f
+                .debug_tuple("Feedback")
+                .field(&"...")
+                .finish(),
+            Self::OpenMenu(_) => f
+                .debug_tuple("OpenMenu")
+                .field(&"<menu>")
+                .finish(),
+            Self::AppAction(action) => f
+                .debug_tuple("AppAction")
+                .field(action)
+                .finish(),
+            Self::Navigate(nav) => f
+                .debug_tuple("Navigate")
+                .field(nav)
+                .finish(),
             Self::None => write!(f, "None"),
         }
     }

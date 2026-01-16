@@ -1,15 +1,12 @@
-use std::{
-    io::{self, Stdout},
-    panic,
-    time::Duration,
-};
+use std::io::{self, Stdout};
+use std::panic;
+use std::time::Duration;
 
 use anyhow::Result;
-use crossterm::{
-    event::{DisableMouseCapture, EnableMouseCapture},
-    terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
-};
-use ratatui::{backend::CrosstermBackend, Terminal};
+use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
+use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
+use ratatui::backend::CrosstermBackend;
+use ratatui::Terminal;
 
 use crate::event::EventHandler;
 
@@ -34,7 +31,11 @@ impl Tui {
     /// Enter the terminal UI mode
     pub fn enter(&mut self) -> Result<()> {
         terminal::enable_raw_mode()?;
-        crossterm::execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
+        crossterm::execute!(
+            io::stdout(),
+            EnterAlternateScreen,
+            EnableMouseCapture
+        )?;
 
         // Set up panic hook to restore terminal on panic
         let panic_hook = panic::take_hook();
@@ -59,7 +60,11 @@ impl Tui {
     /// Reset terminal to normal state
     fn reset() -> Result<()> {
         terminal::disable_raw_mode()?;
-        crossterm::execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture)?;
+        crossterm::execute!(
+            io::stdout(),
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        )?;
         Ok(())
     }
 
@@ -82,7 +87,11 @@ impl Tui {
     /// Resume the TUI after an external command
     pub fn resume(&mut self) -> Result<()> {
         terminal::enable_raw_mode()?;
-        crossterm::execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
+        crossterm::execute!(
+            io::stdout(),
+            EnterAlternateScreen,
+            EnableMouseCapture
+        )?;
         self.terminal.hide_cursor()?;
         self.terminal.clear()?;
         Ok(())

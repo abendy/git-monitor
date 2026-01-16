@@ -5,7 +5,8 @@
 
 use ratatui::layout::{Constraint, Direction, Layout};
 
-use crate::{app::App, tui::Frame};
+use crate::app::App;
+use crate::tui::Frame;
 
 /// Main render function
 pub fn render(frame: &mut Frame<'_>, app: &mut App) {

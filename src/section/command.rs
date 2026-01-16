@@ -3,17 +3,12 @@
 //! Handles the command palette UI and keyboard input for git commands.
 
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
-};
-
-use crate::{
-    actions::{Action, Context},
-    feedback::CommandOutput,
-};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
 
 use super::{Section, SectionAction, SectionId, SectionState};
+use crate::actions::{Action, Context};
+use crate::feedback::CommandOutput;
 
 /// Data needed by the command section for rendering
 #[derive(Debug, Clone, Default)]
@@ -64,7 +59,10 @@ impl CommandSection {
             Line::from(vec![
                 Span::raw(prefix),
                 Span::styled(": ", bold_cyan),
-                Span::styled(self.data.input.clone(), Style::default().fg(Color::White)),
+                Span::styled(
+                    self.data.input.clone(),
+                    Style::default().fg(Color::White),
+                ),
                 Span::styled("_", Style::default().fg(Color::Cyan)), // Cursor
             ])
         } else if selected {
@@ -80,10 +78,19 @@ impl CommandSection {
             // Not selected
             Line::from(vec![
                 Span::raw(prefix),
-                Span::styled(": ", Style::default().fg(Color::DarkGray)),
-                Span::styled("command  ", Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    ": ",
+                    Style::default().fg(Color::DarkGray),
+                ),
+                Span::styled(
+                    "command  ",
+                    Style::default().fg(Color::DarkGray),
+                ),
                 Span::styled("a ", Style::default().fg(Color::Cyan)),
-                Span::styled("aliases", Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    "aliases",
+                    Style::default().fg(Color::DarkGray),
+                ),
             ])
         }
     }
@@ -106,8 +113,14 @@ impl CommandSection {
             for line in output.output.lines().take(4) {
                 lines.push(Line::from(vec![
                     Span::raw("  "),
-                    Span::styled("> ", Style::default().fg(Color::DarkGray)),
-                    Span::styled(line.to_string(), Style::default().fg(output_color)),
+                    Span::styled(
+                        "> ",
+                        Style::default().fg(Color::DarkGray),
+                    ),
+                    Span::styled(
+                        line.to_string(),
+                        Style::default().fg(output_color),
+                    ),
                 ]));
             }
 
@@ -121,7 +134,10 @@ impl CommandSection {
                     .add_modifier(Modifier::BOLD);
                 lines.push(Line::from(vec![
                     Span::styled(
-                        format!("    ... ({} more lines) ", line_count - 4),
+                        format!(
+                            "    ... ({} more lines) ",
+                            line_count - 4
+                        ),
                         italic_gray,
                     ),
                     Span::styled("o", bold_cyan),

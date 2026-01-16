@@ -85,7 +85,11 @@ impl FeedbackManager {
     /// Show feedback based on type and policy
     pub fn show(&mut self, feedback: Feedback, policy: FeedbackPolicy) {
         match feedback {
-            Feedback::CommandOutput { command, result, source } => {
+            Feedback::CommandOutput {
+                command,
+                result,
+                source,
+            } => {
                 self.show_command_output(command, result, source, policy);
             }
             Feedback::Toast { message, level } => {
@@ -94,8 +98,16 @@ impl FeedbackManager {
             Feedback::Error { message } => {
                 self.error = Some(message);
             }
-            Feedback::Diff { path, content, is_staged } => {
-                self.popup.open(PopupContent::Diff { path, content, is_staged });
+            Feedback::Diff {
+                path,
+                content,
+                is_staged,
+            } => {
+                self.popup.open(PopupContent::Diff {
+                    path,
+                    content,
+                    is_staged,
+                });
             }
         }
     }
@@ -140,22 +152,24 @@ impl FeedbackManager {
         };
 
         if should_popup {
-            self.popup.open(PopupContent::CommandOutput {
-                command,
-                output,
-                success,
-            });
+            self.popup
+                .open(PopupContent::CommandOutput {
+                    command,
+                    output,
+                    success,
+                });
         }
     }
 
     /// Open popup for current command output (manual expansion)
     pub fn expand_output(&mut self) {
         if let Some(ref output) = self.command_output {
-            self.popup.open(PopupContent::CommandOutput {
-                command: output.command.clone(),
-                output: output.output.clone(),
-                success: output.success,
-            });
+            self.popup
+                .open(PopupContent::CommandOutput {
+                    command: output.command.clone(),
+                    output: output.output.clone(),
+                    success: output.success,
+                });
         }
     }
 

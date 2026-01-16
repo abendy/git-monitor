@@ -78,7 +78,9 @@ impl<T: Clone + Send + 'static> SelectMenu<T> {
 
     /// Get the currently selected value
     pub fn selected_value(&self) -> Option<&T> {
-        self.items.get(self.selected).map(|i| &i.value)
+        self.items
+            .get(self.selected)
+            .map(|i| &i.value)
     }
 }
 

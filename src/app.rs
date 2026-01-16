@@ -1,27 +1,28 @@
-use std::{path::PathBuf, sync::mpsc::Sender};
+use std::path::PathBuf;
+use std::sync::mpsc::Sender;
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tracing::warn;
 
-use crate::{
-    actions::{Action, ActionRegistry, AppAction, AppState, Context},
-    command::{CommandExecutor, CommandHistory, CommandRequest, CommandSource, ExternalCommand},
-    config::GitConfig,
-    event::Event,
-    feedback::{Feedback, FeedbackManager, PopupContent},
-    git::{BranchInfo, CommitDetail, FileState, GitCommand, GitRepo, GitStatus},
-    input::Keymap,
-    menu::{ActionMenu, AliasSectionMenu, MenuResult, MenuStack, PushConfirmMenu},
-    section::{
-        BranchesSection, BranchesSectionData, CommandSection, CommandSectionData, HistorySection,
-        HistorySectionData, SectionId, SectionItemCounts, SectionRegistry, StagedSection,
-        StagedSectionData, WorkingSection, WorkingSectionData,
-    },
-    tui::Tui,
-    ui,
-    watcher::{RepoWatcher, WatchEvent},
+use crate::actions::{Action, ActionRegistry, AppAction, AppState, Context};
+use crate::command::{
+    CommandExecutor, CommandHistory, CommandRequest, CommandSource, ExternalCommand,
 };
+use crate::config::GitConfig;
+use crate::event::Event;
+use crate::feedback::{Feedback, FeedbackManager, PopupContent};
+use crate::git::{BranchInfo, CommitDetail, FileState, GitCommand, GitRepo, GitStatus};
+use crate::input::Keymap;
+use crate::menu::{ActionMenu, AliasSectionMenu, MenuResult, MenuStack, PushConfirmMenu};
+use crate::section::{
+    BranchesSection, BranchesSectionData, CommandSection, CommandSectionData, HistorySection,
+    HistorySectionData, SectionId, SectionItemCounts, SectionRegistry, StagedSection,
+    StagedSectionData, WorkingSection, WorkingSectionData,
+};
+use crate::tui::Tui;
+use crate::ui;
+use crate::watcher::{RepoWatcher, WatchEvent};
 
 /// Page size for history pagination
 const PAGE_SIZE: usize = 50;
@@ -131,7 +132,9 @@ impl App {
 
         let status = repo.status().unwrap_or_default();
         // Load commit log by default (matches HistoryMode::default())
-        let activity = repo.commit_log(0, PAGE_SIZE).unwrap_or_default();
+        let activity = repo
+            .commit_log(0, PAGE_SIZE)
+            .unwrap_or_default();
         let config = GitConfig::load(&repo_path).unwrap_or_default();
         let branches = repo.list_branches().unwrap_or_default();
 
@@ -220,7 +223,10 @@ impl App {
             return;
         }
 
-        let menu = AliasSectionMenu::new(self.config.sections.clone(), self.repo_path.clone());
+        let menu = AliasSectionMenu::new(
+            self.config.sections.clone(),
+            self.repo_path.clone(),
+        );
         self.menu_stack.push(Box::new(menu));
     }
 
@@ -253,57 +259,76 @@ impl App {
     /// section data in sync with app state.
     pub fn update_sections(&mut self) {
         // Update command section
-        self.command_section.update(CommandSectionData {
-            input: self.command_input.clone(),
-            is_active: self.is_command_mode(),
-            output: self.feedback.output().cloned(),
-            menu_active: self.menu_stack.is_active(),
-        });
+        self.command_section
+            .update(CommandSectionData {
+                input: self.command_input.clone(),
+                is_active: self.is_command_mode(),
+                output: self.feedback.output().cloned(),
+                menu_active: self.menu_stack.is_active(),
+            });
 
         // Update staged section
-        self.staged_section.update(StagedSectionData {
-            files: self.status.staged_changes().into_iter().cloned().collect(),
-            command_mode_active: self.is_command_mode(),
-            action_registry: Some(self.action_registry.clone()),
-            app_state: Some(self.app_state()),
-        });
+        self.staged_section
+            .update(StagedSectionData {
+                files: self
+                    .status
+                    .staged_changes()
+                    .into_iter()
+                    .cloned()
+                    .collect(),
+                command_mode_active: self.is_command_mode(),
+                action_registry: Some(self.action_registry.clone()),
+                app_state: Some(self.app_state()),
+            });
 
         // Update working section
-        self.working_section.update(WorkingSectionData {
-            files: self.status.working_changes().into_iter().cloned().collect(),
-            command_mode_active: self.is_command_mode(),
-            action_registry: Some(self.action_registry.clone()),
-            app_state: Some(self.app_state()),
-        });
+        self.working_section
+            .update(WorkingSectionData {
+                files: self
+                    .status
+                    .working_changes()
+                    .into_iter()
+                    .cloned()
+                    .collect(),
+                command_mode_active: self.is_command_mode(),
+                action_registry: Some(self.action_registry.clone()),
+                app_state: Some(self.app_state()),
+            });
 
         // Update history section
-        self.history_section.update(HistorySectionData {
-            activity: self.activity.clone(),
-            history_mode: self.history_mode,
-            is_collapsed: self.history_collapsed,
-            page: self.history_page,
-            current_branch: self.branches.iter().find(|b| b.is_current).cloned(),
-            status: self.status.clone(),
-            expanded_commit: self.expanded_commit.clone(),
-            expanded_detail: self.expanded_detail.clone(),
-            expanded_file_idx: self.expanded_file_idx,
-            command_mode_active: self.is_command_mode(),
-            action_registry: Some(self.action_registry.clone()),
-            app_state: Some(self.app_state()),
-        });
+        self.history_section
+            .update(HistorySectionData {
+                activity: self.activity.clone(),
+                history_mode: self.history_mode,
+                is_collapsed: self.history_collapsed,
+                page: self.history_page,
+                current_branch: self
+                    .branches
+                    .iter()
+                    .find(|b| b.is_current)
+                    .cloned(),
+                status: self.status.clone(),
+                expanded_commit: self.expanded_commit.clone(),
+                expanded_detail: self.expanded_detail.clone(),
+                expanded_file_idx: self.expanded_file_idx,
+                command_mode_active: self.is_command_mode(),
+                action_registry: Some(self.action_registry.clone()),
+                app_state: Some(self.app_state()),
+            });
 
         // Update branches section
-        self.branches_section.update(BranchesSectionData {
-            branches: self.branches.clone(),
-            expanded_branch: self.expanded_branch.clone(),
-            expanded_branch_commits: self.expanded_branch_commits.clone(),
-            expanded_commit: self.expanded_commit.clone(),
-            expanded_detail: self.expanded_detail.clone(),
-            expanded_file_idx: self.expanded_file_idx,
-            command_mode_active: self.is_command_mode(),
-            action_registry: Some(self.action_registry.clone()),
-            app_state: Some(self.app_state()),
-        });
+        self.branches_section
+            .update(BranchesSectionData {
+                branches: self.branches.clone(),
+                expanded_branch: self.expanded_branch.clone(),
+                expanded_branch_commits: self.expanded_branch_commits.clone(),
+                expanded_commit: self.expanded_commit.clone(),
+                expanded_detail: self.expanded_detail.clone(),
+                expanded_file_idx: self.expanded_file_idx,
+                command_mode_active: self.is_command_mode(),
+                action_registry: Some(self.action_registry.clone()),
+                app_state: Some(self.app_state()),
+            });
     }
 
     /// Get item counts for all sections (for registry calculations)
@@ -523,7 +548,8 @@ impl App {
 
         // Use registry for standard section context resolution
         let counts = self.section_item_counts();
-        self.section_registry.context_for_index(selected, &counts)
+        self.section_registry
+            .context_for_index(selected, &counts)
     }
 
     /// Get current app state for condition evaluation
@@ -546,13 +572,18 @@ impl App {
 
     /// Open diff popup for a file in a specific commit
     fn open_commit_file_diff(&mut self, commit_sha: &str, file_path: &str) {
-        match self.repo.commit_file_diff(commit_sha, file_path) {
+        match self
+            .repo
+            .commit_file_diff(commit_sha, file_path)
+        {
             Ok(diff_content) => {
-                self.feedback.popup.open(PopupContent::Diff {
-                    path: file_path.to_string(),
-                    content: diff_content,
-                    is_staged: false,
-                });
+                self.feedback
+                    .popup
+                    .open(PopupContent::Diff {
+                        path: file_path.to_string(),
+                        content: diff_content,
+                        is_staged: false,
+                    });
             }
             Err(e) => {
                 self.feedback.error = Some(format!("Failed to get diff: {e}"));
@@ -610,7 +641,10 @@ impl App {
 
     /// Get branches excluding the current one (for accordion display)
     pub fn other_branches(&self) -> Vec<&BranchInfo> {
-        self.branches.iter().filter(|b| !b.is_current).collect()
+        self.branches
+            .iter()
+            .filter(|b| !b.is_current)
+            .collect()
     }
 
     /// Expand a branch to show its commits
@@ -624,13 +658,18 @@ impl App {
         }
 
         // Fetch commits unique to this branch
-        match self.repo.commit_log_for_branch(branch_name) {
+        match self
+            .repo
+            .commit_log_for_branch(branch_name)
+        {
             Ok(commits) => {
                 self.expanded_branch = Some(branch_name.to_string());
                 self.expanded_branch_commits = commits;
             }
             Err(e) => {
-                self.feedback.error = Some(format!("Failed to load branch history: {e}"));
+                self.feedback.error = Some(format!(
+                    "Failed to load branch history: {e}"
+                ));
             }
         }
     }
@@ -657,7 +696,9 @@ impl App {
     /// Get the selected branch info (if on a branch header)
     fn selected_branch(&self) -> Option<&BranchInfo> {
         let branch_name = self.is_on_branch_header()?;
-        self.branches.iter().find(|b| b.name == branch_name)
+        self.branches
+            .iter()
+            .find(|b| b.name == branch_name)
     }
 
     /// Checkout the currently selected branch
@@ -673,7 +714,9 @@ impl App {
 
         match self.repo.checkout_branch(&branch_name) {
             Ok(()) => {
-                self.feedback.error = Some(format!("Switched to branch '{branch_name}'"));
+                self.feedback.error = Some(format!(
+                    "Switched to branch '{branch_name}'"
+                ));
                 self.refresh_status();
             }
             Err(e) => {
@@ -717,7 +760,10 @@ impl App {
 
         // Execute the external command (inherits stdio)
         if let Err(e) = cmd.execute(&self.repo_path) {
-            self.feedback.error = Some(format!("Failed to run {}: {e}", cmd.description()));
+            self.feedback.error = Some(format!(
+                "Failed to run {}: {e}",
+                cmd.description()
+            ));
         }
 
         // Wait for user to press Enter before resuming TUI
@@ -772,7 +818,9 @@ impl App {
         if self.selected == Some(0) {
             if let KeyCode::Char(c) = key.code {
                 if !matches!(c, 'q' | '?' | ':' | 'o')
-                    && !key.modifiers.contains(KeyModifiers::CONTROL)
+                    && !key
+                        .modifiers
+                        .contains(KeyModifiers::CONTROL)
                 {
                     self.enter_command_mode();
                     self.command_input.push(c);
@@ -786,7 +834,11 @@ impl App {
             KeyCode::Char('q') | KeyCode::Esc => {
                 self.running = false;
             }
-            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            KeyCode::Char('c')
+                if key
+                    .modifiers
+                    .contains(KeyModifiers::CONTROL) =>
+            {
                 self.running = false;
             }
 
@@ -881,9 +933,10 @@ impl App {
             // Diff (inline popup)
             KeyCode::Char('d') => {
                 // Check if we're on a file in an expanded commit
-                if let (Some(sha), Some(file_idx)) =
-                    (self.expanded_commit.clone(), self.expanded_file_idx)
-                {
+                if let (Some(sha), Some(file_idx)) = (
+                    self.expanded_commit.clone(),
+                    self.expanded_file_idx,
+                ) {
                     let file_path = self
                         .expanded_detail
                         .as_ref()
@@ -907,9 +960,10 @@ impl App {
                         file_path: path.to_string_lossy().to_string(),
                         staged: is_staged,
                     });
-                } else if let (Some(sha), Some(file_idx)) =
-                    (self.expanded_commit.clone(), self.expanded_file_idx)
-                {
+                } else if let (Some(sha), Some(file_idx)) = (
+                    self.expanded_commit.clone(),
+                    self.expanded_file_idx,
+                ) {
                     // Commit file difftool
                     let file_path = self
                         .expanded_detail
@@ -967,7 +1021,12 @@ impl App {
                 }
             }
             KeyCode::Char('k') | KeyCode::Up => {
-                if self.selected == Some(0) && !self.command_history.commands().is_empty() {
+                if self.selected == Some(0)
+                    && !self
+                        .command_history
+                        .commands()
+                        .is_empty()
+                {
                     // On command section - enter command mode and show history
                     self.enter_command_mode();
                     self.history_prev();
@@ -1109,7 +1168,11 @@ impl App {
             KeyCode::Esc => {
                 self.exit_command_mode();
             }
-            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            KeyCode::Char('c')
+                if key
+                    .modifiers
+                    .contains(KeyModifiers::CONTROL) =>
+            {
                 self.exit_command_mode();
             }
 
@@ -1209,9 +1272,10 @@ impl App {
 
             // Commit file actions
             AppAction::PagerDiff => {
-                if let (Some(sha), Some(file_idx)) =
-                    (self.expanded_commit.clone(), self.expanded_file_idx)
-                {
+                if let (Some(sha), Some(file_idx)) = (
+                    self.expanded_commit.clone(),
+                    self.expanded_file_idx,
+                ) {
                     let file_path = self
                         .expanded_detail
                         .as_ref()
@@ -1227,9 +1291,10 @@ impl App {
                 }
             }
             AppAction::InlineDiff => {
-                if let (Some(sha), Some(file_idx)) =
-                    (self.expanded_commit.clone(), self.expanded_file_idx)
-                {
+                if let (Some(sha), Some(file_idx)) = (
+                    self.expanded_commit.clone(),
+                    self.expanded_file_idx,
+                ) {
                     let file_path = self
                         .expanded_detail
                         .as_ref()
@@ -1242,9 +1307,10 @@ impl App {
                 }
             }
             AppAction::DiffTool => {
-                if let (Some(sha), Some(file_idx)) =
-                    (self.expanded_commit.clone(), self.expanded_file_idx)
-                {
+                if let (Some(sha), Some(file_idx)) = (
+                    self.expanded_commit.clone(),
+                    self.expanded_file_idx,
+                ) {
                     let file_path = self
                         .expanded_detail
                         .as_ref()
@@ -1304,12 +1370,20 @@ impl App {
             }
 
             // Page down
-            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            KeyCode::Char('d')
+                if key
+                    .modifiers
+                    .contains(KeyModifiers::CONTROL) =>
+            {
                 self.feedback.popup.page_down();
             }
 
             // Page up
-            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            KeyCode::Char('u')
+                if key
+                    .modifiers
+                    .contains(KeyModifiers::CONTROL) =>
+            {
                 self.feedback.popup.page_up();
             }
 
@@ -1377,11 +1451,13 @@ impl App {
 
     /// Open a diff in the popup
     fn open_diff_popup(&mut self, path: String, content: String, is_staged: bool) {
-        self.feedback.popup.open(PopupContent::Diff {
-            path,
-            content,
-            is_staged,
-        });
+        self.feedback
+            .popup
+            .open(PopupContent::Diff {
+                path,
+                content,
+                is_staged,
+            });
     }
 
     /// Show push confirmation menu
@@ -1397,13 +1473,23 @@ impl App {
         // Extract remote name from upstream (e.g., "origin/main" -> "origin")
         let (remote, has_upstream) = match &self.status.upstream {
             Some(upstream) => {
-                let remote = upstream.split('/').next().unwrap_or("origin").to_string();
+                let remote = upstream
+                    .split('/')
+                    .next()
+                    .unwrap_or("origin")
+                    .to_string();
                 (remote, true)
             }
             None => ("origin".to_string(), false),
         };
 
-        let menu = PushConfirmMenu::new(branch, remote, has_upstream, self.status.ahead, force);
+        let menu = PushConfirmMenu::new(
+            branch,
+            remote,
+            has_upstream,
+            self.status.ahead,
+            force,
+        );
         self.menu_stack.push(Box::new(menu));
     }
 
@@ -1422,7 +1508,8 @@ impl App {
     /// Total count of all selectable items
     pub fn total_count(&self) -> usize {
         let counts = self.section_item_counts();
-        self.section_registry.total_items(&counts)
+        self.section_registry
+            .total_items(&counts)
     }
 
     /// Get the selected file info
@@ -1737,7 +1824,8 @@ impl App {
         let result = self.executor.execute(&request);
 
         // Record in history (handles deduplication and persistence)
-        self.command_history.add(request.display_name.clone());
+        self.command_history
+            .add(request.display_name.clone());
 
         // Show feedback (handles inline output, popup logic, etc.)
         self.feedback.show(
@@ -1769,7 +1857,9 @@ impl App {
         };
 
         if request.program != "git" {
-            self.feedback.error = Some(String::from("Only git commands are allowed"));
+            self.feedback.error = Some(String::from(
+                "Only git commands are allowed",
+            ));
             self.command_input.clear();
             self.command_history.reset_navigation();
             return;

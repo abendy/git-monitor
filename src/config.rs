@@ -189,7 +189,10 @@ impl GitConfig {
         let parts: Vec<&str> = line.splitn(2, '=').collect();
         if parts.len() == 2 {
             let name = parts[0].trim().to_string();
-            let command = parts[1].trim().trim_matches('"').to_string();
+            let command = parts[1]
+                .trim()
+                .trim_matches('"')
+                .to_string();
             if !name.is_empty() {
                 return Some((name, command));
             }

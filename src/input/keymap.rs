@@ -121,15 +121,27 @@ impl Keymap {
         // Global actions
         // Note: 'q' and Esc have context-dependent behavior (quit vs close popup),
         // so they're handled in imperative handlers, not here.
-        self.bind_global(KeyBinding::char('?'), AppAction::ShowHelp);
-        self.bind_global(KeyBinding::char('r'), AppAction::Refresh);
+        self.bind_global(
+            KeyBinding::char('?'),
+            AppAction::ShowHelp,
+        );
+        self.bind_global(
+            KeyBinding::char('r'),
+            AppAction::Refresh,
+        );
         self.bind_global(KeyBinding::char('P'), AppAction::Push);
         self.bind_global(KeyBinding::char('p'), AppAction::Pull);
         self.bind_global(KeyBinding::char('f'), AppAction::Fetch);
 
         // Jump shortcuts
-        self.bind_global(KeyBinding::char('w'), AppAction::JumpToWorking);
-        self.bind_global(KeyBinding::char('b'), AppAction::JumpToBranches);
+        self.bind_global(
+            KeyBinding::char('w'),
+            AppAction::JumpToWorking,
+        );
+        self.bind_global(
+            KeyBinding::char('b'),
+            AppAction::JumpToBranches,
+        );
         // Note: 'h' has complex behavior (jump vs toggle), handled imperatively
 
         // Command section
@@ -147,10 +159,26 @@ impl Keymap {
         // File sections (staged and working)
         // Note: 'm' for action menu is handled separately (opens modal dialog)
         for context in [Context::StagedFiles, Context::WorkingFiles] {
-            self.bind(context, KeyBinding::char('s'), AppAction::ToggleStage);
-            self.bind(context, KeyBinding::char('d'), AppAction::ShowDiff);
-            self.bind(context, KeyBinding::char(' '), AppAction::FilePagerDiff);
-            self.bind(context, KeyBinding::char('M'), AppAction::FileDiffTool);
+            self.bind(
+                context,
+                KeyBinding::char('s'),
+                AppAction::ToggleStage,
+            );
+            self.bind(
+                context,
+                KeyBinding::char('d'),
+                AppAction::ShowDiff,
+            );
+            self.bind(
+                context,
+                KeyBinding::char(' '),
+                AppAction::FilePagerDiff,
+            );
+            self.bind(
+                context,
+                KeyBinding::char('M'),
+                AppAction::FileDiffTool,
+            );
         }
 
         // History section

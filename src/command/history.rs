@@ -1,10 +1,8 @@
 //! Command history management.
 
-use std::{
-    fs::File,
-    io::{BufRead, BufReader, Write},
-    path::PathBuf,
-};
+use std::fs::File;
+use std::io::{BufRead, BufReader, Write};
+use std::path::PathBuf;
 
 /// Maximum number of commands to keep in history
 const MAX_HISTORY: usize = 100;
@@ -78,7 +76,9 @@ impl CommandHistory {
         };
 
         self.nav_index = Some(new_idx);
-        self.commands.get(new_idx).map(String::as_str)
+        self.commands
+            .get(new_idx)
+            .map(String::as_str)
     }
 
     /// Navigate to newer command
@@ -93,7 +93,9 @@ impl CommandHistory {
         }
 
         self.nav_index = Some(new_idx);
-        self.commands.get(new_idx).map(String::as_str)
+        self.commands
+            .get(new_idx)
+            .map(String::as_str)
     }
 
     /// Reset navigation state
@@ -175,13 +177,31 @@ mod tests {
             nav_index: None,
         };
 
-        assert_eq!(history.navigate_older(), Some("git diff"));
-        assert_eq!(history.navigate_older(), Some("git log"));
-        assert_eq!(history.navigate_older(), Some("git status"));
-        assert_eq!(history.navigate_older(), Some("git status")); // Stays at oldest
+        assert_eq!(
+            history.navigate_older(),
+            Some("git diff")
+        );
+        assert_eq!(
+            history.navigate_older(),
+            Some("git log")
+        );
+        assert_eq!(
+            history.navigate_older(),
+            Some("git status")
+        );
+        assert_eq!(
+            history.navigate_older(),
+            Some("git status")
+        ); // Stays at oldest
 
-        assert_eq!(history.navigate_newer(), Some("git log"));
-        assert_eq!(history.navigate_newer(), Some("git diff"));
+        assert_eq!(
+            history.navigate_newer(),
+            Some("git log")
+        );
+        assert_eq!(
+            history.navigate_newer(),
+            Some("git diff")
+        );
         assert_eq!(history.navigate_newer(), None); // Past end
     }
 }

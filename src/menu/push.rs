@@ -1,13 +1,11 @@
 //! Push confirmation menu.
 
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{
-    layout::Rect,
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph},
-    Frame,
-};
+use ratatui::layout::Rect;
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph};
+use ratatui::Frame;
 
 use super::{Menu, MenuAction, MenuItem, MenuResult};
 use crate::command::{CommandRequest, CommandSource};
@@ -57,9 +55,15 @@ impl PushConfirmMenu {
         }
 
         let display = if self.force {
-            format!("git push --force-with-lease {}", self.remote)
+            format!(
+                "git push --force-with-lease {}",
+                self.remote
+            )
         } else if !self.has_upstream {
-            format!("git push -u {} {}", self.remote, self.branch)
+            format!(
+                "git push -u {} {}",
+                self.remote, self.branch
+            )
         } else {
             "git push".to_string()
         };
@@ -149,7 +153,10 @@ impl Menu for PushConfirmMenu {
 
         // Message
         let message = if self.has_upstream {
-            format!("Push {} to {}?", self.branch, self.remote)
+            format!(
+                "Push {} to {}?",
+                self.branch, self.remote
+            )
         } else {
             format!(
                 "Push {} to {} and set upstream?",
@@ -164,16 +171,31 @@ impl Menu for PushConfirmMenu {
 
         // Info lines
         lines.push(Line::from(vec![
-            Span::styled("Branch: ", Style::default().fg(Color::DarkGray)),
-            Span::styled(&self.branch, Style::default().fg(Color::Cyan)),
+            Span::styled(
+                "Branch: ",
+                Style::default().fg(Color::DarkGray),
+            ),
+            Span::styled(
+                &self.branch,
+                Style::default().fg(Color::Cyan),
+            ),
         ]));
         lines.push(Line::from(vec![
-            Span::styled("Remote: ", Style::default().fg(Color::DarkGray)),
-            Span::styled(&self.remote, Style::default().fg(Color::Cyan)),
+            Span::styled(
+                "Remote: ",
+                Style::default().fg(Color::DarkGray),
+            ),
+            Span::styled(
+                &self.remote,
+                Style::default().fg(Color::Cyan),
+            ),
         ]));
         if self.ahead > 0 {
             lines.push(Line::from(vec![
-                Span::styled("Commits: ", Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    "Commits: ",
+                    Style::default().fg(Color::DarkGray),
+                ),
                 Span::styled(
                     format!("{} ahead", self.ahead),
                     Style::default().fg(Color::Green),
@@ -205,7 +227,10 @@ impl Menu for PushConfirmMenu {
                     Style::default()
                 },
             ),
-            Span::styled(" (f)", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                " (f)",
+                Style::default().fg(Color::DarkGray),
+            ),
         ]));
         lines.push(Line::from(""));
 
@@ -224,7 +249,10 @@ impl Menu for PushConfirmMenu {
             Span::raw(if button_focused { "▸ " } else { "  " }),
             Span::styled(" Confirm (y) ", button_style),
             Span::styled("  ", Style::default()),
-            Span::styled("Cancel (n/Esc)", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                "Cancel (n/Esc)",
+                Style::default().fg(Color::DarkGray),
+            ),
         ]));
 
         let para = Paragraph::new(lines).block(

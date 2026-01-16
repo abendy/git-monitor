@@ -2,12 +2,10 @@
 //!
 //! Displays keybinding reference as a centered popup.
 
-use ratatui::{
-    layout::{Alignment, Rect},
-    style::{Color, Modifier, Style, Stylize},
-    text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph},
-};
+use ratatui::layout::{Alignment, Rect};
+use ratatui::style::{Color, Modifier, Style, Stylize};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 
 use crate::tui::Frame;
 
@@ -90,7 +88,9 @@ pub fn render(frame: &mut Frame<'_>, area: Rect) {
         Line::from(""),
         Line::from(Span::styled(
             "Press any key to close",
-            Style::default().fg(Color::DarkGray).italic(),
+            Style::default()
+                .fg(Color::DarkGray)
+                .italic(),
         )),
     ];
 

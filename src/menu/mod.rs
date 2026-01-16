@@ -11,11 +11,11 @@ mod stack;
 
 pub use action::ActionMenu;
 pub use alias::AliasSectionMenu;
-pub use push::PushConfirmMenu;
-pub use stack::MenuStack;
-
 use crossterm::event::KeyEvent;
-use ratatui::{layout::Rect, Frame};
+pub use push::PushConfirmMenu;
+use ratatui::layout::Rect;
+use ratatui::Frame;
+pub use stack::MenuStack;
 
 /// A menu item for display
 #[derive(Debug, Clone)]
@@ -174,7 +174,8 @@ pub trait Menu: Send {
     fn handle_key(&mut self, key: KeyEvent) -> MenuResult;
 
     /// Render the menu
-    /// Implementors that use standard item-based rendering should call `render_menu(self, frame, area)`
+    /// Implementors that use standard item-based rendering should call `render_menu(self, frame,
+    /// area)`
     fn render(&self, frame: &mut Frame<'_>, area: Rect);
 
     /// Move selection up
@@ -184,7 +185,10 @@ pub trait Menu: Send {
 
         // Find previous selectable item
         for i in (0..current).rev() {
-            if items.get(i).map_or(false, |item| item.enabled) {
+            if items
+                .get(i)
+                .map_or(false, |item| item.enabled)
+            {
                 self.set_selected(i);
                 return;
             }
@@ -198,7 +202,10 @@ pub trait Menu: Send {
 
         // Find next selectable item
         for i in (current + 1)..items.len() {
-            if items.get(i).map_or(false, |item| item.enabled) {
+            if items
+                .get(i)
+                .map_or(false, |item| item.enabled)
+            {
                 self.set_selected(i);
                 return;
             }
@@ -209,11 +216,9 @@ pub trait Menu: Send {
 /// Render a menu using the standard list-based layout
 /// Call this from Menu::render() implementations that use item-based display
 pub fn render_menu(menu: &dyn Menu, frame: &mut Frame<'_>, area: Rect) {
-    use ratatui::{
-        style::{Color, Modifier, Style},
-        text::{Line, Span},
-        widgets::{Block, Borders, Clear, List, ListItem},
-    };
+    use ratatui::style::{Color, Modifier, Style};
+    use ratatui::text::{Line, Span};
+    use ratatui::widgets::{Block, Borders, Clear, List, ListItem};
 
     frame.render_widget(Clear, area);
 
@@ -232,7 +237,9 @@ pub fn render_menu(menu: &dyn Menu, frame: &mut Frame<'_>, area: Rect) {
                 ItemStyle::Header => {
                     return ListItem::new(Line::from(Span::styled(
                         format!("  {}", item.label),
-                        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                        Style::default()
+                            .fg(Color::Cyan)
+                            .add_modifier(Modifier::BOLD),
                     )));
                 }
                 ItemStyle::Disabled => Style::default().fg(Color::DarkGray),
@@ -291,7 +298,11 @@ pub fn render_menu(menu: &dyn Menu, frame: &mut Frame<'_>, area: Rect) {
             .borders(Borders::ALL)
             .border_style(Style::default().fg(Color::Cyan))
             .title(format!(" {} ", menu.title()))
-            .title_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            .title_style(
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
     );
 
     frame.render_widget(list, area);

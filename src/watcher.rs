@@ -1,8 +1,6 @@
-use std::{
-    path::{Path, PathBuf},
-    sync::mpsc::Sender,
-    time::Duration,
-};
+use std::path::{Path, PathBuf};
+use std::sync::mpsc::Sender;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use notify::RecursiveMode;
@@ -40,7 +38,12 @@ impl RepoWatcher {
         debouncer
             .watcher()
             .watch(repo_path, RecursiveMode::Recursive)
-            .with_context(|| format!("Failed to watch {}", repo_path.display()))?;
+            .with_context(|| {
+                format!(
+                    "Failed to watch {}",
+                    repo_path.display()
+                )
+            })?;
 
         // Also watch .git directory for index changes
         let git_dir = repo_path.join(".git");

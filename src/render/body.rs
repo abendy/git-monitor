@@ -3,18 +3,14 @@
 //! Renders the unified panel by iterating through the section registry
 //! and composing each section's rendered output.
 
-use ratatui::{
-    layout::Rect,
-    style::{Color, Modifier, Style, Stylize},
-    text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem},
-};
+use ratatui::layout::Rect;
+use ratatui::style::{Color, Modifier, Style, Stylize};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, List, ListItem};
 
-use crate::{
-    app::App,
-    section::{Section, SectionId, SectionState},
-    tui::Frame,
-};
+use crate::app::App;
+use crate::section::{Section, SectionId, SectionState};
+use crate::tui::Frame;
 
 /// Render the main body panel
 pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
@@ -71,7 +67,9 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
     if total_non_command == 0 {
         items.push(ListItem::new(Line::from(Span::styled(
             "  No changes or activity",
-            Style::default().fg(Color::DarkGray).italic(),
+            Style::default()
+                .fg(Color::DarkGray)
+                .italic(),
         ))));
     }
 

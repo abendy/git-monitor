@@ -100,7 +100,10 @@ impl SectionRegistry {
     /// Calculate the total number of selectable items across all sections.
     #[must_use]
     pub fn total_items(&self, item_counts: &SectionItemCounts) -> usize {
-        self.sections.iter().map(|&id| item_counts.get(id)).sum()
+        self.sections
+            .iter()
+            .map(|&id| item_counts.get(id))
+            .sum()
     }
 
     /// Get the global index for the start of a section.
@@ -246,7 +249,9 @@ mod tests {
         let registry = SectionRegistry::new();
         let counts = test_counts();
 
-        let lookup = registry.lookup_index(0, &counts).unwrap();
+        let lookup = registry
+            .lookup_index(0, &counts)
+            .unwrap();
         assert_eq!(lookup.section_id, SectionId::Command);
         assert_eq!(lookup.local_index, 0);
     }
@@ -257,11 +262,15 @@ mod tests {
         let counts = test_counts();
 
         // Staged starts at index 1 (after command)
-        let lookup = registry.lookup_index(1, &counts).unwrap();
+        let lookup = registry
+            .lookup_index(1, &counts)
+            .unwrap();
         assert_eq!(lookup.section_id, SectionId::Staged);
         assert_eq!(lookup.local_index, 0);
 
-        let lookup = registry.lookup_index(3, &counts).unwrap();
+        let lookup = registry
+            .lookup_index(3, &counts)
+            .unwrap();
         assert_eq!(lookup.section_id, SectionId::Staged);
         assert_eq!(lookup.local_index, 2);
     }
@@ -272,7 +281,9 @@ mod tests {
         let counts = test_counts();
 
         // Working starts at index 4 (after command + staged)
-        let lookup = registry.lookup_index(4, &counts).unwrap();
+        let lookup = registry
+            .lookup_index(4, &counts)
+            .unwrap();
         assert_eq!(lookup.section_id, SectionId::Working);
         assert_eq!(lookup.local_index, 0);
     }
@@ -283,11 +294,15 @@ mod tests {
         let counts = test_counts();
 
         // History starts at index 6 (after command + staged + working)
-        let lookup = registry.lookup_index(6, &counts).unwrap();
+        let lookup = registry
+            .lookup_index(6, &counts)
+            .unwrap();
         assert_eq!(lookup.section_id, SectionId::History);
         assert_eq!(lookup.local_index, 0); // Header
 
-        let lookup = registry.lookup_index(7, &counts).unwrap();
+        let lookup = registry
+            .lookup_index(7, &counts)
+            .unwrap();
         assert_eq!(lookup.section_id, SectionId::History);
         assert_eq!(lookup.local_index, 1); // First commit
     }
@@ -298,8 +313,12 @@ mod tests {
         let counts = test_counts();
 
         // Total items = 1 + 3 + 2 + 5 + 2 = 13
-        assert!(registry.lookup_index(13, &counts).is_none());
-        assert!(registry.lookup_index(100, &counts).is_none());
+        assert!(registry
+            .lookup_index(13, &counts)
+            .is_none());
+        assert!(registry
+            .lookup_index(100, &counts)
+            .is_none());
     }
 
     #[test]
@@ -369,12 +388,16 @@ mod tests {
         };
 
         // Working should start at index 1 (directly after command, since staged is empty)
-        let lookup = registry.lookup_index(1, &counts).unwrap();
+        let lookup = registry
+            .lookup_index(1, &counts)
+            .unwrap();
         assert_eq!(lookup.section_id, SectionId::Working);
         assert_eq!(lookup.local_index, 0);
 
         // History should start at index 3
-        let lookup = registry.lookup_index(3, &counts).unwrap();
+        let lookup = registry
+            .lookup_index(3, &counts)
+            .unwrap();
         assert_eq!(lookup.section_id, SectionId::History);
         assert_eq!(lookup.local_index, 0);
 

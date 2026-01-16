@@ -122,7 +122,10 @@ impl PopupState {
 
     /// Scroll down by n lines
     pub fn scroll_down(&mut self, n: usize) {
-        let max_offset = self.content.line_count().saturating_sub(self.visible_height);
+        let max_offset = self
+            .content
+            .line_count()
+            .saturating_sub(self.visible_height);
         self.scroll_offset = (self.scroll_offset + n).min(max_offset);
     }
 
@@ -138,7 +141,10 @@ impl PopupState {
 
     /// Jump to bottom
     pub fn scroll_to_bottom(&mut self) {
-        self.scroll_offset = self.content.line_count().saturating_sub(self.visible_height);
+        self.scroll_offset = self
+            .content
+            .line_count()
+            .saturating_sub(self.visible_height);
     }
 
     /// Page down (scroll by visible height)

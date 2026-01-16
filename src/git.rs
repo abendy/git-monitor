@@ -68,8 +68,7 @@ impl From<git2::RepositoryState> for RepoState {
     fn from(state: git2::RepositoryState) -> Self {
         match state {
             git2::RepositoryState::Merge => Self::Merge,
-            git2::RepositoryState::Rebase
-            | git2::RepositoryState::RebaseMerge => Self::Rebase,
+            git2::RepositoryState::Rebase | git2::RepositoryState::RebaseMerge => Self::Rebase,
             git2::RepositoryState::RebaseInteractive => Self::RebaseInteractive,
             git2::RepositoryState::CherryPick | git2::RepositoryState::CherryPickSequence => {
                 Self::CherryPick
@@ -325,8 +324,12 @@ pub struct GitRepo {
 impl GitRepo {
     /// Open a git repository at the given path
     pub fn open(path: &Path) -> Result<Self> {
-        let repo = Repository::discover(path)
-            .with_context(|| format!("No git repository found at {}", path.display()))?;
+        let repo = Repository::discover(path).with_context(|| {
+            format!(
+                "No git repository found at {}",
+                path.display()
+            )
+        })?;
 
         Ok(Self { repo })
     }
@@ -366,16 +369,24 @@ impl GitRepo {
 
             // Get upstream tracking info
             if let Some(branch_name) = &status.branch {
-                if let Ok(branch) = self.repo.find_branch(branch_name, git2::BranchType::Local) {
+                if let Ok(branch) = self
+                    .repo
+                    .find_branch(branch_name, git2::BranchType::Local)
+                {
                     if let Ok(upstream) = branch.upstream() {
-                        status.upstream = upstream.name().ok().flatten().map(String::from);
+                        status.upstream = upstream
+                            .name()
+                            .ok()
+                            .flatten()
+                            .map(String::from);
 
                         // Get ahead/behind counts
                         if let (Some(local_oid), Some(upstream_oid)) =
                             (head.target(), upstream.get().target())
                         {
-                            if let Ok((ahead, behind)) =
-                                self.repo.graph_ahead_behind(local_oid, upstream_oid)
+                            if let Ok((ahead, behind)) = self
+                                .repo
+                                .graph_ahead_behind(local_oid, upstream_oid)
                             {
                                 status.ahead = ahead;
                                 status.behind = behind;
@@ -396,29 +407,43 @@ impl GitRepo {
 
     /// Stage a file
     pub fn stage(&self, path: &Path) -> Result<()> {
-        let mut index = self.repo.index().context("Failed to get index")?;
+        let mut index = self
+            .repo
+            .index()
+            .context("Failed to get index")?;
         index
             .add_path(path)
             .with_context(|| format!("Failed to stage {}", path.display()))?;
-        index.write().context("Failed to write index")?;
+        index
+            .write()
+            .context("Failed to write index")?;
         Ok(())
     }
 
     /// Unstage a file
     pub fn unstage(&self, path: &Path) -> Result<()> {
-        let head = self.repo.head().context("Failed to get HEAD")?;
-        let head_commit = head.peel_to_commit().context("Failed to get HEAD commit")?;
-        let head_tree = head_commit.tree().context("Failed to get HEAD tree")?;
+        let head = self
+            .repo
+            .head()
+            .context("Failed to get HEAD")?;
+        let head_commit = head
+            .peel_to_commit()
+            .context("Failed to get HEAD commit")?;
+        let head_tree = head_commit
+            .tree()
+            .context("Failed to get HEAD tree")?;
 
         self.repo
             .reset_default(Some(&head_commit.as_object()), [path])
-            .or_else(|_| -> std::result::Result<(), git2::Error> {
-                // If reset fails (file is new), remove from index
-                let mut index = self.repo.index()?;
-                index.remove_path(path)?;
-                index.write()?;
-                Ok(())
-            })
+            .or_else(
+                |_| -> std::result::Result<(), git2::Error> {
+                    // If reset fails (file is new), remove from index
+                    let mut index = self.repo.index()?;
+                    index.remove_path(path)?;
+                    index.write()?;
+                    Ok(())
+                },
+            )
             .with_context(|| format!("Failed to unstage {}", path.display()))?;
 
         drop(head_tree);
@@ -436,8 +461,11 @@ impl GitRepo {
             // Staged: diff HEAD to index
             let head = self.repo.head().ok();
             let head_tree = head.and_then(|h| h.peel_to_tree().ok());
-            self.repo
-                .diff_tree_to_index(head_tree.as_ref(), None, Some(&mut diff_opts))
+            self.repo.diff_tree_to_index(
+                head_tree.as_ref(),
+                None,
+                Some(&mut diff_opts),
+            )
         } else {
             // Unstaged: diff index to workdir
             self.repo
@@ -447,17 +475,20 @@ impl GitRepo {
 
         let mut output = String::new();
 
-        diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
-            let prefix = match line.origin() {
-                '+' => "+",
-                '-' => "-",
-                ' ' => " ",
-                _ => "",
-            };
-            let content = std::str::from_utf8(line.content()).unwrap_or("");
-            let _ = write!(output, "{prefix}{content}");
-            true
-        })
+        diff.print(
+            git2::DiffFormat::Patch,
+            |_delta, _hunk, line| {
+                let prefix = match line.origin() {
+                    '+' => "+",
+                    '-' => "-",
+                    ' ' => " ",
+                    _ => "",
+                };
+                let content = std::str::from_utf8(line.content()).unwrap_or("");
+                let _ = write!(output, "{prefix}{content}");
+                true
+            },
+        )
         .context("Failed to print diff")?;
 
         if output.is_empty() {
@@ -475,7 +506,10 @@ impl GitRepo {
         if let Ok(head) = self.repo.head() {
             if let Some(oid) = head.target() {
                 let short_sha = format!("{:.7}", oid);
-                refs_map.entry(short_sha).or_default().push(RefDecoration::Head);
+                refs_map
+                    .entry(short_sha)
+                    .or_default()
+                    .push(RefDecoration::Head);
             }
         }
 
@@ -515,7 +549,10 @@ impl GitRepo {
                     continue;
                 };
 
-                refs_map.entry(short_sha).or_default().push(decoration);
+                refs_map
+                    .entry(short_sha)
+                    .or_default()
+                    .push(decoration);
             }
         }
 
@@ -535,7 +572,10 @@ impl GitRepo {
         let refs_map = self.collect_refs();
 
         for entry in reflog.iter().skip(skip).take(limit) {
-            let message = entry.message().unwrap_or("").to_string();
+            let message = entry
+                .message()
+                .unwrap_or("")
+                .to_string();
             let command_type = CommandType::from_message(&message);
 
             // Parse timestamp
@@ -549,7 +589,10 @@ impl GitRepo {
             let short_sha = format!("{:.7}", entry.id_new());
 
             // Look up decorations for this commit
-            let decorations = refs_map.get(&short_sha).cloned().unwrap_or_default();
+            let decorations = refs_map
+                .get(&short_sha)
+                .cloned()
+                .unwrap_or_default();
 
             commands.push(GitCommand {
                 timestamp,
@@ -564,8 +607,8 @@ impl GitRepo {
         Ok(commands)
     }
 
-    /// Get commit history (git log) with pagination, including remote-only commits if tracking upstream
-    /// Remote-only commits are only shown on the first page (skip = 0)
+    /// Get commit history (git log) with pagination, including remote-only commits if tracking
+    /// upstream Remote-only commits are only shown on the first page (skip = 0)
     pub fn commit_log(&self, skip: usize, limit: usize) -> Result<Vec<GitCommand>> {
         let mut commands = Vec::new();
         let mut remote_only_commands = Vec::new();
@@ -586,36 +629,47 @@ impl GitRepo {
         let refs_map = self.collect_refs();
 
         // Helper to create GitCommand from commit
-        let make_command =
-            |commit: &git2::Commit<'_>,
-             refs_map: &HashMap<String, Vec<RefDecoration>>,
-             is_remote_only: bool| {
-                let message = commit.summary().unwrap_or("").to_string();
-                let time = commit.time();
-                let timestamp = Local
-                    .timestamp_opt(time.seconds(), 0)
-                    .single()
-                    .unwrap_or_else(Local::now);
-                let short_sha = format!("{:.7}", commit.id());
-                let decorations = refs_map.get(&short_sha).cloned().unwrap_or_default();
-                GitCommand {
-                    timestamp,
-                    command_type: CommandType::Commit,
-                    message,
-                    sha: Some(short_sha),
-                    decorations,
-                    is_remote_only,
-                }
-            };
+        let make_command = |commit: &git2::Commit<'_>,
+                            refs_map: &HashMap<String, Vec<RefDecoration>>,
+                            is_remote_only: bool| {
+            let message = commit
+                .summary()
+                .unwrap_or("")
+                .to_string();
+            let time = commit.time();
+            let timestamp = Local
+                .timestamp_opt(time.seconds(), 0)
+                .single()
+                .unwrap_or_else(Local::now);
+            let short_sha = format!("{:.7}", commit.id());
+            let decorations = refs_map
+                .get(&short_sha)
+                .cloned()
+                .unwrap_or_default();
+            GitCommand {
+                timestamp,
+                command_type: CommandType::Commit,
+                message,
+                sha: Some(short_sha),
+                decorations,
+                is_remote_only,
+            }
+        };
 
         // Check for upstream and get remote-only commits + merge base (only on first page)
         if skip == 0 && head.is_branch() {
             if let Some(branch_name) = head.shorthand() {
-                if let Ok(branch) = self.repo.find_branch(branch_name, git2::BranchType::Local) {
+                if let Ok(branch) = self
+                    .repo
+                    .find_branch(branch_name, git2::BranchType::Local)
+                {
                     if let Ok(upstream) = branch.upstream() {
                         if let Some(upstream_oid) = upstream.get().target() {
                             // Find merge base for positioning
-                            if let Ok(base_oid) = self.repo.merge_base(head_oid, upstream_oid) {
+                            if let Ok(base_oid) = self
+                                .repo
+                                .merge_base(head_oid, upstream_oid)
+                            {
                                 merge_base_sha = Some(format!("{:.7}", base_oid));
                             }
 
@@ -623,7 +677,9 @@ impl GitRepo {
                             if let Ok(mut revwalk) = self.repo.revwalk() {
                                 let _ = revwalk.push(upstream_oid);
                                 let _ = revwalk.hide(head_oid);
-                                revwalk.set_sorting(git2::Sort::TIME).ok();
+                                revwalk
+                                    .set_sorting(git2::Sort::TIME)
+                                    .ok();
 
                                 for oid_result in revwalk {
                                     let oid = match oid_result {
@@ -643,8 +699,13 @@ impl GitRepo {
         }
 
         // Walk local commits from HEAD
-        let mut revwalk = self.repo.revwalk().context("Failed to create revwalk")?;
-        revwalk.push(head_oid).context("Failed to push HEAD")?;
+        let mut revwalk = self
+            .repo
+            .revwalk()
+            .context("Failed to create revwalk")?;
+        revwalk
+            .push(head_oid)
+            .context("Failed to push HEAD")?;
         revwalk.set_sorting(git2::Sort::TIME)?;
 
         let mut inserted_remote = false;
@@ -684,8 +745,13 @@ impl GitRepo {
         let branch = self
             .repo
             .find_branch(branch_name, git2::BranchType::Local)
-            .or_else(|_| self.repo.find_branch(branch_name, git2::BranchType::Remote))
-            .context(format!("Failed to find branch '{branch_name}'"))?;
+            .or_else(|_| {
+                self.repo
+                    .find_branch(branch_name, git2::BranchType::Remote)
+            })
+            .context(format!(
+                "Failed to find branch '{branch_name}'"
+            ))?;
 
         let branch_ref = branch.get();
         let branch_oid = match branch_ref.target() {
@@ -704,28 +770,40 @@ impl GitRepo {
         let refs_map = self.collect_refs();
 
         // Helper to create GitCommand from commit
-        let make_command = |commit: &git2::Commit<'_>, refs_map: &HashMap<String, Vec<RefDecoration>>| {
-            let message = commit.summary().unwrap_or("").to_string();
-            let time = commit.time();
-            let timestamp = Local
-                .timestamp_opt(time.seconds(), 0)
-                .single()
-                .unwrap_or_else(Local::now);
-            let short_sha = format!("{:.7}", commit.id());
-            let decorations = refs_map.get(&short_sha).cloned().unwrap_or_default();
-            GitCommand {
-                timestamp,
-                command_type: CommandType::Commit,
-                message,
-                sha: Some(short_sha),
-                decorations,
-                is_remote_only: false,
-            }
-        };
+        let make_command =
+            |commit: &git2::Commit<'_>, refs_map: &HashMap<String, Vec<RefDecoration>>| {
+                let message = commit
+                    .summary()
+                    .unwrap_or("")
+                    .to_string();
+                let time = commit.time();
+                let timestamp = Local
+                    .timestamp_opt(time.seconds(), 0)
+                    .single()
+                    .unwrap_or_else(Local::now);
+                let short_sha = format!("{:.7}", commit.id());
+                let decorations = refs_map
+                    .get(&short_sha)
+                    .cloned()
+                    .unwrap_or_default();
+                GitCommand {
+                    timestamp,
+                    command_type: CommandType::Commit,
+                    message,
+                    sha: Some(short_sha),
+                    decorations,
+                    is_remote_only: false,
+                }
+            };
 
         // Walk commits from the branch tip, excluding current branch
-        let mut revwalk = self.repo.revwalk().context("Failed to create revwalk")?;
-        revwalk.push(branch_oid).context("Failed to push branch OID")?;
+        let mut revwalk = self
+            .repo
+            .revwalk()
+            .context("Failed to create revwalk")?;
+        revwalk
+            .push(branch_oid)
+            .context("Failed to push branch OID")?;
         if let Some(current_oid) = current_branch_oid {
             let _ = revwalk.hide(current_oid); // Exclude commits reachable from current branch
         }
@@ -767,16 +845,26 @@ impl GitRepo {
             .and_then(|h| h.shorthand().map(String::from));
 
         // Get upstream branch name to filter it from remote list
-        let upstream_name = current_branch.as_ref().and_then(|branch_name| {
-            self.repo
-                .find_branch(branch_name, git2::BranchType::Local)
-                .ok()
-                .and_then(|branch| branch.upstream().ok())
-                .and_then(|upstream| upstream.name().ok().flatten().map(String::from))
-        });
+        let upstream_name = current_branch
+            .as_ref()
+            .and_then(|branch_name| {
+                self.repo
+                    .find_branch(branch_name, git2::BranchType::Local)
+                    .ok()
+                    .and_then(|branch| branch.upstream().ok())
+                    .and_then(|upstream| {
+                        upstream
+                            .name()
+                            .ok()
+                            .flatten()
+                            .map(String::from)
+                    })
+            });
 
         // Iterate through local branches
-        let branch_iter = self.repo.branches(Some(git2::BranchType::Local))?;
+        let branch_iter = self
+            .repo
+            .branches(Some(git2::BranchType::Local))?;
 
         for branch_result in branch_iter {
             let (branch, _branch_type) = branch_result?;
@@ -800,7 +888,9 @@ impl GitRepo {
         }
 
         // Iterate through remote branches
-        let remote_iter = self.repo.branches(Some(git2::BranchType::Remote))?;
+        let remote_iter = self
+            .repo
+            .branches(Some(git2::BranchType::Remote))?;
 
         for branch_result in remote_iter {
             let (branch, _branch_type) = branch_result?;
@@ -904,51 +994,72 @@ impl GitRepo {
 
         // Extract author info
         let author = commit.author();
-        let author_name = author.name().unwrap_or("Unknown").to_string();
+        let author_name = author
+            .name()
+            .unwrap_or("Unknown")
+            .to_string();
         let author_email = author.email().unwrap_or("").to_string();
         let author_time = {
             let time = author.when();
             let secs = time.seconds();
             let offset_mins = time.offset_minutes();
-            let offset = chrono::FixedOffset::east_opt(offset_mins * 60)
-                .unwrap_or(chrono::Utc.fix());
+            let offset =
+                chrono::FixedOffset::east_opt(offset_mins * 60).unwrap_or(chrono::Utc.fix());
             DateTime::from_timestamp(secs, 0)
-                .map(|dt| dt.with_timezone(&offset).with_timezone(&Local))
+                .map(|dt| {
+                    dt.with_timezone(&offset)
+                        .with_timezone(&Local)
+                })
                 .unwrap_or_else(Local::now)
         };
 
         // Extract committer info
         let committer = commit.committer();
-        let committer_name = committer.name().unwrap_or("Unknown").to_string();
-        let committer_email = committer.email().unwrap_or("").to_string();
+        let committer_name = committer
+            .name()
+            .unwrap_or("Unknown")
+            .to_string();
+        let committer_email = committer
+            .email()
+            .unwrap_or("")
+            .to_string();
         let committer_time = {
             let time = committer.when();
             let secs = time.seconds();
             let offset_mins = time.offset_minutes();
-            let offset = chrono::FixedOffset::east_opt(offset_mins * 60)
-                .unwrap_or(chrono::Utc.fix());
+            let offset =
+                chrono::FixedOffset::east_opt(offset_mins * 60).unwrap_or(chrono::Utc.fix());
             DateTime::from_timestamp(secs, 0)
-                .map(|dt| dt.with_timezone(&offset).with_timezone(&Local))
+                .map(|dt| {
+                    dt.with_timezone(&offset)
+                        .with_timezone(&Local)
+                })
                 .unwrap_or_else(Local::now)
         };
 
         // Get full commit message
-        let message = commit.message().unwrap_or("").to_string();
+        let message = commit
+            .message()
+            .unwrap_or("")
+            .to_string();
 
         // Check for GPG signature
-        let gpg_status = commit
-            .raw_header()
-            .and_then(|header| {
-                if header.contains("gpgsig") {
-                    Some("Signed".to_string())
-                } else {
-                    None
-                }
-            });
+        let gpg_status = commit.raw_header().and_then(|header| {
+            if header.contains("gpgsig") {
+                Some("Signed".to_string())
+            } else {
+                None
+            }
+        });
 
         // Get files changed by diffing against parent
-        let tree = commit.tree().context("Failed to get commit tree")?;
-        let parent_tree = commit.parent(0).ok().and_then(|p| p.tree().ok());
+        let tree = commit
+            .tree()
+            .context("Failed to get commit tree")?;
+        let parent_tree = commit
+            .parent(0)
+            .ok()
+            .and_then(|p| p.tree().ok());
 
         let diff = self
             .repo
@@ -956,7 +1067,9 @@ impl GitRepo {
             .context("Failed to diff trees")?;
 
         // Get overall stats
-        let stats = diff.stats().context("Failed to get diff stats")?;
+        let stats = diff
+            .stats()
+            .context("Failed to get diff stats")?;
         let insertions = stats.insertions();
         let deletions = stats.deletions();
 
@@ -984,7 +1097,9 @@ impl GitRepo {
                     _ => FileState::Modified,
                 };
 
-                file_stats.borrow_mut().insert(path, (status, 0, 0));
+                file_stats
+                    .borrow_mut()
+                    .insert(path, (status, 0, 0));
                 true
             },
             None,
@@ -1012,12 +1127,14 @@ impl GitRepo {
         let mut files: Vec<CommitFile> = file_stats
             .into_inner()
             .into_iter()
-            .map(|(path, (status, ins, del))| CommitFile {
-                path,
-                status,
-                insertions: ins,
-                deletions: del,
-            })
+            .map(
+                |(path, (status, ins, del))| CommitFile {
+                    path,
+                    status,
+                    insertions: ins,
+                    deletions: del,
+                },
+            )
             .collect();
         files.sort_by(|a, b| a.path.cmp(&b.path));
 
@@ -1047,8 +1164,13 @@ impl GitRepo {
             .peel_to_commit()
             .with_context(|| format!("Object {commit_sha} is not a commit"))?;
 
-        let tree = commit.tree().context("Failed to get commit tree")?;
-        let parent_tree = commit.parent(0).ok().and_then(|p| p.tree().ok());
+        let tree = commit
+            .tree()
+            .context("Failed to get commit tree")?;
+        let parent_tree = commit
+            .parent(0)
+            .ok()
+            .and_then(|p| p.tree().ok());
 
         // Create diff with path filter
         let mut opts = git2::DiffOptions::new();
@@ -1056,22 +1178,29 @@ impl GitRepo {
 
         let diff = self
             .repo
-            .diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), Some(&mut opts))
+            .diff_tree_to_tree(
+                parent_tree.as_ref(),
+                Some(&tree),
+                Some(&mut opts),
+            )
             .context("Failed to diff trees")?;
 
         // Format as patch
         let mut output = String::new();
-        diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
-            let prefix = match line.origin() {
-                '+' | '-' | ' ' => format!("{}", line.origin()),
-                _ => String::new(),
-            };
-            if let Ok(content) = std::str::from_utf8(line.content()) {
-                output.push_str(&prefix);
-                output.push_str(content);
-            }
-            true
-        })?;
+        diff.print(
+            git2::DiffFormat::Patch,
+            |_delta, _hunk, line| {
+                let prefix = match line.origin() {
+                    '+' | '-' | ' ' => format!("{}", line.origin()),
+                    _ => String::new(),
+                };
+                if let Ok(content) = std::str::from_utf8(line.content()) {
+                    output.push_str(&prefix);
+                    output.push_str(content);
+                }
+                true
+            },
+        )?;
 
         if output.is_empty() {
             output = format!("(No changes for {file_path})");
@@ -1114,7 +1243,9 @@ impl GitRepo {
         }
 
         // Sort by path
-        status.files.sort_by(|a, b| a.path.cmp(&b.path));
+        status
+            .files
+            .sort_by(|a, b| a.path.cmp(&b.path));
 
         Ok(())
     }
@@ -1193,65 +1324,107 @@ mod tests {
 
         #[test]
         fn from_message_parses_commit() {
-            assert_eq!(CommandType::from_message("commit: initial commit"), CommandType::Commit);
-            assert_eq!(CommandType::from_message("Commit (amend): fix typo"), CommandType::Commit);
+            assert_eq!(
+                CommandType::from_message("commit: initial commit"),
+                CommandType::Commit
+            );
+            assert_eq!(
+                CommandType::from_message("Commit (amend): fix typo"),
+                CommandType::Commit
+            );
         }
 
         #[test]
         fn from_message_parses_checkout() {
-            assert_eq!(CommandType::from_message("checkout: moving from main to feature"), CommandType::Checkout);
+            assert_eq!(
+                CommandType::from_message("checkout: moving from main to feature"),
+                CommandType::Checkout
+            );
         }
 
         #[test]
         fn from_message_parses_merge() {
-            assert_eq!(CommandType::from_message("merge feature-branch: Fast-forward"), CommandType::Merge);
+            assert_eq!(
+                CommandType::from_message("merge feature-branch: Fast-forward"),
+                CommandType::Merge
+            );
         }
 
         #[test]
         fn from_message_parses_rebase() {
-            assert_eq!(CommandType::from_message("rebase (finish): refs/heads/main onto abc123"), CommandType::Rebase);
+            assert_eq!(
+                CommandType::from_message("rebase (finish): refs/heads/main onto abc123"),
+                CommandType::Rebase
+            );
         }
 
         #[test]
         fn from_message_parses_pull() {
-            assert_eq!(CommandType::from_message("pull: Fast-forward"), CommandType::Pull);
+            assert_eq!(
+                CommandType::from_message("pull: Fast-forward"),
+                CommandType::Pull
+            );
         }
 
         #[test]
         fn from_message_parses_reset() {
-            assert_eq!(CommandType::from_message("reset: moving to HEAD~1"), CommandType::Reset);
+            assert_eq!(
+                CommandType::from_message("reset: moving to HEAD~1"),
+                CommandType::Reset
+            );
         }
 
         #[test]
         fn from_message_parses_cherry_pick() {
-            assert_eq!(CommandType::from_message("cherry-pick: picked commit abc123"), CommandType::CherryPick);
+            assert_eq!(
+                CommandType::from_message("cherry-pick: picked commit abc123"),
+                CommandType::CherryPick
+            );
         }
 
         #[test]
         fn from_message_parses_revert() {
-            assert_eq!(CommandType::from_message("revert: reverting abc123"), CommandType::Revert);
+            assert_eq!(
+                CommandType::from_message("revert: reverting abc123"),
+                CommandType::Revert
+            );
         }
 
         #[test]
         fn from_message_parses_branch() {
-            assert_eq!(CommandType::from_message("branch: created from HEAD"), CommandType::Branch);
+            assert_eq!(
+                CommandType::from_message("branch: created from HEAD"),
+                CommandType::Branch
+            );
         }
 
         #[test]
         fn from_message_parses_clone() {
-            assert_eq!(CommandType::from_message("clone: from https://github.com/user/repo"), CommandType::Clone);
+            assert_eq!(
+                CommandType::from_message("clone: from https://github.com/user/repo"),
+                CommandType::Clone
+            );
         }
 
         #[test]
         fn from_message_parses_init() {
             // "initial" anywhere in the message (that doesn't start with other keywords)
-            assert_eq!(CommandType::from_message("initial commit"), CommandType::Init);
+            assert_eq!(
+                CommandType::from_message("initial commit"),
+                CommandType::Init
+            );
         }
 
         #[test]
         fn from_message_returns_other_for_unknown() {
-            assert_eq!(CommandType::from_message("unknown operation"), CommandType::Other);
-            assert_eq!(CommandType::from_message(""), CommandType::Other);
+            assert_eq!(
+                CommandType::from_message("unknown operation"),
+                CommandType::Other
+            );
+            assert_eq!(
+                CommandType::from_message(""),
+                CommandType::Other
+            );
         }
 
         #[test]
@@ -1274,14 +1447,18 @@ mod tests {
                 CommandType::Other,
             ];
             for cmd_type in types {
-                assert!(!cmd_type.icon().is_empty(), "{cmd_type:?} should have non-empty icon");
+                assert!(
+                    !cmd_type.icon().is_empty(),
+                    "{cmd_type:?} should have non-empty icon"
+                );
             }
         }
     }
 
     mod git_status {
-        use super::*;
         use std::path::PathBuf;
+
+        use super::*;
 
         fn make_file(path: &str, working: FileState, staged: FileState) -> FileStatus {
             FileStatus {
@@ -1295,32 +1472,68 @@ mod tests {
         fn working_changes_filters_modified_files() {
             let status = GitStatus {
                 files: vec![
-                    make_file("changed.txt", FileState::Modified, FileState::Unmodified),
-                    make_file("unchanged.txt", FileState::Unmodified, FileState::Unmodified),
-                    make_file("added.txt", FileState::Added, FileState::Unmodified),
+                    make_file(
+                        "changed.txt",
+                        FileState::Modified,
+                        FileState::Unmodified,
+                    ),
+                    make_file(
+                        "unchanged.txt",
+                        FileState::Unmodified,
+                        FileState::Unmodified,
+                    ),
+                    make_file(
+                        "added.txt",
+                        FileState::Added,
+                        FileState::Unmodified,
+                    ),
                 ],
                 ..Default::default()
             };
             let changes = status.working_changes();
             assert_eq!(changes.len(), 2);
-            assert_eq!(changes[0].path, PathBuf::from("changed.txt"));
-            assert_eq!(changes[1].path, PathBuf::from("added.txt"));
+            assert_eq!(
+                changes[0].path,
+                PathBuf::from("changed.txt")
+            );
+            assert_eq!(
+                changes[1].path,
+                PathBuf::from("added.txt")
+            );
         }
 
         #[test]
         fn staged_changes_filters_staged_files() {
             let status = GitStatus {
                 files: vec![
-                    make_file("staged.txt", FileState::Unmodified, FileState::Modified),
-                    make_file("unstaged.txt", FileState::Modified, FileState::Unmodified),
-                    make_file("both.txt", FileState::Modified, FileState::Added),
+                    make_file(
+                        "staged.txt",
+                        FileState::Unmodified,
+                        FileState::Modified,
+                    ),
+                    make_file(
+                        "unstaged.txt",
+                        FileState::Modified,
+                        FileState::Unmodified,
+                    ),
+                    make_file(
+                        "both.txt",
+                        FileState::Modified,
+                        FileState::Added,
+                    ),
                 ],
                 ..Default::default()
             };
             let staged = status.staged_changes();
             assert_eq!(staged.len(), 2);
-            assert_eq!(staged[0].path, PathBuf::from("staged.txt"));
-            assert_eq!(staged[1].path, PathBuf::from("both.txt"));
+            assert_eq!(
+                staged[0].path,
+                PathBuf::from("staged.txt")
+            );
+            assert_eq!(
+                staged[1].path,
+                PathBuf::from("both.txt")
+            );
         }
     }
 }

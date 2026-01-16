@@ -1,10 +1,8 @@
 //! Command execution implementation.
 
-use std::{
-    path::Path,
-    process::Command,
-    time::{Duration, Instant},
-};
+use std::path::Path;
+use std::process::Command;
+use std::time::{Duration, Instant};
 
 use super::CommandRequest;
 
@@ -65,9 +63,17 @@ impl CommandExecutor {
     /// Execute a command request
     pub fn execute(&self, request: &CommandRequest) -> CommandResult {
         let start = Instant::now();
-        let cwd = request.cwd.as_deref().unwrap_or(&self.default_cwd);
+        let cwd = request
+            .cwd
+            .as_deref()
+            .unwrap_or(&self.default_cwd);
 
-        self.execute_in_dir(&request.program, &request.args, cwd, start)
+        self.execute_in_dir(
+            &request.program,
+            &request.args,
+            cwd,
+            start,
+        )
     }
 
     /// Execute a command in a specific directory
@@ -115,7 +121,10 @@ mod tests {
             stderr: "stderr content".to_string(),
             duration: Duration::from_millis(100),
         };
-        assert_eq!(result.display_output(), "stderr content");
+        assert_eq!(
+            result.display_output(),
+            "stderr content"
+        );
     }
 
     #[test]
@@ -127,7 +136,10 @@ mod tests {
             stderr: String::new(),
             duration: Duration::from_millis(100),
         };
-        assert_eq!(result.display_output(), "stdout content");
+        assert_eq!(
+            result.display_output(),
+            "stdout content"
+        );
     }
 
     #[test]

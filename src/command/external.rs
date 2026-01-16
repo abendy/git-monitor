@@ -21,15 +21,9 @@ pub enum ExternalCommand {
         file_path: String,
     },
     /// Show working/staged file diff with pager
-    FilePagerDiff {
-        file_path: String,
-        staged: bool,
-    },
+    FilePagerDiff { file_path: String, staged: bool },
     /// Show working/staged file diff with difftool
-    FileDiffTool {
-        file_path: String,
-        staged: bool,
-    },
+    FileDiffTool { file_path: String, staged: bool },
     /// Interactive rebase (suspends TUI for editor)
     InteractiveRebase {
         /// Base commit for rebase (e.g., "HEAD~3", commit SHA)
@@ -139,13 +133,19 @@ mod tests {
             file_path: "src/main.rs".to_string(),
             staged: false,
         };
-        assert_eq!(cmd.description(), "git diff -- src/main.rs");
+        assert_eq!(
+            cmd.description(),
+            "git diff -- src/main.rs"
+        );
 
         let staged = ExternalCommand::FilePagerDiff {
             file_path: "src/main.rs".to_string(),
             staged: true,
         };
-        assert_eq!(staged.description(), "git diff --staged -- src/main.rs");
+        assert_eq!(
+            staged.description(),
+            "git diff --staged -- src/main.rs"
+        );
     }
 
     #[test]
@@ -153,6 +153,9 @@ mod tests {
         let cmd = ExternalCommand::InteractiveRebase {
             onto: "HEAD~3".to_string(),
         };
-        assert_eq!(cmd.description(), "git rebase -i HEAD~3");
+        assert_eq!(
+            cmd.description(),
+            "git rebase -i HEAD~3"
+        );
     }
 }

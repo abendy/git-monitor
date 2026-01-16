@@ -111,6 +111,23 @@ pub enum NavigateAction {
     JumpTo(SectionId),
 }
 
+/// Defines when a section should refresh its data
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RefreshPolicy {
+    /// Refresh when file system changes are detected (default for git sections)
+    #[default]
+    OnFileChange,
+    /// Refresh at a fixed interval (for remote/API sections)
+    Interval {
+        /// Interval in seconds between refreshes
+        seconds: u32,
+    },
+    /// Only refresh when user explicitly requests (e.g., 'r' key)
+    Manual,
+    /// Never refresh automatically (static content)
+    Never,
+}
+
 /// State passed to sections for rendering and actions
 #[derive(Debug, Clone)]
 pub struct SectionState {
@@ -148,6 +165,14 @@ pub trait Section: Send + Sync {
     /// Whether this section is currently collapsed
     fn is_collapsed(&self) -> bool {
         false
+    }
+
+    /// When this section should refresh its data
+    ///
+    /// Built-in git sections default to `OnFileChange`. External sections
+    /// may use `Interval` for API polling or `Manual` for expensive operations.
+    fn refresh_policy(&self) -> RefreshPolicy {
+        RefreshPolicy::OnFileChange
     }
 
     /// Render this section to lines for display

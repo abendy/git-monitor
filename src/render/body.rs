@@ -15,8 +15,8 @@ use ratatui::{
 };
 
 use crate::{
-    actions::{ActionRegistry, ActionType, AppAction, AppState, Context},
-    app::{App, HistoryMode},
+    actions::{ActionRegistry, AppState, Context},
+    app::App,
     git::{format_relative_time, CommandType, FileState, RefDecoration},
     section::{Section, SectionState},
     tui::Frame,
@@ -43,10 +43,7 @@ fn render_context_hint(
 
     for (i, action) in actions.iter().take(5).enumerate() {
         if i > 0 {
-            spans.push(Span::styled(
-                " · ",
-                Style::default().fg(Color::DarkGray),
-            ));
+            spans.push(Span::styled(" · ", Style::default().fg(Color::DarkGray)));
         }
         spans.push(Span::styled(
             format!("{} ", action.key),
@@ -179,9 +176,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
     // Staged section - delegate to StagedSection::render()
     if staged_len > 0 {
         // Build section state: staged items are at indices [1, 1+staged_len)
-        let in_staged = app
-            .selected
-            .is_some_and(|s| s >= 1 && s < 1 + staged_len);
+        let in_staged = app.selected.is_some_and(|s| s >= 1 && s < 1 + staged_len);
         let local_selection = if in_staged {
             app.selected.map(|s| s - 1) // Convert global to local (subtract command offset)
         } else {
@@ -191,6 +186,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             is_focused: in_staged,
             local_selection,
             global_selection: app.selected,
+            render_width: area.width,
         };
 
         for line in app.staged_section.render(&staged_state) {
@@ -218,6 +214,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             is_focused: in_working,
             local_selection,
             global_selection: app.selected,
+            render_width: area.width,
         };
 
         for line in app.working_section.render(&working_state) {
@@ -228,141 +225,44 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
     // Track current index for selection (after files)
     let mut current_idx = 1 + files_total;
 
-    // History section (current branch commits) - always show header
+    // History section - delegate to HistorySection::render()
     if !app.activity.is_empty() || !app.history_collapsed {
         if files_total > 0 {
             items.push(ListItem::new(Line::from("")));
         }
 
-        let history_label = match app.history_mode {
-            HistoryMode::Reflog => "Reflog",
-            HistoryMode::CommitLog => "History",
+        // Build section state for history
+        // History section starts at index (1 + files_total)
+        // Item count is 1 (header) + activity.len() when not collapsed
+        let history_start = 1 + files_total;
+        let history_item_count = if app.history_collapsed {
+            1
+        } else {
+            1 + activity_len
+        };
+        let history_end = history_start + history_item_count;
+
+        let in_history = app
+            .selected
+            .is_some_and(|s| s >= history_start && s < history_end && !app.is_command_mode());
+        let local_selection = if in_history {
+            app.selected.map(|s| s - history_start)
+        } else {
+            None
         };
 
-        // History header is selectable
-        let header_selected = Some(current_idx) == app.selected && !app.is_command_mode();
-        let collapse_indicator = if app.history_collapsed { "▸" } else { "▾" };
-        let header_prefix = if header_selected { "▸ " } else { "  " };
+        let history_state = SectionState {
+            is_focused: in_history,
+            local_selection,
+            global_selection: app.selected,
+            render_width: area.width,
+        };
 
-        let header_style = Style::default()
-            .fg(Color::Cyan)
-            .add_modifier(Modifier::BOLD);
-
-        // Build header with optional page indicator
-        let mut header_spans = vec![
-            Span::raw(header_prefix),
-            Span::styled(format!("{collapse_indicator} "), header_style),
-            Span::styled(format!("{history_label} ({activity_len})"), header_style),
-        ];
-
-        // Show page indicator if not on first page
-        if app.history_page > 0 {
-            header_spans.push(Span::styled(
-                format!(" [page {}]", app.history_page + 1),
-                Style::default().fg(Color::DarkGray),
-            ));
+        for line in app.history_section.render(&history_state) {
+            items.push(ListItem::new(line));
         }
 
-        items.push(ListItem::new(Line::from(header_spans)));
-        current_idx += 1;
-
-        // Only show commits if not collapsed
-        if !app.history_collapsed {
-            // Hint for history actions (only show when in history section)
-            let in_history =
-                matches!(app.current_context(), Context::HistoryCommits | Context::HistoryHeader);
-            if in_history {
-                items.push(ListItem::new(render_context_hint(
-                    &app.action_registry,
-                    Context::HistoryCommits,
-                    &app.app_state(),
-                )));
-            }
-
-            // Show current branch name with upstream tracking info
-            if let Some(current_branch) = app.branches.iter().find(|b| b.is_current) {
-                let mut branch_spans = vec![Span::styled(
-                    format!("  {}", current_branch.name),
-                    Style::default().fg(Color::Cyan),
-                )];
-
-                // Add ahead/behind indicators if tracking upstream
-                if app.status.ahead > 0 || app.status.behind > 0 {
-                    branch_spans.push(Span::raw(" "));
-                    if app.status.ahead > 0 {
-                        branch_spans.push(Span::styled(
-                            format!("↑{}", app.status.ahead),
-                            Style::default().fg(Color::Green),
-                        ));
-                    }
-                    if app.status.behind > 0 {
-                        branch_spans.push(Span::styled(
-                            format!("↓{}", app.status.behind),
-                            Style::default().fg(Color::Red),
-                        ));
-                    }
-                }
-
-                // Show upstream branch name
-                if let Some(upstream) = &app.status.upstream {
-                    branch_spans.push(Span::styled(
-                        format!(" → {upstream}"),
-                        Style::default().fg(Color::DarkGray),
-                    ));
-                }
-
-                // Dynamic hints from action registry for remote actions
-                let state = app.app_state();
-                let remote_actions: Vec<_> = app
-                    .action_registry
-                    .actions_for_context(Context::Global, &state)
-                    .into_iter()
-                    .filter(|a| {
-                        matches!(
-                            a.action_type,
-                            ActionType::App(AppAction::Push | AppAction::Pull | AppAction::Fetch)
-                        )
-                    })
-                    .collect();
-
-                if !remote_actions.is_empty() {
-                    branch_spans.push(Span::styled(
-                        "  · ",
-                        Style::default().fg(Color::DarkGray),
-                    ));
-                    for (i, action) in remote_actions.iter().enumerate() {
-                        if i > 0 {
-                            branch_spans.push(Span::styled("  ", Style::default()));
-                        }
-                        branch_spans.push(Span::styled(
-                            format!("{} ", action.key),
-                            Style::default().fg(Color::Cyan),
-                        ));
-                        branch_spans.push(Span::styled(
-                            action.label.clone(),
-                            Style::default().fg(Color::DarkGray).italic(),
-                        ));
-                    }
-                }
-
-                items.push(ListItem::new(Line::from(branch_spans)));
-            }
-
-            let activity_count = app.activity.len();
-            for (i, cmd) in app.activity.iter().enumerate() {
-                let selected = Some(current_idx) == app.selected && !app.is_command_mode();
-                let is_last = i == activity_count - 1;
-                items.push(render_commit_line(cmd, selected, is_last, area.width, false));
-                current_idx += 1;
-
-                // If this commit is expanded, render detail lines
-                if app.expanded_commit.as_ref() == cmd.sha.as_ref() {
-                    if let Some(detail) = &app.expanded_detail {
-                        render_commit_detail(&mut items, app, detail);
-                    }
-                }
-            }
-        }
+        current_idx = history_end;
     }
 
     // Branches section (other branches, excluding current)
@@ -573,8 +473,7 @@ fn render_commit_detail<'a>(
     ])));
 
     // Committer (if different from author)
-    if detail.committer_name != detail.author_name
-        || detail.committer_email != detail.author_email
+    if detail.committer_name != detail.author_name || detail.committer_email != detail.author_email
     {
         items.push(ListItem::new(Line::from(vec![
             Span::raw("    Committer: "),
@@ -589,7 +488,10 @@ fn render_commit_detail<'a>(
     items.push(ListItem::new(Line::from(vec![
         Span::raw("    Date:      "),
         Span::styled(
-            detail.author_time.format("%Y-%m-%d %H:%M:%S %z").to_string(),
+            detail
+                .author_time
+                .format("%Y-%m-%d %H:%M:%S %z")
+                .to_string(),
             Style::default().fg(Color::Yellow),
         ),
     ])));
@@ -641,11 +543,8 @@ fn render_commit_detail<'a>(
         // Hint for commit file actions (only show when a file is selected)
         if matches!(app.current_context(), Context::CommitFiles) {
             // Use extra indent for commit files hints
-            let hint = render_context_hint(
-                &app.action_registry,
-                Context::CommitFiles,
-                &app.app_state(),
-            );
+            let hint =
+                render_context_hint(&app.action_registry, Context::CommitFiles, &app.app_state());
             let mut spans = vec![Span::raw("  ")]; // Extra indent
             spans.extend(hint.spans);
             items.push(ListItem::new(Line::from(spans)));
@@ -779,17 +678,20 @@ fn format_decorations(decorations: &[RefDecoration]) -> Vec<Span<'static>> {
 
         match dec {
             RefDecoration::LocalBranch(name) => {
-                spans.push(Span::styled(name.clone(), Style::default().fg(Color::Green)));
+                spans.push(Span::styled(
+                    name.clone(),
+                    Style::default().fg(Color::Green),
+                ));
             }
             RefDecoration::RemoteBranch(name) => {
                 spans.push(Span::styled(name.clone(), Style::default().fg(Color::Red)));
             }
             RefDecoration::Tag(name) => {
+                spans.push(Span::styled("tag: ", Style::default().fg(Color::DarkGray)));
                 spans.push(Span::styled(
-                    "tag: ",
-                    Style::default().fg(Color::DarkGray),
+                    name.clone(),
+                    Style::default().fg(Color::Yellow),
                 ));
-                spans.push(Span::styled(name.clone(), Style::default().fg(Color::Yellow)));
             }
             RefDecoration::Head => {} // Already handled
         }

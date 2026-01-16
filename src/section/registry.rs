@@ -58,7 +58,11 @@ impl SectionRegistry {
     ///
     /// Returns `None` if the index is out of bounds.
     #[must_use]
-    pub fn lookup_index(&self, global_index: usize, item_counts: &SectionItemCounts) -> Option<IndexLookup> {
+    pub fn lookup_index(
+        &self,
+        global_index: usize,
+        item_counts: &SectionItemCounts,
+    ) -> Option<IndexLookup> {
         let mut offset = 0;
 
         for &section_id in &self.sections {
@@ -83,7 +87,11 @@ impl SectionRegistry {
     ///
     /// Returns `Context::Global` if the index is out of bounds.
     #[must_use]
-    pub fn context_for_index(&self, global_index: usize, item_counts: &SectionItemCounts) -> Context {
+    pub fn context_for_index(
+        &self,
+        global_index: usize,
+        item_counts: &SectionItemCounts,
+    ) -> Context {
         self.lookup_index(global_index, item_counts)
             .map(|lookup| section_to_context(lookup.section_id, lookup.local_index))
             .unwrap_or(Context::Global)
@@ -92,17 +100,18 @@ impl SectionRegistry {
     /// Calculate the total number of selectable items across all sections.
     #[must_use]
     pub fn total_items(&self, item_counts: &SectionItemCounts) -> usize {
-        self.sections
-            .iter()
-            .map(|&id| item_counts.get(id))
-            .sum()
+        self.sections.iter().map(|&id| item_counts.get(id)).sum()
     }
 
     /// Get the global index for the start of a section.
     ///
     /// Returns `None` if the section has no items.
     #[must_use]
-    pub fn section_start_index(&self, section_id: SectionId, item_counts: &SectionItemCounts) -> Option<usize> {
+    pub fn section_start_index(
+        &self,
+        section_id: SectionId,
+        item_counts: &SectionItemCounts,
+    ) -> Option<usize> {
         let count = item_counts.get(section_id);
         if count == 0 {
             return None;
@@ -147,6 +156,7 @@ impl SectionRegistry {
                     is_focused,
                     local_selection,
                     global_selection,
+                    render_width: 0, // Placeholder - actual width set at render time
                 },
             ));
         }
@@ -325,11 +335,26 @@ mod tests {
         let registry = SectionRegistry::new();
         let counts = test_counts();
 
-        assert_eq!(registry.section_start_index(SectionId::Command, &counts), Some(0));
-        assert_eq!(registry.section_start_index(SectionId::Staged, &counts), Some(1));
-        assert_eq!(registry.section_start_index(SectionId::Working, &counts), Some(4));
-        assert_eq!(registry.section_start_index(SectionId::History, &counts), Some(6));
-        assert_eq!(registry.section_start_index(SectionId::Branches, &counts), Some(11));
+        assert_eq!(
+            registry.section_start_index(SectionId::Command, &counts),
+            Some(0)
+        );
+        assert_eq!(
+            registry.section_start_index(SectionId::Staged, &counts),
+            Some(1)
+        );
+        assert_eq!(
+            registry.section_start_index(SectionId::Working, &counts),
+            Some(4)
+        );
+        assert_eq!(
+            registry.section_start_index(SectionId::History, &counts),
+            Some(6)
+        );
+        assert_eq!(
+            registry.section_start_index(SectionId::Branches, &counts),
+            Some(11)
+        );
     }
 
     #[test]

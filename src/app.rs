@@ -220,10 +220,7 @@ impl App {
             return;
         }
 
-        let menu = AliasSectionMenu::new(
-            self.config.sections.clone(),
-            self.repo_path.clone(),
-        );
+        let menu = AliasSectionMenu::new(self.config.sections.clone(), self.repo_path.clone());
         self.menu_stack.push(Box::new(menu));
     }
 
@@ -265,12 +262,7 @@ impl App {
 
         // Update staged section
         self.staged_section.update(StagedSectionData {
-            files: self
-                .status
-                .staged_changes()
-                .into_iter()
-                .cloned()
-                .collect(),
+            files: self.status.staged_changes().into_iter().cloned().collect(),
             command_mode_active: self.is_command_mode(),
             action_registry: Some(self.action_registry.clone()),
             app_state: Some(self.app_state()),
@@ -278,12 +270,7 @@ impl App {
 
         // Update working section
         self.working_section.update(WorkingSectionData {
-            files: self
-                .status
-                .working_changes()
-                .into_iter()
-                .cloned()
-                .collect(),
+            files: self.status.working_changes().into_iter().cloned().collect(),
             command_mode_active: self.is_command_mode(),
             action_registry: Some(self.action_registry.clone()),
             app_state: Some(self.app_state()),
@@ -299,6 +286,7 @@ impl App {
             status: self.status.clone(),
             expanded_commit: self.expanded_commit.clone(),
             expanded_detail: self.expanded_detail.clone(),
+            expanded_file_idx: self.expanded_file_idx,
             command_mode_active: self.is_command_mode(),
             action_registry: Some(self.action_registry.clone()),
             app_state: Some(self.app_state()),
@@ -427,7 +415,8 @@ impl App {
     /// Select the first commit in the history section
     fn select_first_history_commit(&mut self) {
         if !self.activity.is_empty() {
-            let files_total = self.status.staged_changes().len() + self.status.working_changes().len();
+            let files_total =
+                self.status.staged_changes().len() + self.status.working_changes().len();
             // First commit is after header: 1 (command) + files_total + 1 (header)
             self.selected = Some(1 + files_total + 1);
         }
@@ -566,8 +555,7 @@ impl App {
 
     /// Jump to working area (first file in staged or working changes)
     fn jump_to_working(&mut self) {
-        let files_total =
-            self.status.staged_changes().len() + self.status.working_changes().len();
+        let files_total = self.status.staged_changes().len() + self.status.working_changes().len();
         if files_total == 0 {
             return;
         }
@@ -776,7 +764,9 @@ impl App {
         // (except for quit, help, and special keys)
         if self.selected == Some(0) {
             if let KeyCode::Char(c) = key.code {
-                if !matches!(c, 'q' | '?' | ':' | 'o') && !key.modifiers.contains(KeyModifiers::CONTROL) {
+                if !matches!(c, 'q' | '?' | ':' | 'o')
+                    && !key.modifiers.contains(KeyModifiers::CONTROL)
+                {
                     self.enter_command_mode();
                     self.command_input.push(c);
                     return;
@@ -1019,7 +1009,8 @@ impl App {
                             if self.copy_to_clipboard(&detail.full_sha) {
                                 self.feedback.error = Some(format!("Copied: {}", detail.full_sha));
                             } else {
-                                self.feedback.error = Some("Failed to copy to clipboard".to_string());
+                                self.feedback.error =
+                                    Some("Failed to copy to clipboard".to_string());
                             }
                             return;
                         }
@@ -1405,27 +1396,19 @@ impl App {
             None => ("origin".to_string(), false),
         };
 
-        let menu = PushConfirmMenu::new(
-            branch,
-            remote,
-            has_upstream,
-            self.status.ahead,
-            force,
-        );
+        let menu = PushConfirmMenu::new(branch, remote, has_upstream, self.status.ahead, force);
         self.menu_stack.push(Box::new(menu));
     }
 
     /// Execute git pull
     fn execute_pull(&mut self) {
-        let request = CommandRequest::git(["pull"])
-            .with_source(CommandSource::Keyboard);
+        let request = CommandRequest::git(["pull"]).with_source(CommandSource::Keyboard);
         self.run_command(request);
     }
 
     /// Execute git fetch
     fn execute_fetch(&mut self) {
-        let request = CommandRequest::git(["fetch"])
-            .with_source(CommandSource::Keyboard);
+        let request = CommandRequest::git(["fetch"]).with_source(CommandSource::Keyboard);
         self.run_command(request);
     }
 
@@ -1454,11 +1437,15 @@ impl App {
 
         if file_idx < staged_len {
             // Selected is in staged
-            staged.get(file_idx).map(|f| (f.path.clone(), true, f.staged))
+            staged
+                .get(file_idx)
+                .map(|f| (f.path.clone(), true, f.staged))
         } else if file_idx < staged_len + working.len() {
             // Selected is in working
             let working_idx = file_idx - staged_len;
-            working.get(working_idx).map(|f| (f.path.clone(), false, f.working))
+            working
+                .get(working_idx)
+                .map(|f| (f.path.clone(), false, f.working))
         } else {
             // Selected is in activity or branches
             None
@@ -1477,7 +1464,10 @@ impl App {
 
             if selected >= history_commits_start && selected < history_commits_end {
                 let commit_idx = selected - history_commits_start;
-                return self.activity.get(commit_idx).and_then(|cmd| cmd.sha.clone());
+                return self
+                    .activity
+                    .get(commit_idx)
+                    .and_then(|cmd| cmd.sha.clone());
             }
         }
 
@@ -1485,7 +1475,10 @@ impl App {
         let branches_start = self.branches_start_index();
         if self.expanded_branch.is_some() && selected >= branches_start {
             let commit_idx = selected - branches_start;
-            return self.expanded_branch_commits.get(commit_idx).and_then(|cmd| cmd.sha.clone());
+            return self
+                .expanded_branch_commits
+                .get(commit_idx)
+                .and_then(|cmd| cmd.sha.clone());
         }
 
         None
@@ -1570,7 +1563,8 @@ impl App {
             Some(idx) => {
                 self.close_expanded_commit();
 
-                let files_total = self.status.staged_changes().len() + self.status.working_changes().len();
+                let files_total =
+                    self.status.staged_changes().len() + self.status.working_changes().len();
                 let history_header_idx = 1 + files_total;
 
                 // Are we on the last history commit about to move to branches?
@@ -1601,7 +1595,11 @@ impl App {
 
                     if idx == last_commit_idx {
                         // Find next branch
-                        let branch_names: Vec<String> = self.other_branches().iter().map(|b| b.name.clone()).collect();
+                        let branch_names: Vec<String> = self
+                            .other_branches()
+                            .iter()
+                            .map(|b| b.name.clone())
+                            .collect();
                         let mut found = false;
                         let mut next_branch: Option<String> = None;
                         for name in &branch_names {
@@ -1641,7 +1639,8 @@ impl App {
             Some(idx) if idx > 0 => {
                 self.close_expanded_commit();
 
-                let files_total = self.status.staged_changes().len() + self.status.working_changes().len();
+                let files_total =
+                    self.status.staged_changes().len() + self.status.working_changes().len();
                 let history_header_idx = 1 + files_total;
 
                 // Check if we're on the first commit of an expanded branch
@@ -1663,7 +1662,8 @@ impl App {
                             // Expand previous branch and go to its last commit
                             self.expand_branch(&prev_name);
                             let new_start = self.branches_start_index();
-                            self.selected = Some(new_start + self.expanded_branch_commits.len() - 1);
+                            self.selected =
+                                Some(new_start + self.expanded_branch_commits.len() - 1);
                         } else {
                             // First branch - go to history
                             self.expand_history();

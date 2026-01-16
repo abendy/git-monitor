@@ -106,6 +106,8 @@ pub struct SectionState {
     pub local_selection: Option<usize>,
     /// Global selection index
     pub global_selection: Option<usize>,
+    /// Available render width for message truncation
+    pub render_width: u16,
 }
 
 /// A UI section that can be rendered and interacted with

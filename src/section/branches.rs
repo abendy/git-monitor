@@ -6,11 +6,12 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::{Line, Span};
 
-use super::{Section, SectionAction, SectionId, SectionState};
+use super::{Section, SectionAction, SectionId, SectionKeybinding, SectionState};
 use crate::actions::{ActionRegistry, AppAction, AppState, Context};
 use crate::git::{
     format_relative_time, BranchInfo, CommandType, CommitDetail, FileState, GitCommand,
 };
+use crate::input::KeyBinding;
 
 /// Data needed by the branches section for rendering
 #[derive(Debug, Clone, Default)]
@@ -593,5 +594,25 @@ impl Section for BranchesSection {
             }
             _ => None,
         }
+    }
+
+    fn keybindings(&self) -> Vec<SectionKeybinding> {
+        vec![
+            SectionKeybinding::new(
+                KeyBinding::char('e'),
+                "Expand",
+                "Expand/collapse branch commits",
+            ),
+            SectionKeybinding::new(
+                KeyBinding::key(KeyCode::Enter),
+                "Checkout",
+                "Checkout branch or commit",
+            ),
+            SectionKeybinding::new(
+                KeyBinding::char('y'),
+                "Copy SHA",
+                "Copy commit SHA",
+            ),
+        ]
     }
 }

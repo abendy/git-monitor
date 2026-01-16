@@ -6,13 +6,14 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::{Line, Span};
 
-use super::{Section, SectionAction, SectionId, SectionState};
+use super::{Section, SectionAction, SectionId, SectionKeybinding, SectionState};
 use crate::actions::{ActionRegistry, ActionType, AppAction, AppState, Context};
 use crate::app::HistoryMode;
 use crate::git::{
     format_relative_time, BranchInfo, CommandType, CommitDetail, FileState, GitCommand, GitStatus,
     RefDecoration,
 };
+use crate::input::KeyBinding;
 
 /// Data needed by the history section for rendering
 #[derive(Debug, Clone, Default)]
@@ -871,5 +872,45 @@ impl Section for HistorySection {
                 _ => None,
             }
         }
+    }
+
+    fn keybindings(&self) -> Vec<SectionKeybinding> {
+        vec![
+            SectionKeybinding::new(
+                KeyBinding::char('t'),
+                "Toggle",
+                "Toggle between commit log and reflog",
+            ),
+            SectionKeybinding::new(
+                KeyBinding::key(KeyCode::Enter),
+                "Expand",
+                "Expand/collapse commit details",
+            ),
+            SectionKeybinding::new(
+                KeyBinding::char('y'),
+                "Copy SHA",
+                "Copy short commit SHA",
+            ),
+            SectionKeybinding::new(
+                KeyBinding::char('Y'),
+                "Copy Full",
+                "Copy full commit SHA",
+            ),
+            SectionKeybinding::new(
+                KeyBinding::char('['),
+                "Prev Page",
+                "Previous page of history",
+            ),
+            SectionKeybinding::new(
+                KeyBinding::char(']'),
+                "Next Page",
+                "Next page of history",
+            ),
+            SectionKeybinding::new(
+                KeyBinding::char('R'),
+                "Rebase",
+                "Interactive rebase onto commit",
+            ),
+        ]
     }
 }

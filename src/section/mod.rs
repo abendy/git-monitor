@@ -22,6 +22,7 @@ pub use staged::{StagedSection, StagedSectionData};
 pub use working::{WorkingSection, WorkingSectionData};
 
 use crate::actions::{Action, Context};
+use crate::input::KeyBinding;
 
 /// Unique identifier for each section
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -128,6 +129,33 @@ pub enum RefreshPolicy {
     Never,
 }
 
+/// A keybinding declared by a section
+///
+/// Sections declare their keybindings for documentation and help display.
+/// This enables sections to be self-describing, supporting future external
+/// sections that bring their own bindings.
+#[derive(Debug, Clone)]
+pub struct SectionKeybinding {
+    /// The key combination that triggers this action
+    pub key: KeyBinding,
+    /// Short label for the action (e.g., "Stage", "Diff")
+    pub label: &'static str,
+    /// Longer description for help display
+    pub description: &'static str,
+}
+
+impl SectionKeybinding {
+    /// Create a new section keybinding
+    #[must_use]
+    pub const fn new(key: KeyBinding, label: &'static str, description: &'static str) -> Self {
+        Self {
+            key,
+            label,
+            description,
+        }
+    }
+}
+
 /// State passed to sections for rendering and actions
 #[derive(Debug, Clone)]
 pub struct SectionState {
@@ -173,6 +201,14 @@ pub trait Section: Send + Sync {
     /// may use `Interval` for API polling or `Manual` for expensive operations.
     fn refresh_policy(&self) -> RefreshPolicy {
         RefreshPolicy::OnFileChange
+    }
+
+    /// Keybindings available when this section is focused
+    ///
+    /// Sections declare their keybindings for help display and documentation.
+    /// This is declarative metadata - actual key handling is in `handle_key()`.
+    fn keybindings(&self) -> Vec<SectionKeybinding> {
+        Vec::new()
     }
 
     /// Render this section to lines for display

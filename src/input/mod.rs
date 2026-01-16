@@ -5,4 +5,4 @@
 
 mod keymap;
 
-pub use keymap::Keymap;
+pub use keymap::{KeyBinding, Keymap};

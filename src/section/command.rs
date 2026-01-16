@@ -6,9 +6,10 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 
-use super::{Section, SectionAction, SectionId, SectionState};
+use super::{Section, SectionAction, SectionId, SectionKeybinding, SectionState};
 use crate::actions::{Action, Context};
 use crate::feedback::CommandOutput;
+use crate::input::KeyBinding;
 
 /// Data needed by the command section for rendering
 #[derive(Debug, Clone, Default)]
@@ -206,5 +207,25 @@ impl Section for CommandSection {
             }
             _ => None,
         }
+    }
+
+    fn keybindings(&self) -> Vec<SectionKeybinding> {
+        vec![
+            SectionKeybinding::new(
+                KeyBinding::char(':'),
+                "Command",
+                "Enter command mode",
+            ),
+            SectionKeybinding::new(
+                KeyBinding::char('a'),
+                "Aliases",
+                "Browse git aliases",
+            ),
+            SectionKeybinding::new(
+                KeyBinding::char('o'),
+                "Expand",
+                "Expand command output",
+            ),
+        ]
     }
 }

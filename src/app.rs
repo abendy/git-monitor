@@ -1459,11 +1459,24 @@ impl App {
         };
 
         let path = self
-            .selected_file_info()
-            .map(|(path, _is_staged, _state)| path.to_string_lossy().to_string())
+            .editor_target_path()
             .unwrap_or_else(|| ".".to_string());
 
         self.pending_external = Some(ExternalCommand::OpenEditor { editor, path });
+    }
+
+    fn editor_target_path(&self) -> Option<String> {
+        if let (Some(detail), Some(file_idx)) = (
+            self.expanded_detail.as_ref(),
+            self.expanded_file_idx,
+        ) {
+            if let Some(file) = detail.files.get(file_idx) {
+                return Some(file.path.clone());
+            }
+        }
+
+        self.selected_file_info()
+            .map(|(path, _is_staged, _state)| path.to_string_lossy().to_string())
     }
 
     /// Handle keyboard input in popup mode

@@ -3,7 +3,7 @@
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 
-use crate::actions::{ActionRegistry, AppState, Context};
+use crate::actions::{ActionRegistry, ActionType, AppAction, AppState, Context};
 use crate::git::{
     format_relative_time, CommitDetail, CommandType, FileState, GitCommand, RefDecoration,
 };
@@ -289,7 +289,25 @@ pub fn render_context_hint(
     context: Context,
     state: &AppState,
 ) -> Line<'static> {
-    let actions = registry.hint_actions_for_context(context, state);
+    let mut actions = registry.hint_actions_for_context(context, state);
+
+    if editor_available() {
+        if let Some(action) = registry
+            .actions_for_context(context, state)
+            .into_iter()
+            .find(|action| {
+                matches!(
+                    action.action_type,
+                    ActionType::App(AppAction::OpenEditor)
+                )
+            })
+        {
+            if !actions.iter().any(|a| a.action_type == action.action_type) {
+                actions.push(action);
+                actions.sort_by_key(|a| a.priority);
+            }
+        }
+    }
 
     if actions.is_empty() {
         return Line::from("");
@@ -456,4 +474,10 @@ fn truncate_message(message: &str, max_len: usize) -> String {
     } else {
         message.to_string()
     }
+}
+
+fn editor_available() -> bool {
+    std::env::var("EDITOR")
+        .ok()
+        .is_some_and(|value| !value.trim().is_empty())
 }

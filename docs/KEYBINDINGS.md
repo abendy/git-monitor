@@ -43,6 +43,7 @@
 | `Space` | Open in pager |
 | `d` | Inline diff popup |
 | `M` | Open in difftool |
+| `e` | Open file in `$EDITOR` |
 
 ## Branches
 

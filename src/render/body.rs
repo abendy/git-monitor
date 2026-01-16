@@ -18,6 +18,7 @@ use crate::{
     actions::{ActionRegistry, ActionType, AppAction, AppState, Context},
     app::{App, HistoryMode},
     git::{format_relative_time, CommandType, FileState, RefDecoration},
+    section::{Section, SectionState},
     tui::Frame,
 };
 
@@ -188,51 +189,25 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
     // Spacer after command section
     items.push(ListItem::new(Line::from("")));
 
-    // Staged section
-    if !staged_changes.is_empty() {
-        // Check if selection is within staged section (indices 1 to staged_len)
+    // Staged section - delegate to StagedSection::render()
+    if staged_len > 0 {
+        // Build section state: staged items are at indices [1, 1+staged_len)
         let in_staged = app
             .selected
-            .is_some_and(|s| s >= 1 && s < 1 + staged_len && !app.is_command_mode());
-        let arrow = if in_staged { "▾" } else { "▸" };
-        items.push(ListItem::new(Line::from(Span::styled(
-            format!("  {arrow} Staged ({staged_len})"),
-            Style::default()
-                .fg(Color::Green)
-                .add_modifier(Modifier::BOLD),
-        ))));
+            .is_some_and(|s| s >= 1 && s < 1 + staged_len);
+        let local_selection = if in_staged {
+            app.selected.map(|s| s - 1) // Convert global to local (subtract command offset)
+        } else {
+            None
+        };
+        let staged_state = SectionState {
+            is_focused: in_staged,
+            local_selection,
+            global_selection: app.selected,
+        };
 
-        // Hint for file actions (only show when in staged section)
-        if in_staged {
-            items.push(ListItem::new(render_context_hint(
-                &app.action_registry,
-                app.current_context(),
-                &app.app_state(),
-            )));
-        }
-
-        for (i, file) in staged_changes.iter().enumerate() {
-            // Index 0 is command, so files start at index 1
-            let global_idx = 1 + i;
-            // Don't show selection when command mode is active (focus is on input)
-            let selected = Some(global_idx) == app.selected && !app.is_command_mode();
-            let prefix = if selected { "▸ " } else { "  " };
-            let status_char = file.staged.as_char();
-            let color = state_color(file.staged);
-            let path = file.path.to_string_lossy();
-
-            let style = if selected {
-                Style::default().fg(color).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(color)
-            };
-
-            items.push(ListItem::new(Line::from(vec![
-                Span::raw(prefix),
-                Span::styled("● ", Style::default().fg(Color::Green)),
-                Span::styled(format!("{status_char} "), style),
-                Span::styled(path.to_string(), style),
-            ])));
+        for line in app.staged_section.render(&staged_state) {
+            items.push(ListItem::new(line));
         }
     }
 

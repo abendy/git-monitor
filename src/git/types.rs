@@ -12,6 +12,14 @@ pub struct FileStatus {
     pub working: FileState,
     /// Status in staging area (index)
     pub staged: FileState,
+    /// Lines inserted in working directory changes
+    pub working_insertions: usize,
+    /// Lines deleted in working directory changes
+    pub working_deletions: usize,
+    /// Lines inserted in staged changes
+    pub staged_insertions: usize,
+    /// Lines deleted in staged changes
+    pub staged_deletions: usize,
 }
 
 /// State of a file
@@ -454,6 +462,10 @@ mod tests {
                 path: PathBuf::from(path),
                 working,
                 staged,
+                working_insertions: 0,
+                working_deletions: 0,
+                staged_insertions: 0,
+                staged_deletions: 0,
             }
         }
 

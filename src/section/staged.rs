@@ -8,20 +8,8 @@ use ratatui::text::{Line, Span};
 
 use super::{Section, SectionAction, SectionId, SectionState};
 use crate::actions::{Action, ActionRegistry, AppState, Context};
-use crate::git::{FileState, FileStatus};
-
-/// Get color for file state
-const fn state_color(state: FileState) -> Color {
-    match state {
-        FileState::Modified => Color::Yellow,
-        FileState::Added => Color::Green,
-        FileState::Deleted => Color::Red,
-        FileState::Renamed => Color::Cyan,
-        FileState::Untracked => Color::DarkGray,
-        FileState::Conflicted => Color::Magenta,
-        FileState::Unmodified | FileState::Ignored => Color::White,
-    }
-}
+use crate::git::FileStatus;
+use crate::render::file_list::{render_file_entry, FileEntryView, FileListStyle};
 
 /// Data needed by the staged section for rendering
 #[derive(Debug, Clone, Default)]
@@ -143,30 +131,25 @@ impl Section for StagedSection {
             lines.push(self.render_hints());
         }
 
-        // File entries
+        // File entries using shared renderer
+        let style = FileListStyle {
+            indicator: Some(("● ", Color::Green)),
+            ..Default::default()
+        };
+
         for (i, file) in self.data.files.iter().enumerate() {
             let selected = state.local_selection == Some(i)
                 && state.is_focused
                 && !self.data.command_mode_active;
-            let prefix = if selected { "▸ " } else { "  " };
-            let status_char = file.staged.as_char();
-            let color = state_color(file.staged);
-            let path = file.path.to_string_lossy();
 
-            let style = if selected {
-                Style::default()
-                    .fg(color)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(color)
+            let entry = FileEntryView {
+                path: &file.path.to_string_lossy(),
+                status: file.staged,
+                insertions: file.staged_insertions,
+                deletions: file.staged_deletions,
             };
 
-            lines.push(Line::from(vec![
-                Span::raw(prefix),
-                Span::styled("● ", Style::default().fg(Color::Green)),
-                Span::styled(format!("{status_char} "), style),
-                Span::styled(path.to_string(), style),
-            ]));
+            lines.push(render_file_entry(&entry, &style, selected));
         }
 
         lines

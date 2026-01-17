@@ -1,7 +1,8 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use git2::{Status, StatusOptions};
+use git2::{Diff, DiffDelta, DiffHunk, DiffLine, DiffOptions, Status, StatusOptions};
 
 use super::{FileState, FileStatus, GitRepo, GitStatus};
 
@@ -85,6 +86,9 @@ impl GitRepo {
             .statuses(Some(&mut opts))
             .context("Failed to get git status")?;
 
+        // Compute diff stats for all files
+        let diff_stats = self.compute_diff_stats().unwrap_or_default();
+
         for entry in statuses.iter() {
             let path = entry
                 .path()
@@ -93,10 +97,18 @@ impl GitRepo {
 
             let git_status = entry.status();
 
+            // Look up diff stats for this file
+            let (working_ins, working_del, staged_ins, staged_del) =
+                diff_stats.get(&path).copied().unwrap_or((0, 0, 0, 0));
+
             let file_status = FileStatus {
                 path,
                 working: working_state_from_git2(git_status),
                 staged: staged_state_from_git2(git_status),
+                working_insertions: working_ins,
+                working_deletions: working_del,
+                staged_insertions: staged_ins,
+                staged_deletions: staged_del,
             };
 
             // Only add if there's an actual change
@@ -111,6 +123,45 @@ impl GitRepo {
             .sort_by(|a, b| a.path.cmp(&b.path));
 
         Ok(())
+    }
+
+    /// Compute diff stats for all files with changes
+    ///
+    /// Returns a map of path to `(working_insertions, working_deletions, staged_insertions, staged_deletions)`
+    fn compute_diff_stats(&self) -> Result<HashMap<PathBuf, (usize, usize, usize, usize)>> {
+        let mut stats: HashMap<PathBuf, (usize, usize, usize, usize)> = HashMap::new();
+
+        // Get HEAD tree for staged diff baseline (if available)
+        let head_tree = self
+            .repo
+            .head()
+            .ok()
+            .and_then(|head| head.peel_to_tree().ok());
+
+        let mut diff_opts = DiffOptions::new();
+        diff_opts.include_untracked(true);
+
+        // Staged changes: diff from HEAD to index
+        if let Ok(staged_diff) = self.repo.diff_tree_to_index(
+            head_tree.as_ref(),
+            None,
+            Some(&mut diff_opts),
+        ) {
+            collect_diff_stats(&staged_diff, &mut stats, false);
+        }
+
+        // Working changes: diff from index to workdir
+        let mut workdir_opts = DiffOptions::new();
+        workdir_opts.include_untracked(true);
+
+        if let Ok(working_diff) = self
+            .repo
+            .diff_index_to_workdir(None, Some(&mut workdir_opts))
+        {
+            collect_diff_stats(&working_diff, &mut stats, true);
+        }
+
+        Ok(stats)
     }
 }
 
@@ -144,4 +195,52 @@ fn staged_state_from_git2(status: Status) -> FileState {
     } else {
         FileState::Unmodified
     }
+}
+
+/// Collect line stats from a diff into the stats map
+///
+/// If `is_working` is true, updates working_insertions/deletions,
+/// otherwise updates staged_insertions/deletions.
+fn collect_diff_stats(
+    diff: &Diff<'_>,
+    stats: &mut HashMap<PathBuf, (usize, usize, usize, usize)>,
+    is_working: bool,
+) {
+    use std::cell::RefCell;
+
+    // Use RefCell to allow mutable access from the line callback
+    let stats_cell = RefCell::new(stats);
+
+    let _ = diff.foreach(
+        &mut |_delta: DiffDelta<'_>, _progress: f32| true, // file callback
+        None,                                               // binary callback
+        None,                                               // hunk callback
+        Some(&mut |delta: DiffDelta<'_>, _hunk: Option<DiffHunk<'_>>, line: DiffLine<'_>| {
+            if let Some(path) = delta.new_file().path().or_else(|| delta.old_file().path()) {
+                let mut stats_ref = stats_cell.borrow_mut();
+                let entry = stats_ref
+                    .entry(PathBuf::from(path))
+                    .or_insert((0, 0, 0, 0));
+
+                match line.origin() {
+                    '+' => {
+                        if is_working {
+                            entry.0 += 1; // working_insertions
+                        } else {
+                            entry.2 += 1; // staged_insertions
+                        }
+                    }
+                    '-' => {
+                        if is_working {
+                            entry.1 += 1; // working_deletions
+                        } else {
+                            entry.3 += 1; // staged_deletions
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            true
+        }),
+    );
 }

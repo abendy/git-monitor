@@ -4,9 +4,8 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 
 use crate::actions::{ActionRegistry, ActionType, AppAction, AppState, Context};
-use crate::git::{
-    format_relative_time, CommitDetail, CommandType, FileState, GitCommand, RefDecoration,
-};
+use crate::git::{format_relative_time, CommitDetail, CommandType, GitCommand, RefDecoration};
+use crate::render::file_list::{render_file_entry, FileEntryView, FileListStyle};
 
 pub fn render_commit_line(
     cmd: &GitCommand,
@@ -229,53 +228,24 @@ pub fn render_commit_detail(
             }
         }
 
+        // Commit files use extra indentation
+        let file_style = FileListStyle {
+            indicator: None,
+            selected_prefix: "  ▸ ",
+            unselected_prefix: "    ",
+        };
+
         for (file_idx, file) in detail.files.iter().enumerate() {
             let is_file_selected = expanded_file_idx == Some(file_idx);
-            let (status_char, color) = match file.status {
-                FileState::Added => ('A', Color::Green),
-                FileState::Modified => ('M', Color::Yellow),
-                FileState::Deleted => ('D', Color::Red),
-                FileState::Renamed => ('R', Color::Cyan),
-                _ => ('?', Color::White),
+
+            let entry = FileEntryView {
+                path: &file.path,
+                status: file.status,
+                insertions: file.insertions,
+                deletions: file.deletions,
             };
 
-            let file_prefix = if is_file_selected { "  ▸ " } else { "    " };
-            let file_style = if is_file_selected {
-                Style::default().add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-            };
-
-            let mut spans = vec![
-                Span::styled(file_prefix.to_string(), file_style),
-                Span::styled(
-                    format!("{status_char}"),
-                    file_style.fg(color),
-                ),
-                Span::raw("  "),
-                Span::styled(file.path.clone(), file_style),
-            ];
-
-            if file.insertions > 0 || file.deletions > 0 {
-                spans.push(Span::raw("  "));
-                if file.insertions > 0 {
-                    spans.push(Span::styled(
-                        format!("+{}", file.insertions),
-                        file_style.fg(Color::Green),
-                    ));
-                }
-                if file.insertions > 0 && file.deletions > 0 {
-                    spans.push(Span::raw("/"));
-                }
-                if file.deletions > 0 {
-                    spans.push(Span::styled(
-                        format!("-{}", file.deletions),
-                        file_style.fg(Color::Red),
-                    ));
-                }
-            }
-
-            lines.push(Line::from(spans));
+            lines.push(render_file_entry(&entry, &file_style, is_file_selected));
         }
     }
 

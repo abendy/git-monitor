@@ -912,6 +912,47 @@ pub struct BranchesSectionData { pub branches: Vec<BranchInfo>, ... }
 pub struct BranchesSection { data: BranchesSectionData }
 ```
 
+### SectionRegistry
+
+Centralizes index calculations across all UI sections:
+
+```rust
+/// Result of looking up a global index
+pub struct IndexLookup {
+    pub section_id: SectionId,
+    pub local_index: usize,
+}
+
+/// Registry for managing sections and index calculations
+pub struct SectionRegistry {
+    sections: Vec<SectionId>,
+}
+
+impl SectionRegistry {
+    pub fn new() -> Self;
+    pub fn sections(&self) -> &[SectionId];
+    pub fn lookup_index(&self, global_index: usize, item_counts: &SectionItemCounts) -> Option<IndexLookup>;
+    pub fn context_for_index(&self, global_index: usize, item_counts: &SectionItemCounts) -> Context;
+    pub fn total_items(&self, item_counts: &SectionItemCounts) -> usize;
+    pub fn section_start_index(&self, section_id: SectionId, item_counts: &SectionItemCounts) -> Option<usize>;
+    pub fn build_section_states(&self, global_selection: Option<usize>, item_counts: &SectionItemCounts) -> Vec<(SectionId, SectionState)>;
+}
+
+/// Item counts for each section
+pub struct SectionItemCounts {
+    pub command: usize,
+    pub staged: usize,
+    pub working: usize,
+    pub history: usize,
+    pub branches: usize,
+}
+
+impl SectionItemCounts {
+    pub fn get(&self, section_id: SectionId) -> usize;
+    pub fn from_sections(command: &impl Section, staged: &impl Section, working: &impl Section, history: &impl Section, branches: &impl Section) -> Self;
+}
+```
+
 ## TUI Types
 
 ### Terminal Wrapper (`src/tui.rs`)

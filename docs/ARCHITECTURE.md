@@ -32,7 +32,8 @@ A terminal-based user interface for monitoring git repository activity in real-t
 |--------|------|---------|
 | `main` | `src/main.rs` | CLI entry point, argument parsing (clap) |
 | `app` | `src/app.rs` | Central state container, event handling, keybindings |
-| `ui` | `src/ui.rs` | UI rendering (header, body, footer, popup overlays) |
+| `ui` | `src/ui.rs` | Render coordinator (delegates to render/) |
+| `render/` | `src/render/` | Split render modules (header, footer, body, popup, help, menu) |
 | `git` | `src/git.rs` | Git operations wrapper around libgit2 |
 | `tui` | `src/tui.rs` | Terminal setup/teardown (crossterm + ratatui) |
 | `event` | `src/event.rs` | Event types and handler thread |
@@ -43,7 +44,7 @@ A terminal-based user interface for monitoring git repository activity in real-t
 | `feedback/` | `src/feedback/` | Feedback system for output display (see ADR-004) |
 | `input/` | `src/input/` | Declarative keybindings (`Keymap`, `KeyBinding`) |
 | `menu/` | `src/menu/` | Modular menu system with stack navigation (see ADR-005) |
-| `section/` | `src/section/` | Section trait and implementations for UI regions |
+| `section/` | `src/section/` | Section trait, registry, and implementations for UI regions |
 
 ## Component Design
 
@@ -286,7 +287,14 @@ pub trait Section: Send + Sync {
 - `HistorySection` - Commit log / reflog (collapsible)
 - `BranchesSection` - Local branches (expandable)
 
-### 11. UI Rendering (`src/ui.rs`)
+**Section Registry**: `SectionRegistry` centralizes index calculations across all UI sections. It provides:
+- `lookup_index()` - Map global index to section ID and local index
+- `context_for_index()` - Determine context for a given index
+- `total_items()` - Total selectable items across all sections
+- `section_start_index()` - Global index where a section begins
+- `build_section_states()` - Generate render states for all sections
+
+### 11. Render System (`src/ui.rs` + `src/render/`)
 
 Layout structure (unified vertical list):
 ```
@@ -318,6 +326,15 @@ Layout structure (unified vertical list):
 │ [:] cmd  [s] stage  [d] diff  [h] history  [?] help         │  Footer
 └──────────────────────────────────────────────────────────────┘
 ```
+
+The render system is split into modular sub-components:
+- `ui.rs` - Thin coordinator that delegates to render modules
+- `render/header.rs` - Top bar with branch, status, repo info
+- `render/footer.rs` - Bottom bar with contextual hints
+- `render/body.rs` - Main content area with all sections
+- `render/popup.rs` - Full-screen command output and diffs
+- `render/help.rs` - Help overlay
+- `render/menu.rs` - Menu stack rendering
 
 **Popup System**: Full-screen overlays replace the body entirely (not layered):
 - Help overlay - keybinding reference

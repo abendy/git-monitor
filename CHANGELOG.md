@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-01-17
+
+### Added
+
+- **SectionRegistry** for centralized index calculations (`src/section/registry.rs`)
+  - `lookup_index()` maps global index to section/local index
+  - `context_for_index()` determines context for any index
+  - `total_items()` counts selectable items across all sections
+  - `section_start_index()` finds where each section begins
+  - `build_section_states()` generates render states for all sections
+
+### Changed
+
+- **Render module migration** - UI rendering split into modular sub-components
+  - `ui.rs` is now a thin coordinator delegating to `render/` modules
+  - `render/header.rs` - top bar with branch, status, repo info
+  - `render/footer.rs` - bottom bar with contextual hints
+  - `render/body.rs` - main content area with all sections
+  - `render/popup.rs` - full-screen command output and diffs
+  - `render/help.rs` - help overlay
+  - `render/menu.rs` - menu stack rendering
+- Cleaned up unused imports and dead code across codebase
+
+### Documentation
+
+- Streamlined README with clearer project overview
+- Added CONTRIBUTING guide for new contributors
+- Clarified copy SHA keybindings in documentation
+
 ## [0.6.0] - 2026-01-17
 
 ### Added

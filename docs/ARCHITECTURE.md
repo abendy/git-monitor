@@ -31,10 +31,10 @@ A terminal-based user interface for monitoring git repository activity in real-t
 | Module | File | Purpose |
 |--------|------|---------|
 | `main` | `src/main.rs` | CLI entry point, argument parsing (clap) |
-| `app` | `src/app.rs` | Central state container, event handling, keybindings |
+| `app/` | `src/app/` | Central state container, event handling, keybindings (split into submodules) |
 | `ui` | `src/ui.rs` | Render coordinator (delegates to render/) |
-| `render/` | `src/render/` | Split render modules (header, footer, body, popup, help, menu) |
-| `git` | `src/git.rs` | Git operations wrapper around libgit2 |
+| `render/` | `src/render/` | Split render modules (header, footer, body, popup, help, menu, file_list) |
+| `git/` | `src/git/` | Git operations wrapper around libgit2 (split into submodules) |
 | `tui` | `src/tui.rs` | Terminal setup/teardown (crossterm + ratatui) |
 | `event` | `src/event.rs` | Event types and handler thread |
 | `watcher` | `src/watcher.rs` | File system watching with debouncing (notify) |
@@ -45,6 +45,36 @@ A terminal-based user interface for monitoring git repository activity in real-t
 | `input/` | `src/input/` | Declarative keybindings (`Keymap`, `KeyBinding`) |
 | `menu/` | `src/menu/` | Modular menu system with stack navigation (see ADR-005) |
 | `section/` | `src/section/` | Section trait, registry, and implementations for UI regions |
+
+### App Submodules (`src/app/`)
+
+| Submodule | Purpose |
+|-----------|---------|
+| `mod.rs` | Core `App` struct definition and types (`ViewMode`, `HistoryMode`) |
+| `init.rs` | App initialization and constructor |
+| `runtime.rs` | Event loop and tick handling |
+| `input.rs` | Input processing and key event delegation |
+| `key_handlers.rs` | Key handling for different contexts |
+| `navigation.rs` | Selection and navigation logic |
+| `actions.rs` | Action dispatch and execution |
+| `commands.rs` | Command execution and feedback |
+| `sections.rs` | Section state updates and sync |
+| `history.rs` | History mode and pagination logic |
+| `branches.rs` | Branch expansion and checkout |
+
+### Git Submodules (`src/git/`)
+
+| Submodule | Purpose |
+|-----------|---------|
+| `mod.rs` | Module exports and `GitRepo` struct |
+| `types.rs` | Core types (`GitStatus`, `FileStatus`, `FileState`, `GitCommand`, etc.) |
+| `repo.rs` | Repository operations (open, workdir) |
+| `status.rs` | Status operations (stage, unstage, diff) |
+| `branches.rs` | Branch listing and info |
+| `commit.rs` | Commit detail retrieval |
+| `diff.rs` | Diff generation |
+| `history.rs` | Commit log and reflog operations |
+| `time.rs` | Relative time formatting |
 
 ## Component Design
 
@@ -273,12 +303,38 @@ Each UI section implements the `Section` trait for consistent rendering and key 
 ```rust
 pub trait Section: Send + Sync {
     fn id(&self) -> SectionId;
+    fn name(&self) -> &str;
+    fn contexts(&self) -> Vec<Context>;
     fn item_count(&self) -> usize;
+    fn is_collapsible(&self) -> bool;
+    fn is_collapsed(&self) -> bool;
+    fn refresh_policy(&self) -> RefreshPolicy;
+    fn keybindings(&self) -> Vec<SectionKeybinding>;
     fn render(&self, state: &SectionState) -> Vec<Line<'static>>;
     fn actions(&self, item_idx: usize) -> Vec<Action>;
     fn handle_key(&self, key: KeyEvent, item_idx: usize) -> Option<SectionAction>;
 }
 ```
+
+**Refresh Policy**: Controls when sections refresh their data:
+```rust
+pub enum RefreshPolicy {
+    OnFileChange,           // Default: refresh on file system changes
+    Interval { seconds: u32 }, // Refresh at fixed intervals
+    Manual,                 // Only on explicit user request
+    Never,                  // Static content
+}
+```
+
+**Section Keybindings**: External sections can declare keybindings for documentation:
+```rust
+pub struct SectionKeybinding {
+    pub key: KeyBinding,
+    pub label: &'static str,
+    pub description: &'static str,
+}
+```
+Built-in sections use `ActionRegistry` for keybindings. The `keybindings()` method is reserved for external sections that need self-describing bindings.
 
 **Section Implementations**:
 - `CommandSection` - Command input and output display
@@ -335,6 +391,7 @@ The render system is split into modular sub-components:
 - `render/popup.rs` - Full-screen command output and diffs
 - `render/help.rs` - Help overlay
 - `render/menu.rs` - Menu stack rendering
+- `render/file_list.rs` - Shared file entry rendering with diff stats
 
 **Popup System**: Full-screen overlays replace the body entirely (not layered):
 - Help overlay - keybinding reference

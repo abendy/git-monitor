@@ -282,7 +282,7 @@ Collapsible section showing commits on current branch. Press `h` to jump to hist
 
 **Relative Times**: Timestamps shown as "2 hr ago", "3 days ago", etc.
 
-**Special Commit Prefixes**: Commits with fixup!, squash!, amend!, etc. are highlighted in yellow.
+**Special Commit Prefixes**: Commits with fixup!, squash!, amend!, etc. are highlighted in magenta. Commits with WIP prefix (or wip:, wip ) are highlighted in yellow.
 
 **Command Icons & Colors** (Reflog mode):
 
@@ -383,6 +383,7 @@ When an error occurs, the footer shows the error message in red instead of keybi
 | `Y` | Copy full SHA to clipboard (on history item) |
 | `c` | Checkout (on branch) |
 | `R` | Interactive rebase onto selected commit (on history) |
+| `e` | Open file in editor (on working/staged/commit files) |
 | `P` | Push (available when ahead of remote) |
 | `p` | Pull (available when behind remote) |
 | `f` | Fetch from remote |

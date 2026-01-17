@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-01-17
+
+### Added
+
+- **Editor integration** - `e` key opens selected file in external editor (`$EDITOR` or `$VISUAL`)
+- **Unified file list rendering** - Consistent file display with diff stats (`+N/-M`) across working, staged, and commit file sections
+- **WIP commit highlighting** - Commits with "WIP" prefix are highlighted in yellow (in addition to fixup!/squash!/amend! in magenta)
+- **Section extensibility** - `RefreshPolicy` enum for controlling when sections refresh (OnFileChange, Interval, Manual, Never)
+- **Section keybindings API** - `SectionKeybinding` struct for external sections to declare their own keybindings
+
+### Changed
+
+- **Module reorganization** - `app.rs` split into `app/` submodule with focused files (actions, branches, commands, history, init, input, key_handlers, navigation, runtime, sections)
+- **Git module split** - `git.rs` split into `git/` submodule (branches, commit, diff, history, repo, status, time, types)
+- **Centralized keybindings** - Keymap system now centralizes all key binding lookups
+- **Unified commit rendering** - History and branches sections share commit display through `section/commit.rs`
+- **Improved navigation** - Selection index now properly clamped when item counts change
+
+### Fixed
+
+- Selection index clamping prevents invalid selections when items are removed
+- History pagination moved to footer for consistency
+- Branch headers now selectable for proper accordion behavior
+- Space key expand behavior aligned across history and branches
+
 ## [0.7.1] - 2026-01-17
 
 ### Changed

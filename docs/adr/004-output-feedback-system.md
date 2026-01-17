@@ -1,7 +1,7 @@
 # ADR-004: Command Output and Feedback System
 
 ## Status
-Implemented (Partial)
+Implemented
 
 **Implementation Date:** 2026-01-17
 
@@ -12,10 +12,8 @@ Implemented (Partial)
 - `Toast` and `ToastLevel` types defined
 - Source-aware feedback policy (menu/browser → popup, keyboard → conditional)
 - Integration with unified command execution framework
-
-**What's Remaining:**
-- Toast rendering in header (types defined but not rendered)
-- Auto-dismiss tick handling for toasts
+- Toast rendering in footer with level-based coloring
+- Auto-dismiss tick handling for toast expiry
 
 ## Context (Historical)
 *This section describes the pre-integration state that motivated this ADR. The system has since been unified as described in "What's Done" above.*

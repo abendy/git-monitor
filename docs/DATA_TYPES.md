@@ -2,7 +2,7 @@
 
 ## Core Types
 
-### File Status (`src/git.rs`)
+### File Status (`src/git/types.rs`)
 
 ```rust
 /// Status of a single file in the repository
@@ -51,7 +51,7 @@ impl FileState {
 | Ignored | `!` | In .gitignore |
 | Conflicted | `U` | Merge conflict |
 
-### Repository State (`src/git.rs`)
+### Repository State (`src/git/types.rs`)
 
 ```rust
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -69,7 +69,7 @@ pub enum RepoState {
 
 Converted from `git2::RepositoryState`.
 
-### Git Status (`src/git.rs`)
+### Git Status (`src/git/types.rs`)
 
 ```rust
 /// Complete git status snapshot
@@ -98,7 +98,7 @@ impl GitStatus {
 }
 ```
 
-### Ref Decorations (`src/git.rs`)
+### Ref Decorations (`src/git/types.rs`)
 
 ```rust
 /// A decoration (branch, tag, etc.) attached to a commit
@@ -111,7 +111,7 @@ pub enum RefDecoration {
 }
 ```
 
-### Commit Detail (`src/git.rs`)
+### Commit Detail (`src/git/types.rs`)
 
 ```rust
 /// Detailed commit information for expanded view
@@ -157,7 +157,7 @@ pub struct CommitFile {
 }
 ```
 
-### Branch Info (`src/git.rs`)
+### Branch Info (`src/git/types.rs`)
 
 ```rust
 /// Information about a local branch
@@ -170,7 +170,7 @@ pub struct BranchInfo {
 }
 ```
 
-### Git Commands / Activity (`src/git.rs`)
+### Git Commands / Activity (`src/git/types.rs`)
 
 ```rust
 /// A git command from the reflog or commit from log
@@ -236,7 +236,7 @@ impl CommandType {
 | Init | ★ |
 | Other | • |
 
-### Git Repository Wrapper (`src/git.rs`)
+### Git Repository Wrapper (`src/git/mod.rs`)
 
 ```rust
 /// Git repository wrapper around git2::Repository
@@ -445,7 +445,7 @@ pub enum InputResult {
 
 ## UI Types
 
-### View Mode (`src/app.rs`)
+### View Mode (`src/app/mod.rs`)
 
 ```rust
 /// View mode for the application body (simplified via ADR-005)
@@ -461,7 +461,7 @@ pub enum ViewMode {
 
 Modal dialogs (action menu, alias browser, push confirmation) are now managed by `MenuStack` instead of ViewMode variants.
 
-### History Mode (`src/app.rs`)
+### History Mode (`src/app/mod.rs`)
 
 ```rust
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -472,7 +472,7 @@ pub enum HistoryMode {
 }
 ```
 
-### External Command (`src/app.rs`)
+### External Command (`src/command/external.rs`)
 
 ```rust
 /// External command requiring TUI suspension
@@ -485,7 +485,7 @@ pub enum ExternalCommand {
 }
 ```
 
-### Popup Content (`src/app.rs`)
+### Popup Content (`src/feedback/popup.rs`)
 
 ```rust
 #[derive(Debug, Clone, Default)]
@@ -511,7 +511,7 @@ impl PopupContent {
 }
 ```
 
-### Popup State (`src/app.rs`)
+### Popup State (`src/feedback/popup.rs`)
 
 ```rust
 #[derive(Debug, Clone, Default)]
@@ -532,7 +532,7 @@ impl PopupState {
 }
 ```
 
-### Application State (`src/app.rs`)
+### Application State (`src/app/mod.rs`)
 
 ```rust
 pub struct App {
@@ -542,7 +542,7 @@ pub struct App {
     repo: GitRepo,
     /// Current git status
     pub status: GitStatus,
-    /// Recent git activity (up to MAX_ACTIVITY = 50)
+    /// Recent git activity
     pub activity: Vec<GitCommand>,
     /// Git config with aliases
     pub config: GitConfig,
@@ -556,32 +556,52 @@ pub struct App {
     pub show_help: bool,
     /// Current view mode
     pub view_mode: ViewMode,
-    /// Error message to display
-    pub error: Option<String>,
-    // Command mode fields
+    /// Current command input buffer
     pub command_input: String,
-    pub command_output: String,
-    pub command_success: bool,
-    pub command_history: Vec<String>,
-    pub history_index: Option<usize>,
-    // History display
+    /// Command history (managed by CommandHistory module)
+    pub command_history: CommandHistory,
+    /// Current history display mode (reflog vs commit log)
     pub history_mode: HistoryMode,
-    // Popup state
-    pub popup: PopupState,
-    // Commit expansion (history view)
+    /// Feedback manager (handles output, popups, toasts, errors)
+    pub feedback: FeedbackManager,
+    /// SHA of currently expanded commit in history
     pub expanded_commit: Option<String>,
+    /// Cached detail for expanded commit
     pub expanded_detail: Option<CommitDetail>,
+    /// Selected file index within expanded commit
     pub expanded_file_idx: Option<usize>,
-    // Branch browser
+    /// List of local branches
     pub branches: Vec<BranchInfo>,
+    /// Whether the History section is collapsed
     pub history_collapsed: bool,
+    /// Current page offset for history pagination
     pub history_page: usize,
+    /// Total history items for current mode
+    pub history_total_items: usize,
+    /// Total pages for history pagination
+    pub history_total_pages: usize,
+    /// Which non-current branch is expanded
     pub expanded_branch: Option<String>,
+    /// Cached commits for the expanded branch
     pub expanded_branch_commits: Vec<GitCommand>,
-    // External command handling
+    /// Pending external command (requires TUI suspension)
     pub pending_external: Option<ExternalCommand>,
-    // Contextual actions
+    /// Action registry for contextual actions
     pub action_registry: ActionRegistry,
+    /// Command executor for running commands
+    executor: CommandExecutor,
+    /// Menu stack for modal dialogs
+    pub menu_stack: MenuStack,
+    /// Declarative keymap for action lookup
+    keymap: Keymap,
+    // Section instances
+    pub command_section: CommandSection,
+    pub staged_section: StagedSection,
+    pub working_section: WorkingSection,
+    pub history_section: HistorySection,
+    pub branches_section: BranchesSection,
+    /// Section registry for index calculations
+    section_registry: SectionRegistry,
 }
 ```
 
@@ -831,6 +851,38 @@ pub enum SectionId {
 }
 ```
 
+### RefreshPolicy
+
+```rust
+/// Defines when a section should refresh its data
+pub enum RefreshPolicy {
+    /// Refresh when file system changes are detected (default for git sections)
+    OnFileChange,
+    /// Refresh at a fixed interval (for remote/API sections)
+    Interval { seconds: u32 },
+    /// Only refresh when user explicitly requests (e.g., 'r' key)
+    Manual,
+    /// Never refresh automatically (static content)
+    Never,
+}
+```
+
+### SectionKeybinding
+
+```rust
+/// A keybinding declared by a section (for external sections)
+pub struct SectionKeybinding {
+    /// The key combination that triggers this action
+    pub key: KeyBinding,
+    /// Short label for the action (e.g., "Stage", "Diff")
+    pub label: &'static str,
+    /// Longer description for help display
+    pub description: &'static str,
+}
+```
+
+Built-in sections use `ActionRegistry` for keybindings. This struct is reserved for external sections that need to self-describe bindings without touching the core registry.
+
 ### Section Trait
 
 ```rust
@@ -842,6 +894,8 @@ pub trait Section: Send + Sync {
     fn item_count(&self) -> usize;
     fn is_collapsible(&self) -> bool;
     fn is_collapsed(&self) -> bool;
+    fn refresh_policy(&self) -> RefreshPolicy;      // When to refresh data
+    fn keybindings(&self) -> Vec<SectionKeybinding>; // For external sections
     fn render(&self, state: &SectionState) -> Vec<Line<'static>>;
     fn actions(&self, item_idx: usize) -> Vec<Action>;
     fn handle_key(&self, key: KeyEvent, item_idx: usize) -> Option<SectionAction>;
@@ -953,6 +1007,40 @@ impl SectionItemCounts {
     pub fn from_sections(command: &impl Section, staged: &impl Section, working: &impl Section, history: &impl Section, branches: &impl Section) -> Self;
 }
 ```
+
+## Render Types (`src/render/`)
+
+### FileEntryView
+
+```rust
+/// View struct for rendering a file entry
+pub struct FileEntryView<'a> {
+    /// File path to display
+    pub path: &'a str,
+    /// File status (M, A, D, etc.)
+    pub status: FileState,
+    /// Lines inserted
+    pub insertions: usize,
+    /// Lines deleted
+    pub deletions: usize,
+}
+```
+
+### FileListStyle
+
+```rust
+/// Style configuration for file list rendering
+pub struct FileListStyle {
+    /// Optional indicator prefix (e.g., "○ " for working, "● " for staged)
+    pub indicator: Option<(&'static str, Color)>,
+    /// Custom prefix for selected items (default: "▸ ")
+    pub selected_prefix: &'static str,
+    /// Custom prefix for unselected items (default: "  ")
+    pub unselected_prefix: &'static str,
+}
+```
+
+Used by `render_file_entry()` to render consistent file lists across working, staged, and commit file sections. Supports diff stats display (`+N/-M`).
 
 ## TUI Types
 

@@ -2,33 +2,45 @@
 
 ## Layout
 
-### Main View
+### Main View (Unified Vertical List)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  git-monitor  │ ⎇ main ↑2 ↓0 │ repo-name │ ● watching             │  Header (3 lines)
-├────────────────────────────┬────────────────────────────────────────┤
-│ Working Directory (4)      │ Staged (2)                             │  Body (60%)
-│ ───────────────────────    │ ────────────────────                   │
-│ ▸ M src/main.rs            │   A src/new_file.rs                    │
-│   M src/lib.rs             │   M src/config.rs                      │
-│   ? untracked.txt          │                                        │
-│   D old_file.rs            │                                        │
-│                            │                                        │
-├────────────────────────────┴────────────────────────────────────────┤
-│ Recent Activity (12)                                                │  Activity (40%)
-│ ────────────────────────────────────────────────────────────────────│
-│   14:32:01  ● commit: Add feature X                                │
-│   14:31:45  ⎇ checkout: moving from main to feature/new            │
-│   14:30:22  ↓ pull: Fast-forward                                   │
+│  git-monitor  │ ⎇ main ↑2 ↓0 │ repo-name │ ● watching             │  Header
 ├─────────────────────────────────────────────────────────────────────┤
-│ [Tab] switch  [j/k] nav  [s] stage  [d] diff  [?] help  [q] quit  │  Footer (3 lines)
+│ ▸ : git status                                                      │  Command
+│   ✓ (no output)                                                     │  Section
+├─────────────────────────────────────────────────────────────────────┤
+│ Staged (2)                                                          │  Staged
+│   A src/new_file.rs                                                 │  Section
+│   M src/config.rs                                                   │
+├─────────────────────────────────────────────────────────────────────┤
+│ Working Directory (4)                                               │  Working
+│   M src/main.rs                                                     │  Section
+│   M src/lib.rs                                                      │
+│   ? untracked.txt                                                   │
+│   D old_file.rs                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│ Commit Log (50)                       [h to toggle to Reflog]       │  History
+│   abc1234  14:32:01  Add feature X  (HEAD → main, origin/main)     │  Section
+│   def5678  14:31:45  Fix critical bug                              │
+│   ghi9012  14:30:22  Initial commit  (tag: v0.1.0)                 │
+├─────────────────────────────────────────────────────────────────────┤
+│ [:] cmd  [a] alias  [s] stage  [d] diff  [h] history  [?] help     │  Footer
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Diff Overlay
+**Unified List Navigation**: Single selection index spans all sections:
+- Index 0: Command section
+- Index 1..N: Staged files
+- Index N+1..M: Working files
+- Index M+1..end: History entries
 
-Displays when pressing `d` or `Enter` on a selected file:
+### Popup System (Full-Screen Overlays)
+
+Popups replace the body entirely when active:
+
+**Diff Popup** (pressing `d` or `Enter` on a file):
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -42,15 +54,63 @@ Displays when pressing `d` or `Enter` on a selected file:
 │      println!("Starting...");                                       │
 │  }                                                                  │
 │                                                                     │
-│                           [q] close                                 │
+│                    [j/k] scroll  [g/G] top/bottom  [q] close        │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-Diff uses 90% of screen area. Lines are colored:
+**Command Output Popup** (pressing `o` on command section after execution):
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ Output: git status                                                  │
+├─────────────────────────────────────────────────────────────────────┤
+│ On branch main                                                      │
+│ Your branch is up to date with 'origin/main'.                      │
+│                                                                     │
+│ nothing to commit, working tree clean                               │
+│                                                                     │
+│                    [j/k] scroll  [g/G] top/bottom  [q] close        │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+Popups support vim-style navigation: `j/k` scroll, `Ctrl+d/u` half-page, `g/G` top/bottom.
+
+Diff uses full screen area. Lines are colored:
 - Green (`+`) for additions
 - Red (`-`) for deletions
 - Cyan (`@@`) for hunk headers
 - Yellow for diff/index headers
+
+### Alias Browser
+
+Displays when pressing `a` on command section (if aliases exist):
+
+**Section List**:
+```
+┌───────────────────────────────────────────────────────────┐
+│                      Alias Sections                        │
+├───────────────────────────────────────────────────────────┤
+│  ▸ fetch (5 aliases)                                      │
+│    commit (8 aliases)                                     │
+│    branch (4 aliases)                                     │
+│    other (12 aliases)                                     │
+│                                                           │
+│           [Enter] open section  [q/Esc] close             │
+└───────────────────────────────────────────────────────────┘
+```
+
+**Aliases within Section**:
+```
+┌───────────────────────────────────────────────────────────┐
+│                      fetch aliases                         │
+├───────────────────────────────────────────────────────────┤
+│  ▸ fa       fetch --all                                   │
+│    fp       fetch --prune                                 │
+│    fu       fetch upstream                                │
+│                                                           │
+│       [Enter] run alias  [Esc] back  [q] close            │
+└───────────────────────────────────────────────────────────┘
+```
 
 ### Help Overlay
 
@@ -62,15 +122,19 @@ Displays when pressing `?`:
 ├───────────────────────────────────────────────────────────┤
 │                                                           │
 │  Navigation                                               │
-│  Tab / Shift+Tab    Switch panels                         │
 │  j / ↓              Move down                             │
 │  k / ↑              Move up                               │
 │  g                  Go to first                           │
 │  G                  Go to last                            │
 │                                                           │
 │  Actions                                                  │
+│  :                  Enter command mode                    │
+│  a                  Open alias browser (on command)       │
 │  s                  Stage/unstage file                    │
 │  d                  Show diff                             │
+│  h                  Jump to history / toggle mode         │
+│  y                  Copy SHA (on history item)            │
+│  o                  Open output popup (on command)        │
 │  r                  Refresh status                        │
 │                                                           │
 │  General                                                  │
@@ -102,30 +166,37 @@ Help overlay uses 60% width and 70% height, centered.
 - **Repo Name**: Directory name from repo path
 - **Status**: "● watching" in green
 
-### File List Panels
+### Command Section
 
-Two panels side-by-side (50/50 split):
-
-**Working Directory Panel**:
+Always at the top of the list (index 0):
 ```
+▸ : git status                    <- selected
+  ✓ (no output)                   <- last command result
+```
+
+- Shows last executed command and its result
+- `✓` in green for success, `✗` in red for failure
+- Press `:` or `Enter` to enter command mode
+- Press `a` to browse aliases
+- Press `o` to view full output in popup
+
+### File Sections (Staged + Working)
+
+Vertical list below command section:
+```
+Staged (2)
+  ▸ A src/new_file.rs        <- selected (bold, with ▸ indicator)
+    M src/config.rs
+
 Working Directory (4)
-  ▸ M src/main.rs        <- selected (bold, with ▸ indicator)
+    M src/main.rs
     M src/lib.rs
     ? untracked.txt
     D old_file.rs
 ```
 
-**Staged Panel**:
-```
-Staged (2)
-    A src/new_file.rs
-    M src/config.rs
-```
-
 **Selection Indicator**: `▸` prefix for selected item
 **Status Character**: Single character before path (M/A/D/R/?)
-**Active Panel**: Cyan border, bold cyan title
-**Inactive Panel**: Dark gray border, white title
 
 ### File Status Colors
 
@@ -138,19 +209,32 @@ Staged (2)
 | Untracked | ? | Dark Gray |
 | Conflicted | U | Magenta |
 
-### Activity Log
+### History Section
 
+Toggleable between Commit Log (default) and Reflog:
+
+**Commit Log Mode** (default):
 ```
-Recent Activity (12)
+Commit Log (50)                       [h to toggle]
+  abc1234  14:32:01  Add feature X  (HEAD → main)
+  def5678  14:31:45  Fix critical bug  (origin/main)
+  ghi9012  14:30:22  Initial commit  (tag: v0.1.0)
+```
+
+**Reflog Mode**:
+```
+Reflog (50)                           [h to toggle]
   14:32:01  ● commit: Add feature X
   14:31:45  ⎇ checkout: moving from main to feature/new
   14:30:22  ↓ pull: Fast-forward
 ```
 
-**Format**: `  HH:MM:SS  icon message`
+**Format** (Commit Log): `  SHA  HH:MM:SS  message  (decorations)`
+**Format** (Reflog): `  HH:MM:SS  icon message`
+- SHA in dark gray (can copy with `y`)
 - Timestamp in dark gray
 - Icon colored by command type
-- Message in white (truncated with `...` if too long)
+- Decorations in parentheses (HEAD, branches, tags)
 
 **Command Icons & Colors**:
 
@@ -187,14 +271,12 @@ When an error occurs, the footer shows the error message in red instead of keybi
 | Key | Action |
 |-----|--------|
 | `q` | Quit application |
-| `Esc` | Quit application |
+| `Esc` | Quit application (or close modal) |
 | `Ctrl+c` | Quit application |
 | `?` | Toggle help overlay |
 | `r` | Force refresh status |
-| `Tab` | Next panel |
-| `Shift+Tab` | Previous panel |
 
-### Navigation (in file lists)
+### Navigation
 
 | Key | Action |
 |-----|--------|
@@ -202,22 +284,52 @@ When an error occurs, the footer shows the error message in red instead of keybi
 | `k` / `↑` | Select previous item |
 | `g` | Go to first item |
 | `G` | Go to last item |
+| `h` | Jump to history / toggle history mode |
 
 ### Actions
 
 | Key | Action |
 |-----|--------|
-| `s` | Stage selected (in Working) / Unstage selected (in Staged) |
+| `:` | Enter command mode |
+| `Enter` | Enter command mode (on command) / Show diff (on file) |
+| `a` | Open alias browser (on command section) |
+| `o` | Open output popup (on command section) |
+| `s` | Stage/Unstage selected file |
 | `d` | Show diff for selected file |
-| `Enter` | Show diff for selected file |
+| `y` | Copy SHA to clipboard (on history item) |
 
-### Diff View
+### Command Mode
 
 | Key | Action |
 |-----|--------|
-| `q` | Close diff view |
-| `Esc` | Close diff view |
-| `d` | Close diff view |
+| Any character | Type command |
+| `Backspace` | Delete character |
+| `Enter` | Execute command |
+| `↑` | Previous history |
+| `↓` | Next history |
+| `Esc` / `Ctrl+c` | Cancel command mode |
+
+### Popup (Diff/Output)
+
+| Key | Action |
+|-----|--------|
+| `j` / `↓` | Scroll down |
+| `k` / `↑` | Scroll up |
+| `Ctrl+d` | Scroll half page down |
+| `Ctrl+u` | Scroll half page up |
+| `g` | Jump to top |
+| `G` | Jump to bottom |
+| `q` / `Esc` | Close popup |
+
+### Alias Browser
+
+| Key | Action |
+|-----|--------|
+| `j` / `↓` | Select next |
+| `k` / `↑` | Select previous |
+| `Enter` | Open section / Run alias |
+| `Esc` | Back / Close |
+| `q` | Close browser |
 
 ### Help Overlay
 
@@ -259,15 +371,16 @@ When an error occurs, the footer shows the error message in red instead of keybi
 ## Layout Proportions
 
 - **Header**: Fixed 3 lines
-- **Body**: 60% of remaining space
-  - Working panel: 50% width
-  - Staged panel: 50% width
-- **Activity**: 40% of remaining space
+- **Body**: Unified vertical list (fills remaining space)
+  - Command section: 2 lines
+  - Staged section: dynamic
+  - Working section: dynamic
+  - History section: dynamic
 - **Footer**: Fixed 3 lines
 
 ## Empty States
 
-When no items exist in a panel:
-- Working Directory: "No changes" (dark gray, italic)
+When no items exist in a section:
 - Staged: "No staged changes" (dark gray, italic)
-- Activity: "No activity yet" (dark gray, italic)
+- Working Directory: "No changes" (dark gray, italic)
+- History: "No activity yet" (dark gray, italic)

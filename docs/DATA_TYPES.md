@@ -98,20 +98,35 @@ impl GitStatus {
 }
 ```
 
+### Ref Decorations (`src/git.rs`)
+
+```rust
+/// A decoration (branch, tag, etc.) attached to a commit
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RefDecoration {
+    Head,                       // HEAD pointer
+    LocalBranch(String),        // Local branch (e.g., main)
+    RemoteBranch(String),       // Remote branch (e.g., origin/main)
+    Tag(String),                // Tag
+}
+```
+
 ### Git Commands / Activity (`src/git.rs`)
 
 ```rust
-/// A git command from the reflog
+/// A git command from the reflog or commit from log
 #[derive(Debug, Clone)]
 pub struct GitCommand {
     /// When the command was executed
     pub timestamp: DateTime<Local>,
     /// Type of command
     pub command_type: CommandType,
-    /// Command message/description from reflog
+    /// Command message/description
     pub message: String,
     /// Short SHA if available
     pub sha: Option<String>,
+    /// Decorations (branches, tags) pointing to this commit
+    pub decorations: Vec<RefDecoration>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -178,25 +193,95 @@ impl GitRepo {
     pub fn unstage(&self, path: &Path) -> Result<()>;
     pub fn diff_file(&self, path: &Path, staged: bool) -> Result<String>;
     pub fn reflog(&self, limit: usize) -> Result<Vec<GitCommand>>;
+    pub fn commit_log(&self, limit: usize) -> Result<Vec<GitCommand>>;
 }
 ```
 
-## UI Types
+## Config Types
 
-### Panel (`src/app.rs`)
+### Git Config (`src/config.rs`)
 
 ```rust
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub enum Panel {
-    #[default]
-    Working,
-    Staged,
-    Activity,
+/// Git configuration with aliases grouped by section
+#[derive(Debug, Clone, Default)]
+pub struct GitConfig {
+    pub sections: Vec<AliasSection>,
 }
 
-impl Panel {
-    pub const fn next(self) -> Self;
-    pub const fn prev(self) -> Self;
+/// A section/category of aliases
+#[derive(Debug, Clone)]
+pub struct AliasSection {
+    pub name: String,
+    pub aliases: Vec<Alias>,
+}
+
+/// A single git alias
+#[derive(Debug, Clone)]
+pub struct Alias {
+    pub name: String,
+    pub command: String,
+}
+```
+
+Aliases are parsed from `~/.gitconfig`. Section headers are detected from comments like `# --- section ---`.
+
+## UI Types
+
+### History Mode (`src/app.rs`)
+
+```rust
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum HistoryMode {
+    Reflog,       // Show reflog (git actions)
+    #[default]
+    CommitLog,    // Show commit log
+}
+```
+
+### Popup Content (`src/app.rs`)
+
+```rust
+#[derive(Debug, Clone, Default)]
+pub enum PopupContent {
+    #[default]
+    None,
+    CommandOutput {
+        command: String,
+        output: String,
+        success: bool,
+    },
+    Diff {
+        path: String,
+        content: String,
+        is_staged: bool,
+    },
+}
+
+impl PopupContent {
+    pub fn is_active(&self) -> bool;
+    pub fn line_count(&self) -> usize;
+    pub fn title(&self) -> String;
+}
+```
+
+### Popup State (`src/app.rs`)
+
+```rust
+#[derive(Debug, Clone, Default)]
+pub struct PopupState {
+    pub content: PopupContent,
+    pub scroll_offset: usize,
+    pub visible_height: usize,
+}
+
+impl PopupState {
+    pub fn open(&mut self, content: PopupContent);
+    pub fn close(&mut self);
+    pub fn is_open(&self) -> bool;
+    pub fn scroll_down(&mut self, n: usize, max_lines: usize, visible_height: usize);
+    pub fn scroll_up(&mut self, n: usize);
+    pub fn scroll_to_top(&mut self);
+    pub fn scroll_to_bottom(&mut self, max_lines: usize, visible_height: usize);
 }
 ```
 
@@ -212,26 +297,34 @@ pub struct App {
     pub status: GitStatus,
     /// Recent git activity (up to MAX_ACTIVITY = 50)
     pub activity: Vec<GitCommand>,
+    /// Git config with aliases
+    pub config: GitConfig,
     /// File watcher
     watcher: Option<RepoWatcher>,
     /// Whether the application is running
     pub running: bool,
-    /// Currently active panel
-    pub active_panel: Panel,
-    /// Selected index in working panel
-    pub working_selected: usize,
-    /// Selected index in staged panel
-    pub staged_selected: usize,
+    /// Selected index in unified list (command → staged → working → activity)
+    pub selected: usize,
     /// Show help overlay
     pub show_help: bool,
-    /// Show diff overlay
-    pub show_diff: bool,
-    /// Current diff content
-    pub diff_content: String,
-    /// Diff file path (for title)
-    pub diff_path: String,
     /// Error message to display
     pub error: Option<String>,
+    // Command mode fields
+    pub command_mode: bool,
+    pub command_input: String,
+    pub command_output: String,
+    pub command_success: bool,
+    pub command_history: Vec<String>,
+    pub history_index: Option<usize>,
+    // Alias browser fields
+    pub show_aliases: bool,
+    pub alias_section_selected: usize,
+    pub show_section_aliases: bool,
+    pub alias_selected: usize,
+    // History display
+    pub history_mode: HistoryMode,
+    // Popup state
+    pub popup: PopupState,
 }
 ```
 

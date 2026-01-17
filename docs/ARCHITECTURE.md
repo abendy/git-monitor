@@ -2,7 +2,7 @@
 
 ## Overview
 
-A terminal-based user interface for monitoring git repository activity in real-time. The application watches file changes, tracks staging operations, and displays git command activity from the reflog.
+A terminal-based user interface for monitoring git repository activity in real-time. The application watches file changes, tracks staging operations, and displays git command activity from the reflog or commit log.
 
 ## Core Architecture
 
@@ -32,11 +32,12 @@ A terminal-based user interface for monitoring git repository activity in real-t
 |--------|------|---------|
 | `main` | `src/main.rs` | CLI entry point, argument parsing (clap) |
 | `app` | `src/app.rs` | Central state container, event handling, keybindings |
-| `ui` | `src/ui.rs` | UI rendering (header, panels, footer, overlays) |
+| `ui` | `src/ui.rs` | UI rendering (header, body, footer, popup overlays) |
 | `git` | `src/git.rs` | Git operations wrapper around libgit2 |
 | `tui` | `src/tui.rs` | Terminal setup/teardown (crossterm + ratatui) |
 | `event` | `src/event.rs` | Event types and handler thread |
 | `watcher` | `src/watcher.rs` | File system watching with debouncing (notify) |
+| `config` | `src/config.rs` | Git config and alias parsing |
 
 ## Component Design
 
@@ -83,7 +84,30 @@ pub enum WatchEvent {
 }
 ```
 
-### 4. Application State (`src/app.rs`)
+### 4. Git Config (`src/config.rs`)
+
+`GitConfig` loads and parses git aliases from `.gitconfig`:
+- Groups aliases by section (parsed from `# --- section ---` comments)
+- Supports alias browser with section-grouped categories
+- Falls back to a single "all" section if no section headers found
+
+```rust
+pub struct GitConfig {
+    pub sections: Vec<AliasSection>,
+}
+
+pub struct AliasSection {
+    pub name: String,
+    pub aliases: Vec<Alias>,
+}
+
+pub struct Alias {
+    pub name: String,
+    pub command: String,
+}
+```
+
+### 5. Application State (`src/app.rs`)
 
 ```rust
 pub struct App {
@@ -91,43 +115,71 @@ pub struct App {
     repo: GitRepo,
     pub status: GitStatus,
     pub activity: Vec<GitCommand>,
+    pub config: GitConfig,
     watcher: Option<RepoWatcher>,
     pub running: bool,
-    pub active_panel: Panel,
-    pub working_selected: usize,
-    pub staged_selected: usize,
+    pub selected: usize,              // Single unified selection index
     pub show_help: bool,
-    pub show_diff: bool,
-    pub diff_content: String,
-    pub diff_path: String,
     pub error: Option<String>,
+    // Command mode
+    pub command_mode: bool,
+    pub command_input: String,
+    pub command_output: String,
+    pub command_success: bool,
+    pub command_history: Vec<String>,
+    pub history_index: Option<usize>,
+    // Alias browser
+    pub show_aliases: bool,
+    pub alias_section_selected: usize,
+    pub show_section_aliases: bool,
+    pub alias_selected: usize,
+    // History mode (reflog vs commit log)
+    pub history_mode: HistoryMode,
+    // Popup state
+    pub popup: PopupState,
 }
 ```
 
-Panel navigation cycles through `Working → Staged → Activity`.
+The UI uses a single unified scrollable list with sections: Command → Staged → Working → History.
 
-### 5. UI Rendering (`src/ui.rs`)
+### 6. UI Rendering (`src/ui.rs`)
 
-Layout structure:
+Layout structure (unified vertical list):
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │ git-monitor │ ⎇ branch ↑N ↓N │ repo-name │ ● watching       │  Header
-├────────────────────────┬─────────────────────────────────────┤
-│ Working Directory (N)  │ Staged (N)                          │  Body
-│  ▸ M file.rs           │    A new.rs                         │  (60%)
-│    ? untracked.txt     │                                     │
-├────────────────────────┴─────────────────────────────────────┤
-│ Recent Activity (N)                                          │  Activity
-│  HH:MM:SS  ● commit: message                                 │  (40%)
-│  HH:MM:SS  ⎇ checkout: from branch to branch                │
 ├──────────────────────────────────────────────────────────────┤
-│ [Tab] switch  [j/k] nav  [s] stage  [d] diff  [?] help      │  Footer
+│ ▸ : git status                                               │  Command
+│   ✓ (no output)                                              │  Section
+├──────────────────────────────────────────────────────────────┤
+│ Staged (2)                                                   │  Staged
+│   A new_file.rs                                              │  Section
+│   M config.rs                                                │
+├──────────────────────────────────────────────────────────────┤
+│ Working Directory (3)                                        │  Working
+│   M src/main.rs                                              │  Section
+│   ? untracked.txt                                            │
+├──────────────────────────────────────────────────────────────┤
+│ Commit Log (50)                                              │  History
+│   abc1234  14:32:01  Add feature X  (HEAD, main)            │  Section
+│   def5678  14:30:00  Fix bug                                │
+├──────────────────────────────────────────────────────────────┤
+│ [:] cmd  [s] stage  [d] diff  [h] history  [?] help         │  Footer
 └──────────────────────────────────────────────────────────────┘
 ```
 
-Overlays render as full-screen replacements (not layered):
+**Popup System**: Full-screen overlays replace the body entirely (not layered):
 - Help overlay - keybinding reference
-- Diff overlay - syntax-highlighted diff view
+- Command output popup - scrollable command results
+- Diff popup - syntax-highlighted diff view
+
+```rust
+pub enum PopupContent {
+    None,
+    CommandOutput { command, output, success },
+    Diff { path, content, is_staged },
+}
+```
 
 ## Data Flow
 
@@ -151,8 +203,10 @@ Overlays render as full-screen replacements (not layered):
    ```
 
 3. **Key Handling Priority**
-   - Help overlay open → dismiss on any key
-   - Diff overlay open → handle q/Esc/d to close
+   - Command mode → capture all input for command editing
+   - Alias browser → navigate sections/aliases
+   - Popup open → scroll/close popup
+   - Help overlay → dismiss on any key
    - Otherwise → normal key handling
 
 ## Threading Model

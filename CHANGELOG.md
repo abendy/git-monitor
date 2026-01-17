@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-01-17
+
+### Added
+
+- Command mode with input history (`:`/`;` to enter, up/down to navigate history)
+- Alias browser with section-grouped categories (`:` then browse aliases)
+- History/reflog toggle with `h` key
+- Branch and tag decorations in history view
+- Commit SHA display in history with copy shortcut (`y` to copy)
+- Reusable popup system for full-screen overlays
+- Cross-platform clipboard support via arboard crate
+
+### Changed
+
+- Unified changes panel into single vertical scrollable list (Working + Staged + History)
+- Command section integrated into main scrollable list
+- Improved popup system architecture for better rendering
+
+### Fixed
+
+- Correct handling of invalid config values
+
 ## [0.1.0] - 2026-01-17
 
 ### Added

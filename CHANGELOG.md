@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-01-17
+
+### Added
+
+- **Modular menu system** with trait-based abstraction and stack navigation (see ADR-005)
+  - `Menu` trait for composable menu implementations
+  - `MenuStack` for nested menu management (push/pop)
+  - Unified rendering via `render_menu()` helper
+- **Unified command execution framework** (see ADR-003)
+  - `CommandRequest` type with source tracking and feedback policy
+  - `CommandExecutor` for consistent command execution
+  - `CommandHistory` for persistent history across sessions
+- **Feedback system** for command output display (see ADR-004)
+  - `FeedbackManager` centralizes all user feedback
+  - Source-aware popup policy (menu selections → always popup)
+  - Toast types defined for future transient notifications
+- **Section abstraction** for UI regions
+  - `Section` trait for render, actions, key handling
+  - `SectionRegistry` for index management across sections
+
+### Changed
+
+- **ViewMode simplified** from 6 variants to 2 (Normal, Command)
+- **Modal dialogs migrated to MenuStack**: action menu, alias browser, push confirmation
+- All command execution now flows through unified `run_command()` path
+- Documentation updated with new module structure and types
+
+### Fixed
+
+- Capture stderr output for successful git commands
+- Make branch info hints dynamic based on repository state
+
 ## [0.4.0] - 2026-01-17
 
 ### Added

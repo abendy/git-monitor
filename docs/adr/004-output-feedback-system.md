@@ -1,7 +1,21 @@
 # ADR-004: Command Output and Feedback System
 
 ## Status
-Proposed
+Implemented (Partial)
+
+**Implementation Date:** 2026-01-17
+
+**What's Done:**
+- `Feedback` enum with CommandOutput, Toast, Error, Diff variants
+- `FeedbackManager` for centralized feedback state
+- `PopupContent` and `PopupState` for scrollable overlays
+- `Toast` and `ToastLevel` types defined
+- Source-aware feedback policy (menu/browser → popup, keyboard → conditional)
+- Integration with unified command execution framework
+
+**What's Remaining:**
+- Toast rendering in header (types defined but not rendered)
+- Auto-dismiss tick handling for toasts
 
 ## Context
 Command output is currently displayed through multiple mechanisms with inconsistent behavior:

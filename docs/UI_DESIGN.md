@@ -47,7 +47,7 @@
 
 ### Action Menu (Contextual)
 
-Pressing `m` opens the action menu showing available actions for the current context:
+Pressing `m` opens the action menu showing available actions for the current context. The menu is rendered via `MenuStack` (see ADR-005):
 
 ```
 ┌───────────────────────────────────────────────────────────┐
@@ -69,6 +69,11 @@ Actions are context-sensitive (see ADR-002):
 - File contexts show stage/unstage, diff
 - History shows expand, copy SHA, pagination
 - Global actions (push, pull, fetch) appear based on conditions
+
+All modal menus (action menu, alias browser, push confirmation) are managed via `MenuStack` which handles:
+- Nested menu navigation (push/pop)
+- Unified keyboard handling (j/k navigate, Enter select, Esc close)
+- Consistent rendering through `render_menu()` helper
 
 ### Popup System (Full-Screen Overlays)
 

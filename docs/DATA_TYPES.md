@@ -398,7 +398,7 @@ impl ActionRegistry {
 ### View Mode (`src/app.rs`)
 
 ```rust
-/// View mode for the application body
+/// View mode for the application body (simplified via ADR-005)
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum ViewMode {
     /// Normal navigation mode (default)
@@ -406,43 +406,10 @@ pub enum ViewMode {
     Normal,
     /// Command input mode (typing git commands)
     Command,
-    /// Generic confirmation mode (prompt in footer)
-    Confirm(ConfirmAction),
-    /// Alias browser showing section list
-    AliasSections {
-        /// Currently selected section index
-        selected: usize,
-    },
-    /// Alias browser showing aliases within a section
-    AliasItems {
-        /// Section being viewed
-        section_idx: usize,
-        /// Currently selected alias index within section
-        selected: usize,
-    },
-    /// Action menu showing available actions for current context
-    ActionMenu {
-        /// Context when menu was opened
-        context: Context,
-        /// Selected action index
-        selected: usize,
-        /// Cached actions for the context
-        actions: Vec<Action>,
-    },
-}
-
-/// Action requiring user confirmation
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ConfirmAction {
-    Push {
-        branch: String,
-        remote: String,
-        has_upstream: bool,
-        ahead: usize,
-        force: bool,
-    },
 }
 ```
+
+Modal dialogs (action menu, alias browser, push confirmation) are now managed by `MenuStack` instead of ViewMode variants.
 
 ### History Mode (`src/app.rs`)
 
@@ -616,6 +583,233 @@ pub enum WatchEvent {
     GitHead,
     /// Git refs changed
     GitRefs,
+}
+```
+
+## Menu Types (`src/menu/`)
+
+### Menu Trait
+
+```rust
+/// A menu that can be rendered and interacted with
+pub trait Menu: Send {
+    fn title(&self) -> &str;
+    fn items(&self) -> Vec<MenuItem>;
+    fn selected(&self) -> usize;
+    fn set_selected(&mut self, idx: usize);
+    fn handle_key(&mut self, key: KeyEvent) -> MenuResult;
+    fn render(&self, frame: &mut Frame, area: Rect);
+}
+```
+
+### MenuItem
+
+```rust
+/// A menu item for display
+pub struct MenuItem {
+    pub label: String,
+    pub description: Option<String>,
+    pub key_hint: Option<String>,
+    pub enabled: bool,
+    pub style: ItemStyle,
+}
+
+pub enum ItemStyle {
+    Normal,
+    Disabled,
+    Separator,
+    Header,
+    Checkbox { checked: bool },
+}
+```
+
+### MenuResult
+
+```rust
+/// Result of menu interaction
+pub enum MenuResult {
+    Continue,                    // Keep menu open
+    Close,                       // Close this menu
+    Execute(MenuAction),         // Execute action and close
+    Push(Box<dyn Menu>),         // Push nested menu
+    Pop,                         // Return to previous menu
+    CloseAll,                    // Clear entire stack
+}
+
+pub enum MenuAction {
+    Command(CommandRequest),     // Execute a command
+    App(AppAction),              // Trigger app action
+    Custom(Box<dyn FnOnce() + Send>),
+}
+```
+
+### MenuStack
+
+```rust
+/// Stack-based menu management
+pub struct MenuStack {
+    stack: Vec<Box<dyn Menu>>,
+}
+
+impl MenuStack {
+    pub fn push(&mut self, menu: Box<dyn Menu>);
+    pub fn pop(&mut self) -> Option<Box<dyn Menu>>;
+    pub fn current(&self) -> Option<&dyn Menu>;
+    pub fn current_mut(&mut self) -> Option<&mut Box<dyn Menu>>;
+    pub fn is_empty(&self) -> bool;
+    pub fn clear(&mut self);
+}
+```
+
+## Command Types (`src/command/`)
+
+### CommandRequest
+
+```rust
+/// A request to execute a command
+pub struct CommandRequest {
+    pub program: String,
+    pub args: Vec<String>,
+    pub display_name: String,
+    pub cwd: Option<PathBuf>,
+    pub source: CommandSource,
+    pub feedback: FeedbackPolicy,
+    pub refresh_after: bool,
+}
+
+impl CommandRequest {
+    pub fn git(args: impl IntoIterator<Item = impl Into<String>>) -> Self;
+    pub fn from_input(input: &str) -> Option<Self>;
+    pub fn git_alias(name: &str, command: &str, repo_path: &Path) -> Self;
+}
+```
+
+### CommandSource
+
+```rust
+/// Source of command execution - affects feedback behavior
+pub enum CommandSource {
+    Keyboard,       // Direct keybinding
+    Palette,        // : mode
+    ActionMenu,     // m menu
+    AliasBrowser,   // a mode
+    Internal,       // Background operations
+}
+```
+
+### FeedbackPolicy
+
+```rust
+/// Policy for displaying command feedback
+pub enum FeedbackPolicy {
+    Default,        // Use source-based defaults
+    AlwaysPopup,    // Always show popup
+    InlineOnly,     // Never auto-popup
+    Silent,         // No visible feedback
+    External,       // External command (TUI suspension)
+}
+```
+
+### CommandResult
+
+```rust
+/// Result of command execution
+pub struct CommandResult {
+    pub success: bool,
+    pub stdout: String,
+    pub stderr: String,
+    pub exit_code: Option<i32>,
+}
+```
+
+## Feedback Types (`src/feedback/`)
+
+### Feedback
+
+```rust
+/// Types of feedback that can be shown
+pub enum Feedback {
+    CommandOutput { command: String, result: CommandResult, source: CommandSource },
+    Toast { message: String, level: ToastLevel },
+    Error { message: String },
+    Diff { path: String, content: String, is_staged: bool },
+}
+```
+
+### FeedbackManager
+
+```rust
+/// Manages all feedback display state
+pub struct FeedbackManager {
+    pub command_output: Option<CommandOutput>,
+    pub command_success: bool,
+    pub popup: PopupState,
+    pub toast: Option<Toast>,
+    pub error: Option<String>,
+}
+```
+
+### Toast
+
+```rust
+pub struct Toast {
+    pub message: String,
+    pub level: ToastLevel,
+    pub created: Instant,
+}
+
+pub enum ToastLevel {
+    Info,     // Blue - informational
+    Success,  // Green - completed
+    Warning,  // Yellow - concerns
+    Error,    // Red - failure
+}
+```
+
+## Section Types (`src/section/`)
+
+### SectionId
+
+```rust
+/// Unique identifier for each section
+pub enum SectionId {
+    Command,
+    Staged,
+    Working,
+    History,
+    Branches,
+}
+```
+
+### Section Trait
+
+```rust
+/// A UI section that can be rendered and interacted with
+pub trait Section: Send + Sync {
+    fn id(&self) -> SectionId;
+    fn name(&self) -> &str;
+    fn contexts(&self) -> Vec<Context>;
+    fn item_count(&self) -> usize;
+    fn is_collapsible(&self) -> bool;
+    fn is_collapsed(&self) -> bool;
+    fn render(&self, state: &SectionState) -> Vec<Line<'static>>;
+    fn actions(&self, item_idx: usize) -> Vec<Action>;
+    fn handle_key(&self, key: KeyEvent, item_idx: usize) -> Option<SectionAction>;
+}
+```
+
+### SectionRegistry
+
+```rust
+/// Registry of all sections
+pub struct SectionRegistry {
+    sections: Vec<Box<dyn Section>>,
+}
+
+impl SectionRegistry {
+    pub fn total_items(&self) -> usize;
+    pub fn section_for_index(&self, global_idx: usize) -> Option<(SectionId, usize)>;
+    pub fn section_start_index(&self, id: SectionId) -> Option<usize>;
 }
 ```
 

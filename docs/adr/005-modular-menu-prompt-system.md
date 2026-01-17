@@ -1,7 +1,24 @@
 # ADR-005: Modular Menu and Prompt System
 
 ## Status
-Proposed
+Implemented
+
+**Implementation Date:** 2026-01-17
+
+**What's Done:**
+- `Menu` trait with title, items, selected, handle_key, render methods
+- `MenuItem` with label, description, key_hint, enabled, style
+- `ItemStyle` enum (Normal, Disabled, Separator, Header, Checkbox)
+- `MenuResult` enum (Continue, Close, Execute, Push, Pop, CloseAll)
+- `MenuAction` for command execution or app actions
+- `MenuStack` for nested menu management
+- `ActionMenu` - context-filtered action display
+- `AliasSectionMenu` / `AliasItemsMenu` - two-level alias browser
+- `PushConfirmMenu` - push with force/upstream checkboxes
+- `SelectMenu` / `ConfirmMenu` - reusable generic menus
+- `render_menu()` helper for consistent rendering
+- ViewMode simplified to Normal/Command only
+- All modal dialogs migrated to MenuStack
 
 ## Context
 The application has evolved several interactive overlays that serve different purposes but share common patterns:

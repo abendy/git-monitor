@@ -39,6 +39,10 @@ A terminal-based user interface for monitoring git repository activity in real-t
 | `watcher` | `src/watcher.rs` | File system watching with debouncing (notify) |
 | `config` | `src/config.rs` | Git config and alias parsing |
 | `actions` | `src/actions.rs` | Contextual action framework (see ADR-002) |
+| `command/` | `src/command/` | Unified command execution framework (see ADR-003) |
+| `feedback/` | `src/feedback/` | Feedback system for output display (see ADR-004) |
+| `menu/` | `src/menu/` | Modular menu system with stack navigation (see ADR-005) |
+| `section/` | `src/section/` | Section trait and registry for UI regions |
 
 ## Component Design
 
@@ -147,20 +151,96 @@ pub struct App {
     pub pending_external: Option<ExternalCommand>,
     // Contextual actions
     pub action_registry: ActionRegistry,
+    // Menu stack for modal dialogs (see ADR-005)
+    pub menu_stack: MenuStack,
 }
 ```
 
-**View Modes**: `ViewMode` enum consolidates interaction states:
+**View Modes**: Simplified to 2 variants (see ADR-005):
 - `Normal` - Standard navigation
 - `Command` - Typing git commands
-- `Confirm(ConfirmAction)` - Awaiting user confirmation (e.g., push)
-- `AliasSections` - Browsing alias category list
-- `AliasItems` - Browsing aliases within a section
-- `ActionMenu` - Contextual action menu popup (see ADR-002)
+
+Modal dialogs (action menu, alias browser, push confirmation) are managed by `MenuStack` instead of ViewMode variants.
 
 The UI uses a single unified scrollable list with sections: Command → Staged → Working → History → Branches.
 
-### 6. UI Rendering (`src/ui.rs`)
+### 6. Menu System (`src/menu/`)
+
+The menu module provides composable menus with stack-based navigation (see ADR-005):
+
+```rust
+pub trait Menu: Send {
+    fn title(&self) -> &str;
+    fn items(&self) -> Vec<MenuItem>;
+    fn selected(&self) -> usize;
+    fn set_selected(&mut self, idx: usize);
+    fn handle_key(&mut self, key: KeyEvent) -> MenuResult;
+    fn render(&self, frame: &mut Frame, area: Rect);
+}
+
+pub enum MenuResult {
+    Continue,           // Keep menu open
+    Close,              // Close this menu
+    Execute(MenuAction), // Execute action and close
+    Push(Box<dyn Menu>), // Push nested menu
+    Pop,                // Return to previous menu
+    CloseAll,           // Clear entire stack
+}
+```
+
+**Menu Types**:
+- `ActionMenu` - Context-filtered actions from registry
+- `AliasSectionMenu` / `AliasItemsMenu` - Two-level alias browser
+- `PushConfirmMenu` - Push with force/upstream options
+- `SelectMenu` / `ConfirmMenu` - Reusable generic menus
+
+### 7. Command Execution (`src/command/`)
+
+Unified command execution framework (see ADR-003):
+
+```rust
+pub struct CommandRequest {
+    pub program: String,
+    pub args: Vec<String>,
+    pub display_name: String,
+    pub cwd: Option<PathBuf>,
+    pub source: CommandSource,
+    pub feedback: FeedbackPolicy,
+    pub refresh_after: bool,
+}
+
+pub enum CommandSource {
+    Keyboard,       // Direct keybinding
+    Palette,        // : mode
+    ActionMenu,     // m menu
+    AliasBrowser,   // a mode
+    Internal,       // Background operations
+}
+```
+
+### 8. Feedback System (`src/feedback/`)
+
+Manages all user feedback (see ADR-004):
+
+```rust
+pub enum Feedback {
+    CommandOutput { command, result, source },
+    Toast { message, level },
+    Error { message },
+    Diff { path, content, is_staged },
+}
+
+pub struct FeedbackManager {
+    pub command_output: Option<CommandOutput>,
+    pub popup: PopupState,
+    pub toast: Option<Toast>,
+    pub error: Option<String>,
+}
+```
+
+Feedback behavior varies by `CommandSource`: menu/browser selections always show popup; keyboard shortcuts use inline display with auto-popup for failures or long output.
+
+### 9. UI Rendering (`src/ui.rs`)
 
 Layout structure (unified vertical list):
 ```
@@ -207,7 +287,7 @@ pub enum PopupContent {
 }
 ```
 
-### 7. Contextual Actions (`src/actions.rs`)
+### 10. Contextual Actions (`src/actions.rs`)
 
 The action framework provides context-aware keybinding hints and a discoverable action menu:
 
@@ -244,8 +324,8 @@ Actions can be conditional (e.g., Push only available when `BranchAhead`). The r
    ```
 
 3. **Key Handling Priority**
+   - Menu stack active → delegate to current menu
    - Command mode → capture all input for command editing
-   - Alias browser → navigate sections/aliases
    - Popup open → scroll/close popup
    - Help overlay → dismiss on any key
    - Otherwise → normal key handling

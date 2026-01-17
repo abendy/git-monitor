@@ -1,7 +1,18 @@
 # ADR-003: Unified Command Execution Framework
 
 ## Status
-Proposed
+Implemented
+
+**Implementation Date:** 2026-01-17
+
+**What's Done:**
+- `CommandRequest` type with program, args, source, feedback policy
+- `CommandSource` enum (Keyboard, Palette, ActionMenu, AliasBrowser, Internal)
+- `FeedbackPolicy` enum (Default, AlwaysPopup, InlineOnly, Silent, External)
+- `CommandResult` with stdout/stderr capture
+- `CommandExecutor` for unified execution
+- `CommandHistory` for persistent history across sessions
+- Integration with `App` through `run_command()` method
 
 ## Context
 The application currently has multiple paths for executing commands:

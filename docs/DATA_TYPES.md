@@ -2,7 +2,7 @@
 
 ## Core Types
 
-### File Status
+### File Status (`src/git.rs`)
 
 ```rust
 /// Status of a single file in the repository
@@ -11,19 +11,19 @@ pub struct FileStatus {
     /// Path relative to repository root
     pub path: PathBuf,
     /// Status in working directory
-    pub working_status: FileState,
+    pub working: FileState,
     /// Status in staging area (index)
-    pub index_status: FileState,
+    pub staged: FileState,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum FileState {
+    #[default]
     Unmodified,
     Modified,
     Added,
     Deleted,
     Renamed,
-    Copied,
     Untracked,
     Ignored,
     Conflicted,
@@ -31,36 +31,45 @@ pub enum FileState {
 
 impl FileState {
     /// Character representation (like git status --short)
-    pub fn as_char(&self) -> char {
-        match self {
-            Self::Unmodified => ' ',
-            Self::Modified => 'M',
-            Self::Added => 'A',
-            Self::Deleted => 'D',
-            Self::Renamed => 'R',
-            Self::Copied => 'C',
-            Self::Untracked => '?',
-            Self::Ignored => '!',
-            Self::Conflicted => 'U',
-        }
-    }
+    pub const fn as_char(self) -> char;
 
-    /// Color for TUI display
-    pub fn color(&self) -> Color {
-        match self {
-            Self::Modified => Color::Yellow,
-            Self::Added => Color::Green,
-            Self::Deleted => Color::Red,
-            Self::Renamed => Color::Cyan,
-            Self::Untracked => Color::Gray,
-            Self::Conflicted => Color::Magenta,
-            _ => Color::White,
-        }
-    }
+    /// Whether this state represents a change
+    pub const fn is_changed(self) -> bool;
 }
 ```
 
-### Git Status
+**Status Characters:**
+
+| State | Char | Description |
+|-------|------|-------------|
+| Unmodified | ` ` | No changes |
+| Modified | `M` | Content changed |
+| Added | `A` | New file staged |
+| Deleted | `D` | File deleted |
+| Renamed | `R` | File renamed |
+| Untracked | `?` | Not in git |
+| Ignored | `!` | In .gitignore |
+| Conflicted | `U` | Merge conflict |
+
+### Repository State (`src/git.rs`)
+
+```rust
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RepoState {
+    #[default]
+    Normal,
+    Merge,
+    Rebase,
+    RebaseInteractive,
+    CherryPick,
+    Revert,
+    Bisect,
+}
+```
+
+Converted from `git2::RepositoryState`.
+
+### Git Status (`src/git.rs`)
 
 ```rust
 /// Complete git status snapshot
@@ -71,68 +80,37 @@ pub struct GitStatus {
     /// Upstream branch name if tracking
     pub upstream: Option<String>,
     /// Commits ahead of upstream
-    pub ahead: u32,
+    pub ahead: usize,
     /// Commits behind upstream
-    pub behind: u32,
-    /// Files with changes in working directory or index
+    pub behind: usize,
+    /// Files with changes
     pub files: Vec<FileStatus>,
-    /// Repository state (normal, merging, rebasing, etc.)
+    /// Repository state
     pub state: RepoState,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum RepoState {
-    #[default]
-    Normal,
-    Merging,
-    Rebasing,
-    CherryPicking,
-    Reverting,
-    Bisecting,
 }
 
 impl GitStatus {
     /// Files changed in working directory (not staged)
-    pub fn working_changes(&self) -> Vec<&FileStatus> {
-        self.files
-            .iter()
-            .filter(|f| f.working_status != FileState::Unmodified)
-            .collect()
-    }
+    pub fn working_changes(&self) -> Vec<&FileStatus>;
 
     /// Files staged for commit
-    pub fn staged_changes(&self) -> Vec<&FileStatus> {
-        self.files
-            .iter()
-            .filter(|f| f.index_status != FileState::Unmodified)
-            .collect()
-    }
-
-    /// Untracked files
-    pub fn untracked(&self) -> Vec<&FileStatus> {
-        self.files
-            .iter()
-            .filter(|f| f.working_status == FileState::Untracked)
-            .collect()
-    }
+    pub fn staged_changes(&self) -> Vec<&FileStatus>;
 }
 ```
 
-### Git Commands (Activity)
+### Git Commands / Activity (`src/git.rs`)
 
 ```rust
-/// A detected git command from reflog or observation
+/// A git command from the reflog
 #[derive(Debug, Clone)]
 pub struct GitCommand {
     /// When the command was executed
     pub timestamp: DateTime<Local>,
     /// Type of command
     pub command_type: CommandType,
-    /// Full command string if available
-    pub command: String,
-    /// Additional details (commit message, branch name, etc.)
-    pub details: Option<String>,
-    /// SHA involved (for commits, checkouts)
+    /// Command message/description from reflog
+    pub message: String,
+    /// Short SHA if available
     pub sha: Option<String>,
 }
 
@@ -144,121 +122,71 @@ pub enum CommandType {
     Rebase,
     Pull,
     Push,
-    Fetch,
     Reset,
     CherryPick,
     Revert,
-    Stash,
     Branch,
-    Tag,
     Clone,
     Init,
+    Fetch,
+    Stash,
     Other,
 }
 
 impl CommandType {
-    pub fn from_reflog_message(msg: &str) -> Self {
-        let msg_lower = msg.to_lowercase();
-        if msg_lower.starts_with("commit") {
-            Self::Commit
-        } else if msg_lower.starts_with("checkout") {
-            Self::Checkout
-        } else if msg_lower.starts_with("merge") {
-            Self::Merge
-        } else if msg_lower.starts_with("rebase") {
-            Self::Rebase
-        } else if msg_lower.starts_with("pull") {
-            Self::Pull
-        } else if msg_lower.starts_with("reset") {
-            Self::Reset
-        } else if msg_lower.starts_with("cherry-pick") {
-            Self::CherryPick
-        } else if msg_lower.starts_with("revert") {
-            Self::Revert
-        } else if msg_lower.starts_with("branch") {
-            Self::Branch
-        } else if msg_lower.starts_with("clone") {
-            Self::Clone
-        } else if msg_lower.starts_with("init") {
-            Self::Init
-        } else {
-            Self::Other
-        }
-    }
+    /// Parse command type from reflog message
+    pub fn from_message(msg: &str) -> Self;
 
-    pub fn icon(&self) -> &'static str {
-        match self {
-            Self::Commit => "●",
-            Self::Checkout => "⎇",
-            Self::Merge => "⑂",
-            Self::Rebase => "↺",
-            Self::Pull => "↓",
-            Self::Push => "↑",
-            Self::Fetch => "⟳",
-            Self::Reset => "↩",
-            Self::CherryPick => "🍒",
-            Self::Revert => "⊗",
-            Self::Stash => "📦",
-            Self::Branch => "⌥",
-            Self::Tag => "🏷",
-            _ => "•",
-        }
-    }
+    /// Icon for display in activity log
+    pub const fn icon(self) -> &'static str;
 }
 ```
 
-### Application State
+**Command Icons:**
+
+| Command | Icon |
+|---------|------|
+| Commit | ● |
+| Checkout | ⎇ |
+| Merge | ⑂ |
+| Rebase | ↺ |
+| Pull | ↓ |
+| Push | ↑ |
+| Fetch | ⟳ |
+| Reset | ↩ |
+| CherryPick | ❋ |
+| Revert | ⊗ |
+| Stash | □ |
+| Branch | ⌥ |
+| Clone | ⊕ |
+| Init | ★ |
+| Other | • |
+
+### Git Repository Wrapper (`src/git.rs`)
 
 ```rust
-/// Main application state
-pub struct App {
-    /// Path to repository root
-    pub repo_path: PathBuf,
-
-    /// Current git status
-    pub status: GitStatus,
-
-    /// Recent git activity
-    pub activity: VecDeque<GitCommand>,
-
-    /// UI state
-    pub ui: UiState,
-
-    /// Is the application running
-    pub running: bool,
-
-    /// Last status refresh time
-    pub last_refresh: Instant,
-
-    /// Pending error message to display
-    pub error: Option<String>,
+/// Git repository wrapper around git2::Repository
+pub struct GitRepo {
+    repo: Repository,
 }
 
-/// UI-specific state
-pub struct UiState {
-    /// Currently focused panel
-    pub active_panel: Panel,
-
-    /// Selected index in working changes list
-    pub working_selected: usize,
-
-    /// Selected index in staged changes list
-    pub staged_selected: usize,
-
-    /// Scroll offset for activity log
-    pub activity_scroll: usize,
-
-    /// Whether help overlay is shown
-    pub show_help: bool,
-
-    /// Whether diff viewer is shown
-    pub show_diff: bool,
-
-    /// Content for diff viewer
-    pub diff_content: Option<String>,
+impl GitRepo {
+    pub fn open(path: &Path) -> Result<Self>;
+    pub fn workdir(&self) -> Option<&Path>;
+    pub fn status(&self) -> Result<GitStatus>;
+    pub fn stage(&self, path: &Path) -> Result<()>;
+    pub fn unstage(&self, path: &Path) -> Result<()>;
+    pub fn diff_file(&self, path: &Path, staged: bool) -> Result<String>;
+    pub fn reflog(&self, limit: usize) -> Result<Vec<GitCommand>>;
 }
+```
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+## UI Types
+
+### Panel (`src/app.rs`)
+
+```rust
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum Panel {
     #[default]
     Working,
@@ -267,158 +195,140 @@ pub enum Panel {
 }
 
 impl Panel {
-    pub fn next(&self) -> Self {
-        match self {
-            Self::Working => Self::Staged,
-            Self::Staged => Self::Activity,
-            Self::Activity => Self::Working,
-        }
-    }
-
-    pub fn prev(&self) -> Self {
-        match self {
-            Self::Working => Self::Activity,
-            Self::Staged => Self::Working,
-            Self::Activity => Self::Staged,
-        }
-    }
+    pub const fn next(self) -> Self;
+    pub const fn prev(self) -> Self;
 }
 ```
 
-### Events
+### Application State (`src/app.rs`)
 
 ```rust
-/// Events processed by the main loop
-#[derive(Debug)]
-pub enum AppEvent {
+pub struct App {
+    /// Path to the repository
+    pub repo_path: PathBuf,
+    /// Git repository handle
+    repo: GitRepo,
+    /// Current git status
+    pub status: GitStatus,
+    /// Recent git activity (up to MAX_ACTIVITY = 50)
+    pub activity: Vec<GitCommand>,
+    /// File watcher
+    watcher: Option<RepoWatcher>,
+    /// Whether the application is running
+    pub running: bool,
+    /// Currently active panel
+    pub active_panel: Panel,
+    /// Selected index in working panel
+    pub working_selected: usize,
+    /// Selected index in staged panel
+    pub staged_selected: usize,
+    /// Show help overlay
+    pub show_help: bool,
+    /// Show diff overlay
+    pub show_diff: bool,
+    /// Current diff content
+    pub diff_content: String,
+    /// Diff file path (for title)
+    pub diff_path: String,
+    /// Error message to display
+    pub error: Option<String>,
+}
+```
+
+## Event Types
+
+### Terminal Events (`src/event.rs`)
+
+```rust
+#[derive(Debug, Clone)]
+pub enum Event {
+    /// Terminal tick (for periodic updates)
+    Tick,
     /// Keyboard input
     Key(KeyEvent),
-
-    /// Mouse input (if enabled)
+    /// Mouse input
     Mouse(MouseEvent),
-
-    /// Terminal resized
+    /// Terminal resize
     Resize(u16, u16),
-
-    /// Timer tick for periodic updates
-    Tick,
-
     /// File system change detected
-    FileChanged(PathBuf),
-
-    /// Git status was updated
-    StatusUpdated(GitStatus),
-
-    /// New git command detected
-    CommandDetected(GitCommand),
-
-    /// Error occurred
-    Error(String),
-}
-
-/// Actions that can be performed
-#[derive(Debug, Clone)]
-pub enum Action {
-    Quit,
-    Refresh,
-    NextPanel,
-    PrevPanel,
-    SelectNext,
-    SelectPrev,
-    StageSelected,
-    UnstageSelected,
-    ShowDiff,
-    HideDiff,
-    ToggleHelp,
-    ScrollUp,
-    ScrollDown,
+    FileChanged,
 }
 ```
 
-### Configuration
+### Event Handler (`src/event.rs`)
 
 ```rust
-/// Application configuration
+pub struct EventHandler {
+    rx: mpsc::Receiver<Event>,
+    tx: mpsc::Sender<Event>,
+}
+
+impl EventHandler {
+    pub fn new(tick_rate: Duration) -> Self;
+    pub fn sender(&self) -> mpsc::Sender<Event>;
+    pub fn next(&self) -> Result<Event>;
+}
+```
+
+### Watch Events (`src/watcher.rs`)
+
+```rust
 #[derive(Debug, Clone)]
-pub struct Config {
-    /// Repository path (defaults to current directory)
-    pub repo_path: PathBuf,
+pub enum WatchEvent {
+    /// Working directory file changed
+    WorkingDirectory(PathBuf),
+    /// Git index (staging area) changed
+    GitIndex,
+    /// Git HEAD changed (branch switch, commit)
+    GitHead,
+    /// Git refs changed
+    GitRefs,
+}
+```
 
-    /// Tick rate for periodic updates (ms)
-    pub tick_rate: u64,
+## TUI Types
 
-    /// Debounce duration for file events (ms)
-    pub debounce_ms: u64,
+### Terminal Wrapper (`src/tui.rs`)
 
-    /// Maximum activity entries to keep
-    pub max_activity: usize,
+```rust
+pub type Frame<'a> = ratatui::Frame<'a>;
 
-    /// Enable mouse support
-    pub mouse: bool,
-
-    /// Color theme
-    pub theme: Theme,
+pub struct Tui {
+    terminal: Terminal<CrosstermBackend<Stdout>>,
+    pub events: EventHandler,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            repo_path: PathBuf::from("."),
-            tick_rate: 250,
-            debounce_ms: 100,
-            max_activity: 100,
-            mouse: false,
-            theme: Theme::default(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct Theme {
-    pub modified: Color,
-    pub added: Color,
-    pub deleted: Color,
-    pub untracked: Color,
-    pub border: Color,
-    pub highlight: Color,
+impl Tui {
+    pub fn new(tick_rate: u64) -> Result<Self>;
+    pub fn enter(&mut self) -> Result<()>;
+    pub fn exit(&mut self) -> Result<()>;
+    pub fn draw<F>(&mut self, render: F) -> Result<()>
+    where
+        F: FnOnce(&mut Frame<'_>);
 }
 ```
 
 ## Mapping from git2 Types
 
+Working directory state extraction:
 ```rust
-impl From<git2::Status> for FileState {
-    fn from(status: git2::Status) -> Self {
-        if status.is_wt_new() {
-            FileState::Untracked
-        } else if status.is_wt_modified() {
-            FileState::Modified
-        } else if status.is_wt_deleted() {
-            FileState::Deleted
-        } else if status.is_wt_renamed() {
-            FileState::Renamed
-        } else if status.is_ignored() {
-            FileState::Ignored
-        } else if status.is_conflicted() {
-            FileState::Conflicted
-        } else {
-            FileState::Unmodified
-        }
-    }
+fn working_state_from_git2(status: Status) -> FileState {
+    if status.is_wt_new() { FileState::Untracked }
+    else if status.is_wt_modified() { FileState::Modified }
+    else if status.is_wt_deleted() { FileState::Deleted }
+    else if status.is_wt_renamed() { FileState::Renamed }
+    else if status.is_conflicted() { FileState::Conflicted }
+    else { FileState::Unmodified }
 }
+```
 
-/// Extract index (staged) status from git2::Status
-pub fn index_state_from_git2(status: git2::Status) -> FileState {
-    if status.is_index_new() {
-        FileState::Added
-    } else if status.is_index_modified() {
-        FileState::Modified
-    } else if status.is_index_deleted() {
-        FileState::Deleted
-    } else if status.is_index_renamed() {
-        FileState::Renamed
-    } else {
-        FileState::Unmodified
-    }
+Staged (index) state extraction:
+```rust
+fn staged_state_from_git2(status: Status) -> FileState {
+    if status.is_index_new() { FileState::Added }
+    else if status.is_index_modified() { FileState::Modified }
+    else if status.is_index_deleted() { FileState::Deleted }
+    else if status.is_index_renamed() { FileState::Renamed }
+    else { FileState::Unmodified }
 }
 ```

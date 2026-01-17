@@ -8,8 +8,7 @@
 ┌─────────────────────────────────────────────────────────────────────┐
 │  git-monitor  │ ⎇ main ↑2 ↓0 │ repo-name │ ● watching             │  Header
 ├─────────────────────────────────────────────────────────────────────┤
-│ ▸ : git status                                                      │  Command
-│   ✓ (no output)                                                     │  Section
+│   : command   a aliases                                             │  Command
 ├─────────────────────────────────────────────────────────────────────┤
 │ Staged (2)                                                          │  Staged
 │   A src/new_file.rs                                                 │  Section
@@ -21,12 +20,19 @@
 │   ? untracked.txt                                                   │
 │   D old_file.rs                                                     │
 ├─────────────────────────────────────────────────────────────────────┤
-│ Commit Log (50)                       [h to toggle to Reflog]       │  History
-│   abc1234  14:32:01  Add feature X  (HEAD → main, origin/main)     │  Section
-│   def5678  14:31:45  Fix critical bug                              │
-│   ghi9012  14:30:22  Initial commit  (tag: v0.1.0)                 │
+│ ▶ History (main) ─ 2 hr ago                                        │  History
+│ ▸ abc1234  Add feature X  (HEAD)                           2 hr ago│  (collapsible)
+│   └─ M src/app.rs                                          +45 -12 │  expanded files
+│   └─ A src/new.rs                                         +100     │
+│   def5678  Fix critical bug                                3 hr ago│
+│   ghi9012  Initial commit  (tag: v0.1.0)                  1 day ago│
 ├─────────────────────────────────────────────────────────────────────┤
-│ [:] cmd  [a] alias  [s] stage  [d] diff  [h] history  [?] help     │  Footer
+│ ─ Branches ─────────────────────────────────────────────────────────│
+│   feature/new (5 ahead)                                             │  Branch list
+│   └─ jkl3456  WIP on feature                              1 day ago│  (expandable)
+│   bugfix/login (2 behind)                                           │
+├─────────────────────────────────────────────────────────────────────┤
+│ [:] cmd  [h] history  [b] branch  [g/G] top/bottom  [?] help       │  Footer
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -34,7 +40,10 @@
 - Index 0: Command section
 - Index 1..N: Staged files
 - Index N+1..M: Working files
-- Index M+1..end: History entries
+- History header (non-selectable label)
+- History commits (expandable to show files)
+- Branch headers (non-selectable labels)
+- Branch commits (when branch expanded)
 
 ### Popup System (Full-Screen Overlays)
 
@@ -211,32 +220,41 @@ Working Directory (4)
 
 ### History Section
 
-Toggleable between Commit Log (default) and Reflog:
+Collapsible section showing commits on current branch. Press `h` to jump to history and toggle collapse state.
 
-**Commit Log Mode** (default):
+**Expanded (default)**:
 ```
-Commit Log (50)                       [h to toggle]
-  abc1234  14:32:01  Add feature X  (HEAD → main)
-  def5678  14:31:45  Fix critical bug  (origin/main)
-  ghi9012  14:30:22  Initial commit  (tag: v0.1.0)
+▶ History (main) ─ 2 hr ago               [▶ focused indicator]
+▸ abc1234  Add feature X  (HEAD)                          2 hr ago
+  └─ M src/app.rs                                         +45 -12
+  └─ A src/new.rs                                        +100
+  def5678  Fix critical bug                               3 hr ago
+  ghi9012  Initial commit  (tag: v0.1.0)                 1 day ago
 ```
 
-**Reflog Mode**:
+**Collapsed**:
 ```
-Reflog (50)                           [h to toggle]
+▷ History (main) ─ 2 hr ago               [▷ collapsed indicator]
+```
+
+**Commit Expansion**: Press Enter on a commit to expand/collapse file list:
+- Shows files changed with status character (M/A/D/R)
+- Shows diff stats (+insertions -deletions)
+- Navigate into files with j/k, press Space for external pager diff, M for difftool
+
+**Reflog Mode** (toggle with `h` while in history):
+```
+▶ Reflog ─ 2 hr ago
   14:32:01  ● commit: Add feature X
   14:31:45  ⎇ checkout: moving from main to feature/new
   14:30:22  ↓ pull: Fast-forward
 ```
 
-**Format** (Commit Log): `  SHA  HH:MM:SS  message  (decorations)`
-**Format** (Reflog): `  HH:MM:SS  icon message`
-- SHA in dark gray (can copy with `y`)
-- Timestamp in dark gray
-- Icon colored by command type
-- Decorations in parentheses (HEAD, branches, tags)
+**Relative Times**: Timestamps shown as "2 hr ago", "3 days ago", etc.
 
-**Command Icons & Colors**:
+**Special Commit Prefixes**: Commits with fixup!, squash!, amend!, etc. are highlighted in yellow.
+
+**Command Icons & Colors** (Reflog mode):
 
 | Command | Icon | Color |
 |---------|------|-------|
@@ -254,13 +272,39 @@ Reflog (50)                           [h to toggle]
 | Init | ★ | Green |
 | Other | • | Dark Gray |
 
-### Footer
+### Branches Section
+
+Shows local branches other than the current branch. Branch names are non-selectable labels.
 
 ```
- [Tab] switch   [j/k] nav   [s] stage   [d] diff   [?] help   [q] quit
+─ Branches ─────────────────────────────────────────────────────────
+  feature/new (5 ahead)                    [ahead/behind vs current]
+  └─ jkl3456  WIP on feature                              1 day ago
+  └─ mno7890  Add tests                                   2 days ago
+  bugfix/login (2 behind)
+```
+
+**Branch Expansion**: Press Enter on a branch commit to expand that branch's recent commits.
+
+**Branch Graph**: Tree connectors (`├─`, `└─`, `│`) visualize commit relationships.
+
+**Checkout**: Press `c` on a branch to check it out.
+
+### Footer
+
+Contextual hints based on current selection:
+
+```
+ [:] cmd  [h] history  [b] branch  [g/G] top/bottom  [?] help
 ```
 
 Keys shown with dark gray background, centered in footer area.
+
+**Context-sensitive hints**:
+- On staged/working files: `[s] stage/unstage  [d] diff`
+- On history commits: `[y] copy SHA  [Enter] expand`
+- On expanded commit files: `[Space] pager  [M] difftool`
+- On branches: `[c] checkout`
 
 When an error occurs, the footer shows the error message in red instead of keybindings.
 
@@ -284,19 +328,23 @@ When an error occurs, the footer shows the error message in red instead of keybi
 | `k` / `↑` | Select previous item |
 | `g` | Go to first item |
 | `G` | Go to last item |
-| `h` | Jump to history / toggle history mode |
+| `h` | Jump to history / toggle collapse / toggle reflog mode |
+| `b` | Jump to branches section |
 
 ### Actions
 
 | Key | Action |
 |-----|--------|
 | `:` | Enter command mode |
-| `Enter` | Enter command mode (on command) / Show diff (on file) |
+| `Enter` | Enter command mode (on command) / Expand commit (on history) / Show diff (on file) |
 | `a` | Open alias browser (on command section) |
 | `o` | Open output popup (on command section) |
 | `s` | Stage/Unstage selected file |
-| `d` | Show diff for selected file |
+| `d` | Show inline diff for selected file |
+| `Space` | Show diff in external pager (on expanded commit file) |
+| `M` | Show diff in external difftool (on expanded commit file) |
 | `y` | Copy SHA to clipboard (on history item) |
+| `c` | Checkout branch (on branch item) |
 
 ### Command Mode
 

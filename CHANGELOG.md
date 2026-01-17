@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-01-17
+
+### Added
+
+- Commit detail expansion in history view with file list and diff stats
+- File navigation within expanded commits (`j`/`k` to move, `Space` for pager, `M` for difftool)
+- External diff tools support respecting `core.pager` and `diff.tool` from gitconfig (see ADR-001)
+- Branch browser section showing local branches with ahead/behind indicators
+- Branch expansion to view recent commits on other branches
+- Branch checkout with `c` key
+- Accordion-style History/Branches sections with continuous scrolling
+- Focus indicators on section headers
+- Contextual footer hints based on current selection
+- Persistent command history across sessions
+- Highlight special commit prefixes (`fixup!`, `squash!`, `amend!`, etc.)
+- Relative timestamps in history ("2 hr ago", "3 days ago")
+- Branch graph visualization with tree connectors
+- `g`/`G` shortcuts for top/bottom navigation
+- `b` key to jump to branches section
+
+### Changed
+
+- View state consolidated into `ViewMode` enum (Normal, Command, AliasSections, AliasItems)
+- Selection state changed to `Option<usize>` to support "nothing focused" state
+- History section now collapsible (toggle with `h` key)
+- Branch names displayed as non-selectable header labels
+- Improved navigation: last history commit can continue to branches section
+
+### Fixed
+
+- Navigation from last history commit now continues to branches section
+- `b` key now selects first commit in branches, not the header
+- Expanded commit auto-closes when navigating away
+- Clear selection highlight in command mode
+
 ## [0.2.0] - 2026-01-17
 
 ### Added

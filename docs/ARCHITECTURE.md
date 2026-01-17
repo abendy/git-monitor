@@ -118,29 +118,41 @@ pub struct App {
     pub config: GitConfig,
     watcher: Option<RepoWatcher>,
     pub running: bool,
-    pub selected: usize,              // Single unified selection index
+    pub selected: Option<usize>,      // Selection index (None = nothing focused)
     pub show_help: bool,
+    pub view_mode: ViewMode,          // Current interaction mode
     pub error: Option<String>,
-    // Command mode
-    pub command_mode: bool,
+    // Command mode fields
     pub command_input: String,
     pub command_output: String,
     pub command_success: bool,
     pub command_history: Vec<String>,
     pub history_index: Option<usize>,
-    // Alias browser
-    pub show_aliases: bool,
-    pub alias_section_selected: usize,
-    pub show_section_aliases: bool,
-    pub alias_selected: usize,
     // History mode (reflog vs commit log)
     pub history_mode: HistoryMode,
     // Popup state
     pub popup: PopupState,
+    // Commit expansion (history view)
+    pub expanded_commit: Option<String>,
+    pub expanded_detail: Option<CommitDetail>,
+    pub expanded_file_idx: Option<usize>,
+    // Branch browser
+    pub branches: Vec<BranchInfo>,
+    pub history_collapsed: bool,
+    pub expanded_branch: Option<String>,
+    pub expanded_branch_commits: Vec<GitCommand>,
+    // External command handling
+    pub pending_external: Option<ExternalCommand>,
 }
 ```
 
-The UI uses a single unified scrollable list with sections: Command → Staged → Working → History.
+**View Modes**: `ViewMode` enum consolidates interaction states:
+- `Normal` - Standard navigation
+- `Command` - Typing git commands
+- `AliasSections` - Browsing alias category list
+- `AliasItems` - Browsing aliases within a section
+
+The UI uses a single unified scrollable list with sections: Command → Staged → Working → History → Branches.
 
 ### 6. UI Rendering (`src/ui.rs`)
 
@@ -160,9 +172,16 @@ Layout structure (unified vertical list):
 │   M src/main.rs                                              │  Section
 │   ? untracked.txt                                            │
 ├──────────────────────────────────────────────────────────────┤
-│ Commit Log (50)                                              │  History
-│   abc1234  14:32:01  Add feature X  (HEAD, main)            │  Section
-│   def5678  14:30:00  Fix bug                                │
+│ ▶ History (main) ─ 2 hr ago                                  │  History
+│   abc1234  Add feature X  (HEAD)                    2 hr ago │  (collapsible)
+│   └─ M src/app.rs  +45 -12                                   │  expanded commit
+│   └─ A src/new.rs  +100                                      │  with files
+│   def5678  Fix bug                                  3 hr ago │
+├──────────────────────────────────────────────────────────────┤
+│ ─ Branches ──────────────────────────────────────────────────│
+│   feature/new (5 ahead)                                      │  Branch list
+│   └─ ghi9012  WIP on feature                        1 day ago│  (expandable)
+│   bugfix/login (2 behind)                                    │
 ├──────────────────────────────────────────────────────────────┤
 │ [:] cmd  [s] stage  [d] diff  [h] history  [?] help         │  Footer
 └──────────────────────────────────────────────────────────────┘

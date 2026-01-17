@@ -1,7 +1,14 @@
 # ADR-001: Press Enter Prompt After External Diff Commands
 
 ## Status
-Accepted
+Implemented
+
+**Implementation Date:** 2026-01-17
+
+**What's Done:**
+- `Space` key on expanded commit files opens diff in external pager (`core.pager`)
+- `M` key on expanded commit files opens diff in external difftool (`diff.tool`)
+- Both display "[Press Enter to continue]" prompt after execution
 
 ## Context
 When viewing commit file diffs, users can press `Space` to open the diff in an external pager (respecting `core.pager` from gitconfig) or `M` to open in an external difftool (respecting `diff.tool` from gitconfig).

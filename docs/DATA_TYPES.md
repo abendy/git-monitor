@@ -111,6 +111,65 @@ pub enum RefDecoration {
 }
 ```
 
+### Commit Detail (`src/git.rs`)
+
+```rust
+/// Detailed commit information for expanded view
+#[derive(Debug, Clone)]
+pub struct CommitDetail {
+    /// Full 40-character SHA
+    pub full_sha: String,
+    /// Author name
+    pub author_name: String,
+    /// Author email
+    pub author_email: String,
+    /// Author timestamp
+    pub author_time: DateTime<Local>,
+    /// Committer name
+    pub committer_name: String,
+    /// Committer email
+    pub committer_email: String,
+    /// Committer timestamp
+    pub committer_time: DateTime<Local>,
+    /// Full commit message (summary + body)
+    pub message: String,
+    /// GPG signature status (if signed)
+    pub gpg_status: Option<String>,
+    /// Files changed in this commit
+    pub files: Vec<CommitFile>,
+    /// Total lines added
+    pub insertions: usize,
+    /// Total lines deleted
+    pub deletions: usize,
+}
+
+/// A file changed in a commit
+#[derive(Debug, Clone)]
+pub struct CommitFile {
+    /// File path
+    pub path: String,
+    /// Change status
+    pub status: FileState,
+    /// Lines added in this file
+    pub insertions: usize,
+    /// Lines deleted in this file
+    pub deletions: usize,
+}
+```
+
+### Branch Info (`src/git.rs`)
+
+```rust
+/// Information about a local branch
+#[derive(Debug, Clone)]
+pub struct BranchInfo {
+    /// Branch name
+    pub name: String,
+    /// Whether this is the current (checked out) branch
+    pub is_current: bool,
+}
+```
+
 ### Git Commands / Activity (`src/git.rs`)
 
 ```rust
@@ -227,6 +286,32 @@ Aliases are parsed from `~/.gitconfig`. Section headers are detected from commen
 
 ## UI Types
 
+### View Mode (`src/app.rs`)
+
+```rust
+/// View mode for the application body
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum ViewMode {
+    /// Normal navigation mode (default)
+    #[default]
+    Normal,
+    /// Command input mode (typing git commands)
+    Command,
+    /// Alias browser showing section list
+    AliasSections {
+        /// Currently selected section index
+        selected: usize,
+    },
+    /// Alias browser showing aliases within a section
+    AliasItems {
+        /// Section being viewed
+        section_idx: usize,
+        /// Currently selected alias index within section
+        selected: usize,
+    },
+}
+```
+
 ### History Mode (`src/app.rs`)
 
 ```rust
@@ -235,6 +320,19 @@ pub enum HistoryMode {
     Reflog,       // Show reflog (git actions)
     #[default]
     CommitLog,    // Show commit log
+}
+```
+
+### External Command (`src/app.rs`)
+
+```rust
+/// External command requiring TUI suspension
+#[derive(Debug, Clone)]
+pub enum ExternalCommand {
+    /// Show commit file diff with pager (uses core.pager from gitconfig)
+    PagerDiff { commit_sha: String, file_path: String },
+    /// Show commit file diff with difftool (uses diff.tool from gitconfig)
+    DiffTool { commit_sha: String, file_path: String },
 }
 ```
 
@@ -303,28 +401,35 @@ pub struct App {
     watcher: Option<RepoWatcher>,
     /// Whether the application is running
     pub running: bool,
-    /// Selected index in unified list (command → staged → working → activity)
-    pub selected: usize,
+    /// Selected index (None = nothing focused)
+    pub selected: Option<usize>,
     /// Show help overlay
     pub show_help: bool,
+    /// Current view mode
+    pub view_mode: ViewMode,
     /// Error message to display
     pub error: Option<String>,
     // Command mode fields
-    pub command_mode: bool,
     pub command_input: String,
     pub command_output: String,
     pub command_success: bool,
     pub command_history: Vec<String>,
     pub history_index: Option<usize>,
-    // Alias browser fields
-    pub show_aliases: bool,
-    pub alias_section_selected: usize,
-    pub show_section_aliases: bool,
-    pub alias_selected: usize,
     // History display
     pub history_mode: HistoryMode,
     // Popup state
     pub popup: PopupState,
+    // Commit expansion (history view)
+    pub expanded_commit: Option<String>,
+    pub expanded_detail: Option<CommitDetail>,
+    pub expanded_file_idx: Option<usize>,
+    // Branch browser
+    pub branches: Vec<BranchInfo>,
+    pub history_collapsed: bool,
+    pub expanded_branch: Option<String>,
+    pub expanded_branch_commits: Vec<GitCommand>,
+    // External command handling
+    pub pending_external: Option<ExternalCommand>,
 }
 ```
 

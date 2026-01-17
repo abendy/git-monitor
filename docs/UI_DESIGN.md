@@ -377,10 +377,12 @@ When an error occurs, the footer shows the error message in red instead of keybi
 | `o` | Open output popup (on command section) |
 | `s` | Stage/Unstage selected file |
 | `d` | Show inline diff for selected file |
-| `Space` | Show diff in external pager (on expanded commit file) |
-| `M` | Show diff in external difftool (on expanded commit file) |
+| `Space` | Show diff in external pager (on file or expanded commit file) |
+| `M` | Show diff in external difftool (on file or expanded commit file) |
 | `y` | Copy short SHA to clipboard (on history item) |
-| `c` | Copy full SHA (on history/branch) / Checkout (on branch) |
+| `Y` | Copy full SHA to clipboard (on history item) |
+| `c` | Checkout (on branch) |
+| `R` | Interactive rebase onto selected commit (on history) |
 | `P` | Push (available when ahead of remote) |
 | `p` | Pull (available when behind remote) |
 | `f` | Fetch from remote |

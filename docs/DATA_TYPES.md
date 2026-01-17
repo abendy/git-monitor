@@ -318,9 +318,9 @@ pub enum ActionType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppAction {
     // File actions
-    ToggleStage, ShowDiff,
+    ToggleStage, ShowDiff, FilePagerDiff, FileDiffTool,
     // History actions
-    ToggleHistoryMode, ExpandCommit, CopyShortSha, CopyFullSha, NextPage, PrevPage,
+    ToggleHistoryMode, ExpandCommit, CopyShortSha, CopyFullSha, NextPage, PrevPage, InteractiveRebase,
     // Commit file actions
     PagerDiff, InlineDiff, DiffTool,
     // Branch actions
@@ -390,6 +390,56 @@ impl ActionRegistry {
     pub fn actions_for_context(&self, context: Context, state: &AppState) -> Vec<&Action>;
     pub fn hint_actions_for_context(&self, context: Context, state: &AppState) -> Vec<&Action>;
     pub fn add_alias_actions(&mut self, aliases: &[Alias]);
+}
+```
+
+## Input Types (`src/input/`)
+
+### KeyBinding
+
+```rust
+/// A key binding (key code + modifiers)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct KeyBinding {
+    pub code: KeyCode,
+    pub modifiers: KeyModifiers,
+}
+
+impl KeyBinding {
+    pub const fn key(code: KeyCode) -> Self;
+    pub const fn char(c: char) -> Self;
+    pub const fn ctrl(code: KeyCode) -> Self;
+    pub const fn ctrl_char(c: char) -> Self;
+}
+```
+
+### Keymap
+
+```rust
+/// Declarative keymap that maps key bindings to actions
+pub struct Keymap {
+    global: HashMap<KeyBinding, AppAction>,
+    contextual: HashMap<Context, HashMap<KeyBinding, AppAction>>,
+}
+
+impl Keymap {
+    pub fn new() -> Self;
+    pub fn with_defaults() -> Self;
+    pub fn bind_global(&mut self, binding: KeyBinding, action: AppAction);
+    pub fn bind(&mut self, context: Context, binding: KeyBinding, action: AppAction);
+    pub fn lookup(&self, key: KeyEvent, context: Context) -> Option<AppAction>;
+}
+```
+
+### InputResult
+
+```rust
+/// Result of processing a key event
+pub enum InputResult {
+    Action(AppAction),      // Execute an app-level action
+    DelegateToMenu,         // Delegate to the active menu
+    DelegateToPopup,        // Delegate to popup handler
+    Unhandled,              // Key was not handled
 }
 ```
 
@@ -798,19 +848,68 @@ pub trait Section: Send + Sync {
 }
 ```
 
-### SectionRegistry
+### SectionState
 
 ```rust
-/// Registry of all sections
-pub struct SectionRegistry {
-    sections: Vec<Box<dyn Section>>,
+/// State passed to sections for rendering and actions
+pub struct SectionState {
+    pub is_focused: bool,
+    pub local_selection: Option<usize>,
+    pub global_selection: Option<usize>,
 }
+```
 
-impl SectionRegistry {
-    pub fn total_items(&self) -> usize;
-    pub fn section_for_index(&self, global_idx: usize) -> Option<(SectionId, usize)>;
-    pub fn section_start_index(&self, id: SectionId) -> Option<usize>;
+### SectionAction
+
+```rust
+/// Action returned by section key handling
+pub enum SectionAction {
+    Command(CommandRequest),
+    Feedback(Feedback),
+    OpenMenu(Box<dyn Menu>),
+    AppAction(AppAction),
+    Navigate(NavigateAction),
+    None,
 }
+```
+
+### NavigateAction
+
+```rust
+/// Navigation actions within or between sections
+pub enum NavigateAction {
+    Next,
+    Prev,
+    First,
+    Last,
+    JumpTo(SectionId),
+}
+```
+
+### Section Implementations
+
+Each section has a corresponding data struct for immutable state:
+
+```rust
+// Command section
+pub struct CommandSectionData { pub command: String, pub output: String, pub success: bool }
+pub struct CommandSection { data: CommandSectionData }
+
+// Staged section
+pub struct StagedSectionData { pub files: Vec<FileStatus> }
+pub struct StagedSection { data: StagedSectionData }
+
+// Working section
+pub struct WorkingSectionData { pub files: Vec<FileStatus> }
+pub struct WorkingSection { data: WorkingSectionData }
+
+// History section
+pub struct HistorySectionData { pub commits: Vec<GitCommand>, pub collapsed: bool, ... }
+pub struct HistorySection { data: HistorySectionData }
+
+// Branches section
+pub struct BranchesSectionData { pub branches: Vec<BranchInfo>, ... }
+pub struct BranchesSection { data: BranchesSectionData }
 ```
 
 ## TUI Types

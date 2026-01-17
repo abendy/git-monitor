@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-01-17
+
+### Added
+
+- **Declarative keymap system** (`src/input/`)
+  - `Keymap` struct for context-aware key binding lookup
+  - `KeyBinding` type for key code + modifier combinations
+  - Default bindings wired into `App::handle_key()`
+- **Section trait implementations** for all UI regions (`src/section/`)
+  - `CommandSection`, `StagedSection`, `WorkingSection` for core sections
+  - `HistorySection`, `BranchesSection` for accordion sections
+  - `SectionState` for passing render context
+  - `SectionAction` and `NavigateAction` for section-level responses
+- **External diff actions** for working/staged files
+  - `Space` to open diff in external pager
+  - `M` to open diff in external difftool
+- **Interactive rebase** action from history (`R` key)
+
+### Changed
+
+- Command execution centralized in `src/command/external.rs`
+- `FeedbackManager` now handles toast lifecycle and rendering
+- Removed unused `SectionRegistry` (index calculations handled directly)
+- Cleaned up `.unwrap()` calls across codebase
+
+### Fixed
+
+- Toast lifecycle properly wired to feedback system
+- File diff keybindings aligned with action registry
+
 ## [0.5.0] - 2026-01-17
 
 ### Added

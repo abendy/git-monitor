@@ -1,7 +1,17 @@
 # ADR-002: Contextual Action Menu Framework
 
 ## Status
-Accepted
+Implemented
+
+**Implementation Date:** 2026-01-17
+
+**What's Done:**
+- `Context` enum with all UI section types
+- `ActionRegistry` as single source of truth for keybindings
+- `ActionCondition` enum for conditional actions (BranchAhead, BranchBehind, etc.)
+- Dynamic footer hints based on current context
+- Action menu popup (`m` key) showing context-filtered actions
+- Alias integration with context inference
 
 ## Context
 The application has numerous keybindings that vary by context (staged files, working files, history, branches, commit files). Users need to discover available actions, and the UI needs a consistent way to show relevant hints without cluttering every section with static text.

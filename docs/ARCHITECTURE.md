@@ -41,8 +41,9 @@ A terminal-based user interface for monitoring git repository activity in real-t
 | `actions` | `src/actions.rs` | Contextual action framework (see ADR-002) |
 | `command/` | `src/command/` | Unified command execution framework (see ADR-003) |
 | `feedback/` | `src/feedback/` | Feedback system for output display (see ADR-004) |
+| `input/` | `src/input/` | Declarative keybindings (`Keymap`, `KeyBinding`) |
 | `menu/` | `src/menu/` | Modular menu system with stack navigation (see ADR-005) |
-| `section/` | `src/section/` | Section trait and registry for UI regions |
+| `section/` | `src/section/` | Section trait and implementations for UI regions |
 
 ## Component Design
 
@@ -240,7 +241,52 @@ pub struct FeedbackManager {
 
 Feedback behavior varies by `CommandSource`: menu/browser selections always show popup; keyboard shortcuts use inline display with auto-popup for failures or long output.
 
-### 9. UI Rendering (`src/ui.rs`)
+### 9. Input System (`src/input/`)
+
+Declarative keybindings that map key combinations to actions based on context:
+
+```rust
+/// A key binding (key code + modifiers)
+pub struct KeyBinding {
+    pub code: KeyCode,
+    pub modifiers: KeyModifiers,
+}
+
+/// Declarative keymap that maps key bindings to actions
+pub struct Keymap {
+    global: HashMap<KeyBinding, AppAction>,
+    contextual: HashMap<Context, HashMap<KeyBinding, AppAction>>,
+}
+
+impl Keymap {
+    pub fn lookup(&self, key: KeyEvent, context: Context) -> Option<AppAction>;
+}
+```
+
+The keymap is consulted in `App::handle_key()` after checking for menu stack and popup state. Context-specific bindings take priority over global bindings.
+
+### 10. Section System (`src/section/`)
+
+Each UI section implements the `Section` trait for consistent rendering and key handling:
+
+```rust
+pub trait Section: Send + Sync {
+    fn id(&self) -> SectionId;
+    fn item_count(&self) -> usize;
+    fn render(&self, state: &SectionState) -> Vec<Line<'static>>;
+    fn actions(&self, item_idx: usize) -> Vec<Action>;
+    fn handle_key(&self, key: KeyEvent, item_idx: usize) -> Option<SectionAction>;
+}
+```
+
+**Section Implementations**:
+- `CommandSection` - Command input and output display
+- `StagedSection` - Staged files list
+- `WorkingSection` - Working directory changes
+- `HistorySection` - Commit log / reflog (collapsible)
+- `BranchesSection` - Local branches (expandable)
+
+### 11. UI Rendering (`src/ui.rs`)
 
 Layout structure (unified vertical list):
 ```
@@ -287,7 +333,7 @@ pub enum PopupContent {
 }
 ```
 
-### 10. Contextual Actions (`src/actions.rs`)
+### 12. Contextual Actions (`src/actions.rs`)
 
 The action framework provides context-aware keybinding hints and a discoverable action menu:
 

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-01-17
+
+### Changed
+
+- **Registry-driven section rendering** - Body rendering now uses a composition loop
+  that iterates through the `SectionRegistry` and delegates to each section's `render()` method
+- **Section render delegation** - Each section (Command, Staged, Working, History, Branches)
+  now fully owns its rendering logic via the `Section` trait implementation
+- Routing of index checks consolidated through `SectionRegistry` methods
+
+### Documentation
+
+- Updated README with expanded technical features and roadmap
+
+### Chore
+
+- Adopted nightly Rust toolchain for rustfmt configuration options
+- Applied consistent formatting with nightly rustfmt
+
 ## [0.7.0] - 2026-01-17
 
 ### Added

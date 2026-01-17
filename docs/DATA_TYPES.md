@@ -856,6 +856,7 @@ pub struct SectionState {
     pub is_focused: bool,
     pub local_selection: Option<usize>,
     pub global_selection: Option<usize>,
+    pub render_width: u16,
 }
 ```
 

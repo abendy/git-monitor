@@ -62,6 +62,9 @@ impl App {
 
         // Update section data
         self.update_sections();
+
+        // Clamp selection to valid bounds after item counts change
+        self.clamp_selection();
     }
 
     /// Refresh activity based on current history mode and page

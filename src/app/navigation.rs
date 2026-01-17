@@ -3,6 +3,21 @@ use crate::section::SectionId;
 use super::App;
 
 impl App {
+    /// Clamp selection to valid bounds
+    ///
+    /// Called after item counts change (file changes, commits, etc.) to ensure
+    /// the selection index remains valid.
+    pub(super) fn clamp_selection(&mut self) {
+        if let Some(idx) = self.selected {
+            let total = self.total_count();
+            if total == 0 {
+                self.selected = None;
+            } else if idx >= total {
+                self.selected = Some(total - 1);
+            }
+        }
+    }
+
     /// Jump to working area (first file in staged or working changes)
     pub(super) fn jump_to_working(&mut self) {
         let files_total = self.status.staged_changes().len() + self.status.working_changes().len();

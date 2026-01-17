@@ -13,6 +13,11 @@ Cargo.lock
 *.swo
 *~
 
+# LLM
+.claude/
+CLAUDE.md
+AGENTS.md
+
 # OS
 .DS_Store
 Thumbs.db
@@ -23,3 +28,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Project
+.project

@@ -79,7 +79,7 @@ pub fn render_commit_line(
     ];
 
     let special_prefixes = ["fixup!", "squash!", "amend!"];
-    let wip_prefixes = ["wip:", "wip ", "WIP:", "WIP "];
+    let wip_prefixes = ["WIP", "wip:", "wip ", "WIP:", "WIP "];
 
     if let Some(prefix) = special_prefixes
         .iter()
@@ -87,9 +87,7 @@ pub fn render_commit_line(
     {
         spans.push(Span::styled(
             prefix.to_string(),
-            style
-                .fg(Color::Magenta)
-                .add_modifier(Modifier::BOLD),
+            style.fg(Color::Magenta).add_modifier(Modifier::BOLD),
         ));
         spans.push(Span::styled(
             message[prefix.len()..].to_string(),
@@ -101,9 +99,7 @@ pub fn render_commit_line(
     {
         spans.push(Span::styled(
             prefix.to_string(),
-            style
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
+            style.fg(Color::Yellow).add_modifier(Modifier::BOLD),
         ));
         spans.push(Span::styled(
             message[prefix.len()..].to_string(),

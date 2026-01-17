@@ -45,6 +45,31 @@
 - Branch headers (non-selectable labels)
 - Branch commits (when branch expanded)
 
+### Action Menu (Contextual)
+
+Pressing `m` opens the action menu showing available actions for the current context:
+
+```
+┌───────────────────────────────────────────────────────────┐
+│                   Actions (Staged Files)                   │
+├───────────────────────────────────────────────────────────┤
+│  ▸ [s] stage/unstage                                      │
+│    [d] diff                                               │
+│    [P] push  (when ahead)                                 │
+│    [r] refresh                                            │
+│    [:] command                                            │
+│    [?] help                                               │
+│    [q] quit                                               │
+│                                                           │
+│           [Enter] execute  [j/k] navigate  [Esc] close    │
+└───────────────────────────────────────────────────────────┘
+```
+
+Actions are context-sensitive (see ADR-002):
+- File contexts show stage/unstage, diff
+- History shows expand, copy SHA, pagination
+- Global actions (push, pull, fetch) appear based on conditions
+
 ### Popup System (Full-Screen Overlays)
 
 Popups replace the body entirely when active:
@@ -295,16 +320,20 @@ Shows local branches other than the current branch. Branch names are non-selecta
 Contextual hints based on current selection:
 
 ```
- [:] cmd  [h] history  [b] branch  [g/G] top/bottom  [?] help
+ [:] cmd  [h] history  [b] branch  [g/G] top/bottom  [m] actions  [?] help
 ```
 
 Keys shown with dark gray background, centered in footer area.
 
-**Context-sensitive hints**:
+**Context-sensitive hints** (dynamic based on cursor position):
 - On staged/working files: `[s] stage/unstage  [d] diff`
-- On history commits: `[y] copy SHA  [Enter] expand`
+- On history commits: `[Space] expand  [y] sha  [[/]] page`
 - On expanded commit files: `[Space] pager  [M] difftool`
-- On branches: `[c] checkout`
+- On branches: `[c] copy sha  [Enter] checkout`
+- Global (when ahead): `[P] push`
+- Global (when behind): `[p] pull`
+
+Hints are rendered dynamically from the `ActionRegistry` (see ADR-002). Press `m` to see all available actions.
 
 When an error occurs, the footer shows the error message in red instead of keybindings.
 
@@ -328,6 +357,7 @@ When an error occurs, the footer shows the error message in red instead of keybi
 | `k` / `↑` | Select previous item |
 | `g` | Go to first item |
 | `G` | Go to last item |
+| `w` | Jump to working files |
 | `h` | Jump to history / toggle collapse / toggle reflog mode |
 | `b` | Jump to branches section |
 
@@ -335,6 +365,7 @@ When an error occurs, the footer shows the error message in red instead of keybi
 
 | Key | Action |
 |-----|--------|
+| `m` | Open context action menu |
 | `:` | Enter command mode |
 | `Enter` | Enter command mode (on command) / Expand commit (on history) / Show diff (on file) |
 | `a` | Open alias browser (on command section) |
@@ -343,8 +374,13 @@ When an error occurs, the footer shows the error message in red instead of keybi
 | `d` | Show inline diff for selected file |
 | `Space` | Show diff in external pager (on expanded commit file) |
 | `M` | Show diff in external difftool (on expanded commit file) |
-| `y` | Copy SHA to clipboard (on history item) |
-| `c` | Checkout branch (on branch item) |
+| `y` | Copy short SHA to clipboard (on history item) |
+| `c` | Copy full SHA (on history/branch) / Checkout (on branch) |
+| `P` | Push (available when ahead of remote) |
+| `p` | Pull (available when behind remote) |
+| `f` | Fetch from remote |
+| `[` | Previous history page |
+| `]` | Next history page |
 
 ### Command Mode
 

@@ -38,6 +38,7 @@ A terminal-based user interface for monitoring git repository activity in real-t
 | `event` | `src/event.rs` | Event types and handler thread |
 | `watcher` | `src/watcher.rs` | File system watching with debouncing (notify) |
 | `config` | `src/config.rs` | Git config and alias parsing |
+| `actions` | `src/actions.rs` | Contextual action framework (see ADR-002) |
 
 ## Component Design
 
@@ -139,18 +140,23 @@ pub struct App {
     // Branch browser
     pub branches: Vec<BranchInfo>,
     pub history_collapsed: bool,
+    pub history_page: usize,              // Pagination offset
     pub expanded_branch: Option<String>,
     pub expanded_branch_commits: Vec<GitCommand>,
     // External command handling
     pub pending_external: Option<ExternalCommand>,
+    // Contextual actions
+    pub action_registry: ActionRegistry,
 }
 ```
 
 **View Modes**: `ViewMode` enum consolidates interaction states:
 - `Normal` - Standard navigation
 - `Command` - Typing git commands
+- `Confirm(ConfirmAction)` - Awaiting user confirmation (e.g., push)
 - `AliasSections` - Browsing alias category list
 - `AliasItems` - Browsing aliases within a section
+- `ActionMenu` - Contextual action menu popup (see ADR-002)
 
 The UI uses a single unified scrollable list with sections: Command → Staged → Working → History → Branches.
 
@@ -191,6 +197,7 @@ Layout structure (unified vertical list):
 - Help overlay - keybinding reference
 - Command output popup - scrollable command results
 - Diff popup - syntax-highlighted diff view
+- Action menu - context-aware action list (see ADR-002)
 
 ```rust
 pub enum PopupContent {
@@ -199,6 +206,21 @@ pub enum PopupContent {
     Diff { path, content, is_staged },
 }
 ```
+
+### 7. Contextual Actions (`src/actions.rs`)
+
+The action framework provides context-aware keybinding hints and a discoverable action menu:
+
+```rust
+pub enum Context {
+    Command, StagedFiles, WorkingFiles, HistoryHeader,
+    HistoryCommits, CommitFiles, BranchCommits, Global,
+}
+
+pub struct ActionRegistry { actions: Vec<Action> }
+```
+
+Actions can be conditional (e.g., Push only available when `BranchAhead`). The registry is the single source of truth for keybindings, used by both inline hints and the action menu popup.
 
 ## Data Flow
 

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-01-17
+
+### Added
+
+- Contextual action menu framework with `m` key to show available actions (see ADR-002)
+- Conditional actions: `P` to push (when ahead), `p` to pull (when behind), `f` to fetch
+- History pagination with `[`/`]` keys for navigating through commit history
+- `w` key to jump to working files section
+- Remote branch tracking and divergence visualization
+- Dynamic section hints that only show relevant actions for current cursor position
+- Push confirmation prompt with branch/remote info in footer
+
+### Changed
+
+- Footer hints are now context-aware and dynamically generated from ActionRegistry
+- ViewMode extended with `ActionMenu` and `Confirm` variants
+- Action registry is single source of truth for keybindings (used by hints and action menu)
+
 ## [0.3.0] - 2026-01-17
 
 ### Added

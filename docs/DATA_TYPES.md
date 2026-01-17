@@ -284,6 +284,115 @@ pub struct Alias {
 
 Aliases are parsed from `~/.gitconfig`. Section headers are detected from comments like `# --- section ---`.
 
+## Action Types (`src/actions.rs`)
+
+### Context
+
+```rust
+/// Application context - represents where the user currently is
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Context {
+    Command,         // On command input section
+    StagedFiles,     // Selection is in staged files
+    WorkingFiles,    // Selection is in working files
+    HistoryHeader,   // On the History section header
+    HistoryCommits,  // On a commit in history
+    CommitFiles,     // On a file within expanded commit
+    BranchCommits,   // On a commit in expanded branch
+    Global,          // Actions available everywhere
+}
+```
+
+### Action Types
+
+```rust
+/// Type of action
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ActionType {
+    App(AppAction),   // Built-in application action
+    Cli(String),      // Custom CLI command (future)
+    Alias(Alias),     // Git alias from gitconfig
+}
+
+/// Built-in app actions
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AppAction {
+    // File actions
+    ToggleStage, ShowDiff,
+    // History actions
+    ToggleHistoryMode, ExpandCommit, CopyShortSha, CopyFullSha, NextPage, PrevPage,
+    // Commit file actions
+    PagerDiff, InlineDiff, DiffTool,
+    // Branch actions
+    Checkout, ExpandBranch,
+    // Global actions
+    Push, Pull, Fetch, Refresh, EnterCommandMode, BrowseAliases, ShowHelp, Quit,
+    // Navigation
+    JumpToWorking, JumpToHistory, JumpToBranches,
+}
+```
+
+### Action Conditions
+
+```rust
+/// Conditions for when an action should be available
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ActionCondition {
+    #[default]
+    Always,              // Always available
+    BranchAhead,         // Can push
+    BranchBehind,        // Should pull
+    HasUpstream,         // Has upstream configured
+    NoUpstream,          // No upstream configured
+    HasStagedChanges,    // Ready to commit
+    HasWorkingChanges,   // Uncommitted changes
+    HasUntrackedFiles,   // Untracked files exist
+}
+
+/// Snapshot of app state for evaluating conditions
+#[derive(Debug, Clone, Default)]
+pub struct AppState {
+    pub ahead: usize,
+    pub behind: usize,
+    pub has_upstream: bool,
+    pub staged_count: usize,
+    pub working_count: usize,
+    pub untracked_count: usize,
+}
+```
+
+### Action Definition
+
+```rust
+/// A single action definition
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Action {
+    pub key: String,              // Keyboard shortcut
+    pub label: String,            // Display label
+    pub action_type: ActionType,  // Type of action
+    pub contexts: Vec<Context>,   // Where available
+    pub priority: u8,             // Display ordering
+    pub condition: ActionCondition, // Availability condition
+}
+```
+
+### Action Registry
+
+```rust
+/// Central registry of all actions
+#[derive(Debug, Clone)]
+pub struct ActionRegistry {
+    actions: Vec<Action>,
+}
+
+impl ActionRegistry {
+    pub fn new() -> Self;
+    pub fn actions_for_context(&self, context: Context, state: &AppState) -> Vec<&Action>;
+    pub fn hint_actions_for_context(&self, context: Context, state: &AppState) -> Vec<&Action>;
+    pub fn add_alias_actions(&mut self, aliases: &[Alias]);
+}
+```
+
 ## UI Types
 
 ### View Mode (`src/app.rs`)
@@ -297,6 +406,8 @@ pub enum ViewMode {
     Normal,
     /// Command input mode (typing git commands)
     Command,
+    /// Generic confirmation mode (prompt in footer)
+    Confirm(ConfirmAction),
     /// Alias browser showing section list
     AliasSections {
         /// Currently selected section index
@@ -308,6 +419,27 @@ pub enum ViewMode {
         section_idx: usize,
         /// Currently selected alias index within section
         selected: usize,
+    },
+    /// Action menu showing available actions for current context
+    ActionMenu {
+        /// Context when menu was opened
+        context: Context,
+        /// Selected action index
+        selected: usize,
+        /// Cached actions for the context
+        actions: Vec<Action>,
+    },
+}
+
+/// Action requiring user confirmation
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConfirmAction {
+    Push {
+        branch: String,
+        remote: String,
+        has_upstream: bool,
+        ahead: usize,
+        force: bool,
     },
 }
 ```
@@ -426,10 +558,13 @@ pub struct App {
     // Branch browser
     pub branches: Vec<BranchInfo>,
     pub history_collapsed: bool,
+    pub history_page: usize,
     pub expanded_branch: Option<String>,
     pub expanded_branch_commits: Vec<GitCommand>,
     // External command handling
     pub pending_external: Option<ExternalCommand>,
+    // Contextual actions
+    pub action_registry: ActionRegistry,
 }
 ```
 

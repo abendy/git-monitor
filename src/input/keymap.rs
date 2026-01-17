@@ -112,6 +112,7 @@ impl Keymap {
     }
 
     /// Create a keymap with default bindings
+    #[cfg(test)]
     #[must_use]
     pub fn with_defaults() -> Self {
         let registry = ActionRegistry::new();

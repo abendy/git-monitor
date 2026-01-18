@@ -59,6 +59,7 @@ cargo clippy
 ```
 
 Key lint rules:
+
 - `unsafe_code = "forbid"` - No unsafe code allowed
 - `unwrap_used = "warn"` - Prefer `?` with `anyhow::Context`
 - `expect_used = "warn"` - Same as above
@@ -74,45 +75,25 @@ See [`.claude/rust-style.md`](.claude/rust-style.md) for detailed guidelines.
 
 ## Architecture
 
-The codebase follows an event-driven architecture:
-
-```
-src/
-├── main.rs          # CLI entry, argument parsing
-├── app.rs           # Central state, event handling
-├── ui.rs            # Render coordinator
-├── git.rs           # Git operations (libgit2)
-├── tui.rs           # Terminal setup/teardown
-├── event.rs         # Event types
-├── watcher.rs       # File system watching
-├── config.rs        # Git config parsing
-├── actions.rs       # Action registry
-├── command/         # Command execution framework
-├── menu/            # Modal menu system
-├── feedback/        # Output feedback management
-├── section/         # UI sections and registry
-├── input/           # Keymap and input handling
-└── render/          # Split render modules
-```
-
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed design documentation.
 
 ## Commit Guidelines
 
 Use [Conventional Commits](https://www.conventionalcommits.org/):
 
-```
+```text
 <type>(<scope>): <description>
 
 [optional body]
 
-Task: .tasks/YYYY-MM-DD-description.md
+Task: .project/tasks/YYYY-MM-DD-description.md
 ```
 
 **Types**: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`
 
 **Examples**:
-```
+
+```text
 feat(menu): add keyboard shortcut hints
 fix(git): handle detached HEAD state
 docs: update keybindings reference
@@ -121,12 +102,11 @@ refactor(render): split body into submodules
 
 ## Task Tracking
 
-Active work is tracked in `.tasks/`:
+Active work is tracked in `.project/tasks/`:
 
-1. Create task file: `.tasks/YYYY-MM-DD-brief-description.md`
+1. Create task file: `.project/tasks/YYYY-MM-DD-brief-description.md`
 2. Update checklist as you progress
-3. Reference in commits: `Task: .tasks/...`
-4. Mark completed when done
+3. Mark completed when done
 
 ## Pull Requests
 
@@ -140,5 +120,5 @@ Active work is tracked in `.tasks/`:
 
 - **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System design, module structure
 - **[KEYBINDINGS.md](docs/KEYBINDINGS.md)** - Complete keybinding reference
-- **[AI_INTERNALS.md](docs/AI_INTERNALS.md)** - Implementation patterns
+- **[AI_INTERNALS.md](.project/reference/AI_INTERNALS.md)** - Implementation patterns
 - **[ADRs](docs/adr/)** - Architecture Decision Records

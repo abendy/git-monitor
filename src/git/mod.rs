@@ -1,6 +1,7 @@
 use git2::Repository;
 
 mod branches;
+mod command_type;
 mod commit;
 mod diff;
 mod history;

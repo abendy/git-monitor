@@ -1,11 +1,10 @@
 use std::path::PathBuf;
 
+use super::App;
 use crate::command::{CommandRequest, CommandSource, ExternalCommand};
 use crate::feedback::{Feedback, PopupContent, Toast};
 use crate::git::FileState;
 use crate::menu::PushConfirmMenu;
-
-use super::App;
 
 impl App {
     pub(super) fn open_editor(&mut self) {
@@ -255,7 +254,9 @@ impl App {
                 "Only git commands are allowed",
             ));
             self.command_input.clear();
+            self.command_draft = None;
             self.command_history.reset_navigation();
+            self.update_sections();
             return;
         }
 
@@ -264,14 +265,23 @@ impl App {
 
         // Clear input and reset history navigation
         self.command_input.clear();
+        self.command_draft = None;
         self.command_history.reset_navigation();
+        self.update_sections();
     }
 
     /// Navigate command history (older)
     pub(super) fn history_prev(&mut self) {
+        // Capture whatever the user was typing before we start browsing history.
+        if self.command_draft.is_none() {
+            self.command_draft = Some(self.command_input.clone());
+        }
+
         if let Some(cmd) = self.command_history.navigate_older() {
             self.command_input = cmd.to_string();
         }
+
+        self.update_sections();
     }
 
     /// Navigate command history (newer)
@@ -281,9 +291,15 @@ impl App {
                 self.command_input = cmd.to_string();
             }
             None => {
-                // Past end of history, clear input
-                self.command_input.clear();
+                // Past end of history: restore the user's draft (if any), otherwise clear.
+                if let Some(draft) = self.command_draft.take() {
+                    self.command_input = draft;
+                } else {
+                    self.command_input.clear();
+                }
             }
         }
+
+        self.update_sections();
     }
 }

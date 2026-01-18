@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 
+use super::{App, HistoryMode, ViewMode};
 use crate::actions::ActionRegistry;
 use crate::command::{CommandExecutor, CommandHistory};
 use crate::config::GitConfig;
@@ -9,11 +10,8 @@ use crate::git::GitRepo;
 use crate::input::Keymap;
 use crate::menu::MenuStack;
 use crate::section::{
-    BranchesSection, CommandSection, HistorySection, SectionRegistry, StagedSection,
-    WorkingSection,
+    BranchesSection, CommandSection, HistorySection, SectionRegistry, StagedSection, WorkingSection,
 };
-
-use super::{App, HistoryMode, ViewMode};
 
 impl App {
     /// Create a new application instance
@@ -54,6 +52,7 @@ impl App {
             show_help: false,
             view_mode: ViewMode::default(),
             command_input: String::new(),
+            command_draft: None,
             command_history: CommandHistory::new(),
             history_mode: HistoryMode::default(),
             feedback: crate::feedback::FeedbackManager::new(),

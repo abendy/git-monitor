@@ -1,10 +1,9 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
+use super::{App, ViewMode, PAGE_SIZE};
 use crate::actions::AppAction;
 use crate::command::ExternalCommand;
 use crate::menu::{MenuAction, MenuResult};
-
-use super::{App, ViewMode, PAGE_SIZE};
 
 impl App {
     /// Handle keyboard input
@@ -15,7 +14,7 @@ impl App {
             return;
         }
 
-        // ViewMode-based dispatch (command and alias modes capture all input)
+        // ViewMode-based dispatch
         match &self.view_mode {
             ViewMode::Command => {
                 self.handle_command_mode_key(key);
@@ -54,6 +53,7 @@ impl App {
                 {
                     self.enter_command_mode();
                     self.command_input.push(c);
+                    self.update_sections();
                     return;
                 }
             }
@@ -399,26 +399,40 @@ impl App {
             KeyCode::Enter => {
                 self.view_mode = ViewMode::Normal;
                 self.execute_command();
+                self.command_draft = None;
+                self.update_sections();
             }
 
             // Type characters
             KeyCode::Char(c) => {
                 self.command_input.push(c);
+                self.command_draft = None;
                 self.command_history.reset_navigation();
+                self.update_sections();
             }
 
             // Backspace
             KeyCode::Backspace => {
                 self.command_input.pop();
+                self.command_draft = None;
                 self.command_history.reset_navigation();
+                self.update_sections();
             }
 
-            // History navigation
+            // History navigation / exit
             KeyCode::Up => {
                 self.history_prev();
             }
             KeyCode::Down => {
-                self.history_next();
+                // When browsing history, Down moves toward newer entries and eventually
+                // restores the in-progress command. Once we're back at the draft (not
+                // navigating), Down should release focus back to the main list.
+                if self.command_history.is_navigating() || self.command_draft.is_some() {
+                    self.history_next();
+                } else {
+                    self.exit_command_mode();
+                    self.select_next();
+                }
             }
 
             _ => {}

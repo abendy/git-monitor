@@ -8,8 +8,7 @@ use crate::git::{BranchInfo, CommitDetail, GitCommand, GitRepo, GitStatus};
 use crate::input::Keymap;
 use crate::menu::MenuStack;
 use crate::section::{
-    BranchesSection, CommandSection, HistorySection, SectionRegistry, StagedSection,
-    WorkingSection,
+    BranchesSection, CommandSection, HistorySection, SectionRegistry, StagedSection, WorkingSection,
 };
 use crate::watcher::RepoWatcher;
 
@@ -72,6 +71,8 @@ pub struct App {
     pub view_mode: ViewMode,
     /// Current command input buffer
     pub command_input: String,
+    /// Draft command to restore after browsing history
+    command_draft: Option<String>,
     /// Command history (managed by CommandHistory module)
     pub command_history: CommandHistory,
     /// Current history display mode (reflog vs commit log)

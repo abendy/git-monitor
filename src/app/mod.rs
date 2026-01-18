@@ -73,7 +73,7 @@ pub struct App {
     pub command_input: String,
     /// Draft command to restore after browsing history
     command_draft: Option<String>,
-    /// Command history (managed by CommandHistory module)
+    /// Command history (managed by `CommandHistory` module)
     pub command_history: CommandHistory,
     /// Current history display mode (reflog vs commit log)
     pub history_mode: HistoryMode,

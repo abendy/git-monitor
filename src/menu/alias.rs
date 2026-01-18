@@ -17,7 +17,7 @@ pub struct AliasSectionMenu {
 
 impl AliasSectionMenu {
     /// Create a new alias section menu
-    pub fn new(sections: Vec<AliasSection>, repo_path: PathBuf) -> Self {
+    pub const fn new(sections: Vec<AliasSection>, repo_path: PathBuf) -> Self {
         Self {
             sections,
             repo_path,
@@ -27,7 +27,7 @@ impl AliasSectionMenu {
 }
 
 impl Menu for AliasSectionMenu {
-    fn title(&self) -> &str {
+    fn title(&self) -> &'static str {
         "Alias Sections"
     }
 
@@ -80,7 +80,7 @@ impl Menu for AliasSectionMenu {
             }
 
             // Close
-            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('a') => MenuResult::Close,
+            KeyCode::Esc | KeyCode::Char('q' | 'a') => MenuResult::Close,
 
             _ => MenuResult::Continue,
         }
@@ -101,7 +101,7 @@ pub struct AliasItemsMenu {
 
 impl AliasItemsMenu {
     /// Create a new alias items menu
-    pub fn new(section_name: String, aliases: Vec<Alias>, repo_path: PathBuf) -> Self {
+    pub const fn new(section_name: String, aliases: Vec<Alias>, repo_path: PathBuf) -> Self {
         Self {
             section_name,
             aliases,

@@ -14,6 +14,7 @@ use crate::app::App;
 use crate::tui::Frame;
 
 /// Render help overlay
+#[allow(clippy::too_many_lines)] // Render functions are naturally verbose
 pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
     // Center the help box
     let help_area = super::centered_rect(60, 70, area);

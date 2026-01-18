@@ -15,7 +15,7 @@ pub struct RepoWatcher {
 impl RepoWatcher {
     /// Create a new watcher for the given repository path
     pub fn new(repo_path: &Path, tx: Sender<WatchEvent>) -> Result<Self> {
-        let event_tx = tx.clone();
+        let event_tx = tx;
 
         // Create debouncer with 100ms delay
         let mut debouncer = new_debouncer(

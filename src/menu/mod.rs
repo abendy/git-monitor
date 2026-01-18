@@ -61,14 +61,14 @@ impl MenuItem {
 
     /// Set enabled state
     #[must_use]
-    pub fn enabled(mut self, enabled: bool) -> Self {
+    pub const fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
 
     /// Set style
     #[must_use]
-    pub fn with_style(mut self, style: ItemStyle) -> Self {
+    pub const fn with_style(mut self, style: ItemStyle) -> Self {
         self.style = style;
         self
     }
@@ -76,7 +76,7 @@ impl MenuItem {
     /// Create a separator
     #[must_use]
     #[allow(dead_code)] // MenuItem factory for future menus
-    pub fn separator() -> Self {
+    pub const fn separator() -> Self {
         Self {
             label: String::new(),
             description: None,
@@ -187,7 +187,7 @@ pub trait Menu: Send {
         for i in (0..current).rev() {
             if items
                 .get(i)
-                .map_or(false, |item| item.enabled)
+                .is_some_and(|item| item.enabled)
             {
                 self.set_selected(i);
                 return;
@@ -204,7 +204,7 @@ pub trait Menu: Send {
         for i in (current + 1)..items.len() {
             if items
                 .get(i)
-                .map_or(false, |item| item.enabled)
+                .is_some_and(|item| item.enabled)
             {
                 self.set_selected(i);
                 return;
@@ -214,7 +214,7 @@ pub trait Menu: Send {
 }
 
 /// Render a menu using the standard list-based layout
-/// Call this from Menu::render() implementations that use item-based display
+/// Call this from `Menu::render()` implementations that use item-based display
 pub fn render_menu(menu: &dyn Menu, frame: &mut Frame<'_>, area: Rect) {
     use ratatui::style::{Color, Modifier, Style};
     use ratatui::text::{Line, Span};

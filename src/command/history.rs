@@ -99,14 +99,14 @@ impl CommandHistory {
     }
 
     /// Reset navigation state
-    pub fn reset_navigation(&mut self) {
+    pub const fn reset_navigation(&mut self) {
         self.nav_index = None;
     }
 
     /// Check if currently navigating history
     #[must_use]
     #[allow(dead_code)] // API for future use
-    pub fn is_navigating(&self) -> bool {
+    pub const fn is_navigating(&self) -> bool {
         self.nav_index.is_some()
     }
 }

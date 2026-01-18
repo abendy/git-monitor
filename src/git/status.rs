@@ -24,11 +24,11 @@ impl GitRepo {
     }
 
     /// Populate branch and upstream info
+    #[allow(clippy::unnecessary_wraps)] // Result for API consistency
     fn populate_branch_info(&self, status: &mut GitStatus) -> Result<()> {
         // Get HEAD reference
-        let head = match self.repo.head() {
-            Ok(head) => head,
-            Err(_) => return Ok(()), // No commits yet
+        let Ok(head) = self.repo.head() else {
+            return Ok(()); // No commits yet
         };
 
         // Get branch name
@@ -66,7 +66,7 @@ impl GitRepo {
         } else {
             // Detached HEAD - show short commit hash
             if let Some(oid) = head.target() {
-                status.branch = Some(format!("{:.7}", oid));
+                status.branch = Some(format!("{oid:.7}"));
             }
         }
 
@@ -92,10 +92,10 @@ impl GitRepo {
             .unwrap_or_default();
 
         for entry in statuses.iter() {
-            let path = entry
-                .path()
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("<invalid>"));
+            let path = entry.path().map_or_else(
+                || PathBuf::from("<invalid>"),
+                PathBuf::from,
+            );
 
             let git_status = entry.status();
 
@@ -133,6 +133,7 @@ impl GitRepo {
     ///
     /// Returns a map of path to `(working_insertions, working_deletions, staged_insertions,
     /// staged_deletions)`
+    #[allow(clippy::unnecessary_wraps)] // Result for API consistency
     fn compute_diff_stats(&self) -> Result<HashMap<PathBuf, (usize, usize, usize, usize)>> {
         let mut stats: HashMap<PathBuf, (usize, usize, usize, usize)> = HashMap::new();
 
@@ -204,8 +205,8 @@ fn staged_state_from_git2(status: Status) -> FileState {
 
 /// Collect line stats from a diff into the stats map
 ///
-/// If `is_working` is true, updates working_insertions/deletions,
-/// otherwise updates staged_insertions/deletions.
+/// If `is_working` is true, updates `working_insertions/deletions`,
+/// otherwise updates `staged_insertions/deletions`.
 fn collect_diff_stats(
     diff: &Diff<'_>,
     stats: &mut HashMap<PathBuf, (usize, usize, usize, usize)>,

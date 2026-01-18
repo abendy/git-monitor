@@ -94,7 +94,7 @@ impl Section for BranchesSection {
         SectionId::Branches
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Branches"
     }
 
@@ -122,6 +122,8 @@ impl Section for BranchesSection {
         header_count + commit_count
     }
 
+    #[allow(clippy::too_many_lines)] // Render methods are naturally verbose
+    #[allow(clippy::option_if_let_else)] // if-let-else is clearer here
     fn render(&self, state: &SectionState) -> Vec<Line<'static>> {
         let mut lines = Vec::new();
 

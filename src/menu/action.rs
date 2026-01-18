@@ -23,7 +23,7 @@ pub struct ActionMenu {
 
 impl ActionMenu {
     /// Create a new action menu
-    pub fn new(context: Context, actions: Vec<Action>, repo_path: PathBuf) -> Self {
+    pub const fn new(context: Context, actions: Vec<Action>, repo_path: PathBuf) -> Self {
         Self {
             context,
             actions,
@@ -33,7 +33,7 @@ impl ActionMenu {
     }
 
     /// Get context name for display
-    fn context_name(&self) -> &str {
+    const fn context_name(&self) -> &str {
         self.context.display_name()
     }
 }
@@ -72,6 +72,7 @@ impl Menu for ActionMenu {
         }
     }
 
+    #[allow(clippy::option_if_let_else)] // if-let-else is clearer here
     fn handle_key(&mut self, key: KeyEvent) -> MenuResult {
         match key.code {
             // Navigation
@@ -116,7 +117,7 @@ impl Menu for ActionMenu {
             }
 
             // Close menu
-            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('m') => MenuResult::Close,
+            KeyCode::Esc | KeyCode::Char('q' | 'm') => MenuResult::Close,
 
             _ => MenuResult::Continue,
         }

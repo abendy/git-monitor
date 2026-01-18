@@ -12,6 +12,7 @@ use crate::feedback::ToastLevel;
 use crate::tui::Frame;
 
 /// Render the footer with keybindings and status
+#[allow(clippy::too_many_lines)] // Render functions are naturally verbose
 pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
     // Show different hints based on mode
     // Priority: command mode > toast (transient) > error (persistent) > normal hints

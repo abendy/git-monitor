@@ -112,7 +112,7 @@ impl App {
 
     /// Get the section registry for iteration and index lookups
     #[must_use]
-    pub fn section_registry(&self) -> &SectionRegistry {
+    pub const fn section_registry(&self) -> &SectionRegistry {
         &self.section_registry
     }
 

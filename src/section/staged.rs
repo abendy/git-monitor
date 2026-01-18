@@ -95,7 +95,7 @@ impl Section for StagedSection {
         SectionId::Staged
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Staged"
     }
 
@@ -170,7 +170,7 @@ impl Section for StagedSection {
         }
 
         match key.code {
-            KeyCode::Char('u') | KeyCode::Char('s') => {
+            KeyCode::Char('u' | 's') => {
                 // Toggle stage (unstage for staged files)
                 Some(SectionAction::AppAction(
                     crate::actions::AppAction::ToggleStage,

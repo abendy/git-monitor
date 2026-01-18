@@ -23,7 +23,7 @@ pub struct PushConfirmMenu {
 
 impl PushConfirmMenu {
     /// Create a new push confirmation menu
-    pub fn new(
+    pub const fn new(
         branch: String,
         remote: String,
         has_upstream: bool,
@@ -75,7 +75,7 @@ impl PushConfirmMenu {
 }
 
 impl Menu for PushConfirmMenu {
-    fn title(&self) -> &str {
+    fn title(&self) -> &'static str {
         "Push Confirmation"
     }
 
@@ -117,7 +117,7 @@ impl Menu for PushConfirmMenu {
                 }
                 MenuResult::Continue
             }
-            KeyCode::Char('f') | KeyCode::Char('F') => {
+            KeyCode::Char('f' | 'F') => {
                 self.force = !self.force;
                 MenuResult::Continue
             }
@@ -140,12 +140,13 @@ impl Menu for PushConfirmMenu {
             }
 
             // Cancel
-            KeyCode::Esc | KeyCode::Char('n') | KeyCode::Char('q') => MenuResult::CloseAll,
+            KeyCode::Esc | KeyCode::Char('n' | 'q') => MenuResult::CloseAll,
 
             _ => MenuResult::Continue,
         }
     }
 
+    #[allow(clippy::too_many_lines)] // Render methods are naturally verbose
     fn render(&self, frame: &mut Frame<'_>, area: Rect) {
         frame.render_widget(Clear, area);
 

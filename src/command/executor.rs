@@ -77,6 +77,7 @@ impl CommandExecutor {
     }
 
     /// Execute a command in a specific directory
+    #[allow(clippy::unused_self)] // Method for future extensibility
     fn execute_in_dir(
         &self,
         program: &str,

@@ -12,29 +12,29 @@ pub fn format_relative_time(time: DateTime<Local>) -> String {
 
     let minutes = duration.num_minutes();
     if minutes < 60 {
-        return format!("{} min ago", minutes);
+        return format!("{minutes} min ago");
     }
 
     let hours = duration.num_hours();
     if hours < 24 {
-        return format!("{} hr ago", hours);
+        return format!("{hours} hr ago");
     }
 
     let days = duration.num_days();
     if days < 7 {
-        return format!("{} days ago", days);
+        return format!("{days} days ago");
     }
 
     let weeks = days / 7;
     if weeks < 4 {
-        return format!("{} wk ago", weeks);
+        return format!("{weeks} wk ago");
     }
 
     let months = days / 30;
     if months < 12 {
-        return format!("{} mo ago", months);
+        return format!("{months} mo ago");
     }
 
     let years = days / 365;
-    format!("{} yr ago", years)
+    format!("{years} yr ago")
 }

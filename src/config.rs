@@ -62,21 +62,18 @@ impl GitConfig {
         let home = std::env::var("HOME").unwrap_or_default();
         let gitconfig_path = format!("{home}/.gitconfig");
 
-        let content = match std::fs::read_to_string(&gitconfig_path) {
-            Ok(c) => c,
-            Err(_) => {
-                // Fall back to a single "All" section
-                return vec![AliasSection {
-                    name: "all".to_string(),
-                    aliases: alias_map
-                        .iter()
-                        .map(|(name, command)| Alias {
-                            name: name.clone(),
-                            command: command.clone(),
-                        })
-                        .collect(),
-                }];
-            }
+        let Ok(content) = std::fs::read_to_string(&gitconfig_path) else {
+            // Fall back to a single "All" section
+            return vec![AliasSection {
+                name: "all".to_string(),
+                aliases: alias_map
+                    .iter()
+                    .map(|(name, command)| Alias {
+                        name: name.clone(),
+                        command: command.clone(),
+                    })
+                    .collect(),
+            }];
         };
 
         let mut sections: Vec<AliasSection> = Vec::new();

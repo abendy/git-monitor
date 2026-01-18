@@ -8,7 +8,7 @@ impl App {
     // ─────────────────────────────────────────────────────────────────────────
 
     /// Check if in command mode
-    pub fn is_command_mode(&self) -> bool {
+    pub const fn is_command_mode(&self) -> bool {
         matches!(self.view_mode, ViewMode::Command)
     }
 

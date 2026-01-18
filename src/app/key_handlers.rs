@@ -7,6 +7,7 @@ use crate::menu::{MenuAction, MenuResult};
 
 impl App {
     /// Handle keyboard input
+    #[allow(clippy::too_many_lines)] // Key dispatch is naturally verbose
     pub(super) fn handle_key(&mut self, key: KeyEvent) {
         // Menu stack takes priority when active
         if self.menu_stack.is_active() {
@@ -217,8 +218,7 @@ impl App {
                     let file_count = self
                         .expanded_detail
                         .as_ref()
-                        .map(|d| d.files.len())
-                        .unwrap_or(0);
+                        .map_or(0, |d| d.files.len());
 
                     match self.expanded_file_idx {
                         None if file_count > 0 => {
@@ -501,7 +501,7 @@ impl App {
         // Process the result
         match result {
             MenuResult::Continue => {}
-            MenuResult::Close => {
+            MenuResult::Close | MenuResult::Pop => {
                 self.menu_stack.pop();
             }
             MenuResult::Execute(action) => {
@@ -520,9 +520,6 @@ impl App {
             }
             MenuResult::Push(menu) => {
                 self.menu_stack.push(menu);
-            }
-            MenuResult::Pop => {
-                self.menu_stack.pop();
             }
             MenuResult::CloseAll => {
                 self.menu_stack.clear();

@@ -44,7 +44,7 @@ pub enum SectionId {
 impl SectionId {
     /// Get the display name for this section
     #[must_use]
-    pub fn display_name(&self) -> &'static str {
+    pub const fn display_name(self) -> &'static str {
         match self {
             Self::Command => "Command",
             Self::Staged => "Staged",
@@ -133,7 +133,7 @@ pub enum RefreshPolicy {
 
 /// A keybinding declared by a section.
 ///
-/// Built-in sections use ActionRegistry for keybindings. This metadata is
+/// Built-in sections use `ActionRegistry` for keybindings. This metadata is
 /// reserved for external sections that need to self-describe bindings without
 /// touching the core registry.
 #[derive(Debug, Clone)]
@@ -207,7 +207,7 @@ pub trait Section: Send + Sync {
 
     /// Keybindings available when this section is focused.
     ///
-    /// Built-in sections should not implement this; ActionRegistry is the
+    /// Built-in sections should not implement this; `ActionRegistry` is the
     /// canonical source for built-in bindings. External sections can return
     /// metadata here for documentation.
     fn keybindings(&self) -> Vec<SectionKeybinding> {

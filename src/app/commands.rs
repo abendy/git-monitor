@@ -58,13 +58,13 @@ impl App {
     }
 
     /// Show push confirmation menu
+    #[allow(clippy::option_if_let_else)] // Match is clearer here
     pub(super) fn show_push_confirm(&mut self, force: bool) {
-        let branch = match &self.status.branch {
-            Some(b) => b.clone(),
-            None => {
-                self.feedback.error = Some("No branch checked out".to_string());
-                return;
-            }
+        let branch = if let Some(b) = &self.status.branch {
+            b.clone()
+        } else {
+            self.feedback.error = Some("No branch checked out".to_string());
+            return;
         };
 
         // Extract remote name from upstream (e.g., "origin/main" -> "origin")
@@ -103,7 +103,7 @@ impl App {
     }
 
     /// Get the selected file info
-    /// Returns (path, is_staged, file_state) or None if selection is on command or activity
+    /// Returns (path, `is_staged`, `file_state`) or None if selection is on command or activity
     pub(super) fn selected_file_info(&self) -> Option<(PathBuf, bool, FileState)> {
         let selected = self.selected?;
 
@@ -137,6 +137,7 @@ impl App {
     }
 
     /// Copy text to clipboard (cross-platform)
+    #[allow(clippy::unused_self)] // Method for API consistency
     pub(super) fn copy_to_clipboard(&self, text: &str) -> bool {
         arboard::Clipboard::new()
             .and_then(|mut clipboard| clipboard.set_text(text))
@@ -208,10 +209,11 @@ impl App {
     /// Execute a command using the unified framework
     ///
     /// This is the single entry point for all command execution. It handles:
-    /// - Running the command via CommandExecutor
+    /// - Running the command via `CommandExecutor`
     /// - Recording in history
     /// - Displaying output (inline or popup based on source and result)
     /// - Refreshing git status if requested
+    #[allow(clippy::needless_pass_by_value)] // Takes ownership of request for cleaner API
     pub(super) fn run_command(&mut self, request: CommandRequest) {
         // Execute via the executor
         let result = self.executor.execute(&request);

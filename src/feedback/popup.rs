@@ -30,7 +30,7 @@ pub enum PopupContent {
 impl PopupContent {
     /// Check if popup is active
     #[must_use]
-    pub fn is_active(&self) -> bool {
+    pub const fn is_active(&self) -> bool {
         !matches!(self, Self::None)
     }
 
@@ -68,14 +68,14 @@ impl PopupContent {
     /// Check if this is a command output popup
     #[must_use]
     #[allow(dead_code)] // API for future use
-    pub fn is_command_output(&self) -> bool {
+    pub const fn is_command_output(&self) -> bool {
         matches!(self, Self::CommandOutput { .. })
     }
 
     /// Get success status for command output
     #[must_use]
     #[allow(dead_code)] // API for future use
-    pub fn is_success(&self) -> bool {
+    pub const fn is_success(&self) -> bool {
         match self {
             Self::CommandOutput { success, .. } => *success,
             _ => true,
@@ -109,14 +109,14 @@ impl PopupState {
 
     /// Check if popup is open
     #[must_use]
-    pub fn is_open(&self) -> bool {
+    pub const fn is_open(&self) -> bool {
         self.content.is_active()
     }
 
     /// Get the content
     #[must_use]
     #[allow(dead_code)] // API for future use
-    pub fn content(&self) -> &PopupContent {
+    pub const fn content(&self) -> &PopupContent {
         &self.content
     }
 
@@ -130,12 +130,12 @@ impl PopupState {
     }
 
     /// Scroll up by n lines
-    pub fn scroll_up(&mut self, n: usize) {
+    pub const fn scroll_up(&mut self, n: usize) {
         self.scroll_offset = self.scroll_offset.saturating_sub(n);
     }
 
     /// Jump to top
-    pub fn scroll_to_top(&mut self) {
+    pub const fn scroll_to_top(&mut self) {
         self.scroll_offset = 0;
     }
 
@@ -153,13 +153,13 @@ impl PopupState {
     }
 
     /// Page up (scroll by visible height)
-    pub fn page_up(&mut self) {
+    pub const fn page_up(&mut self) {
         self.scroll_up(self.visible_height.saturating_sub(2));
     }
 
     /// Set visible height (called by renderer)
     #[allow(dead_code)] // API for future use
-    pub fn set_visible_height(&mut self, height: usize) {
+    pub const fn set_visible_height(&mut self, height: usize) {
         self.visible_height = height;
     }
 }

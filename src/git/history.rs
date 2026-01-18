@@ -13,7 +13,7 @@ impl GitRepo {
         // Get HEAD commit for HEAD decoration
         if let Ok(head) = self.repo.head() {
             if let Some(oid) = head.target() {
-                let short_sha = format!("{:.7}", oid);
+                let short_sha = format!("{oid:.7}");
                 refs_map
                     .entry(short_sha)
                     .or_default()
@@ -40,7 +40,7 @@ impl GitRepo {
                     continue;
                 };
 
-                let short_sha = format!("{:.7}", oid);
+                let short_sha = format!("{oid:.7}");
 
                 // Parse the ref name into a decoration
                 let decoration = if let Some(branch) = name.strip_prefix("refs/heads/") {
@@ -68,12 +68,12 @@ impl GitRepo {
     }
 
     /// Get recent activity from reflog with pagination
+    #[allow(clippy::unnecessary_wraps)] // Result for API consistency
     pub fn reflog(&self, skip: usize, limit: usize) -> Result<Vec<GitCommand>> {
         let mut commands = Vec::new();
 
-        let reflog = match self.repo.reflog("HEAD") {
-            Ok(reflog) => reflog,
-            Err(_) => return Ok(commands), // No reflog yet
+        let Ok(reflog) = self.repo.reflog("HEAD") else {
+            return Ok(commands); // No reflog yet
         };
 
         // Collect all refs once for decoration lookup
@@ -116,15 +116,16 @@ impl GitRepo {
     }
 
     /// Get total reflog entries
+    #[allow(clippy::unnecessary_wraps)] // Result for API consistency
     pub fn reflog_total(&self) -> Result<usize> {
-        let reflog = match self.repo.reflog("HEAD") {
-            Ok(reflog) => reflog,
-            Err(_) => return Ok(0),
+        let Ok(reflog) = self.repo.reflog("HEAD") else {
+            return Ok(0);
         };
 
         Ok(reflog.iter().count())
     }
 
+    #[allow(clippy::unused_self)] // Method for consistency with other methods
     fn make_commit_command(
         &self,
         commit: &git2::Commit<'_>,
@@ -165,9 +166,8 @@ impl GitRepo {
         is_remote_only: bool,
     ) -> Vec<GitCommand> {
         let mut commands = Vec::new();
-        let mut revwalk = match self.repo.revwalk() {
-            Ok(revwalk) => revwalk,
-            Err(_) => return commands,
+        let Ok(mut revwalk) = self.repo.revwalk() else {
+            return commands;
         };
         if revwalk.push(start_oid).is_err() {
             return commands;
@@ -179,25 +179,21 @@ impl GitRepo {
 
         if let Some(limit) = limit {
             for oid_result in revwalk.skip(skip).take(limit) {
-                let oid = match oid_result {
-                    Ok(oid) => oid,
-                    Err(_) => continue,
+                let Ok(oid) = oid_result else {
+                    continue;
                 };
-                let commit = match self.repo.find_commit(oid) {
-                    Ok(c) => c,
-                    Err(_) => continue,
+                let Ok(commit) = self.repo.find_commit(oid) else {
+                    continue;
                 };
                 commands.push(self.make_commit_command(&commit, refs_map, is_remote_only));
             }
         } else {
             for oid_result in revwalk.skip(skip) {
-                let oid = match oid_result {
-                    Ok(oid) => oid,
-                    Err(_) => continue,
+                let Ok(oid) = oid_result else {
+                    continue;
                 };
-                let commit = match self.repo.find_commit(oid) {
-                    Ok(c) => c,
-                    Err(_) => continue,
+                let Ok(commit) = self.repo.find_commit(oid) else {
+                    continue;
                 };
                 commands.push(self.make_commit_command(&commit, refs_map, is_remote_only));
             }
@@ -207,9 +203,8 @@ impl GitRepo {
     }
 
     fn count_commits(&self, start_oid: git2::Oid, hide_oid: Option<git2::Oid>) -> usize {
-        let mut revwalk = match self.repo.revwalk() {
-            Ok(revwalk) => revwalk,
-            Err(_) => return 0,
+        let Ok(mut revwalk) = self.repo.revwalk() else {
+            return 0;
         };
         if revwalk.push(start_oid).is_err() {
             return 0;
@@ -223,15 +218,14 @@ impl GitRepo {
     }
 
     /// Get total commit count for HEAD history
+    #[allow(clippy::unnecessary_wraps)] // Result for API consistency
     pub fn commit_log_total(&self) -> Result<usize> {
-        let head = match self.repo.head() {
-            Ok(head) => head,
-            Err(_) => return Ok(0),
+        let Ok(head) = self.repo.head() else {
+            return Ok(0);
         };
 
-        let head_oid = match head.target() {
-            Some(oid) => oid,
-            None => return Ok(0),
+        let Some(head_oid) = head.target() else {
+            return Ok(0);
         };
 
         Ok(self.count_commits(head_oid, None))
@@ -239,20 +233,19 @@ impl GitRepo {
 
     /// Get commit history (git log) with pagination, including remote-only commits if tracking
     /// upstream Remote-only commits are only shown on the first page (skip = 0)
+    #[allow(clippy::unnecessary_wraps)] // Result for API consistency
     pub fn commit_log(&self, skip: usize, limit: usize) -> Result<Vec<GitCommand>> {
         let mut commands = Vec::new();
         let mut remote_only_commands = Vec::new();
         let mut merge_base_sha: Option<String> = None;
 
         // Get HEAD
-        let head = match self.repo.head() {
-            Ok(head) => head,
-            Err(_) => return Ok(commands), // No commits yet
+        let Ok(head) = self.repo.head() else {
+            return Ok(commands); // No commits yet
         };
 
-        let head_oid = match head.target() {
-            Some(oid) => oid,
-            None => return Ok(commands),
+        let Some(head_oid) = head.target() else {
+            return Ok(commands);
         };
 
         // Collect refs for decorations
@@ -272,7 +265,7 @@ impl GitRepo {
                                 .repo
                                 .merge_base(head_oid, upstream_oid)
                             {
-                                merge_base_sha = Some(format!("{:.7}", base_oid));
+                                merge_base_sha = Some(format!("{base_oid:.7}"));
                             }
 
                             remote_only_commands = self.walk_commits(
@@ -333,9 +326,8 @@ impl GitRepo {
             ))?;
 
         let branch_ref = branch.get();
-        let branch_oid = match branch_ref.target() {
-            Some(oid) => oid,
-            None => return Ok(Vec::new()),
+        let Some(branch_oid) = branch_ref.target() else {
+            return Ok(Vec::new());
         };
 
         // Collect refs for decorations

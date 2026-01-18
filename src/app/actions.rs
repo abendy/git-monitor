@@ -4,6 +4,7 @@ use crate::command::ExternalCommand;
 
 impl App {
     /// Execute a built-in app action
+    #[allow(clippy::too_many_lines)] // Match dispatch is naturally verbose
     pub(super) fn execute_app_action(&mut self, action: AppAction) {
         match action {
             // File actions

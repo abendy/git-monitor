@@ -93,8 +93,9 @@ impl SectionRegistry {
         item_counts: &SectionItemCounts,
     ) -> Context {
         self.lookup_index(global_index, item_counts)
-            .map(|lookup| section_to_context(lookup.section_id, lookup.local_index))
-            .unwrap_or(Context::Global)
+            .map_or(Context::Global, |lookup| {
+                section_to_context(lookup.section_id, lookup.local_index)
+            })
     }
 
     /// Calculate the total number of selectable items across all sections.
@@ -132,7 +133,7 @@ impl SectionRegistry {
 
     /// Build section states for rendering based on global selection.
     ///
-    /// Returns a list of (SectionId, SectionState) for sections that have items.
+    /// Returns a list of (`SectionId`, `SectionState`) for sections that have items.
     #[must_use]
     pub fn build_section_states(
         &self,
@@ -184,7 +185,7 @@ pub struct SectionItemCounts {
 impl SectionItemCounts {
     /// Get the item count for a section
     #[must_use]
-    pub fn get(&self, section_id: SectionId) -> usize {
+    pub const fn get(&self, section_id: SectionId) -> usize {
         match section_id {
             SectionId::Command => self.command,
             SectionId::Staged => self.staged,
@@ -213,7 +214,7 @@ impl SectionItemCounts {
 }
 
 /// Map section ID and local index to a context.
-fn section_to_context(section_id: SectionId, local_index: usize) -> Context {
+const fn section_to_context(section_id: SectionId, local_index: usize) -> Context {
     match section_id {
         SectionId::Command => Context::Command,
         SectionId::Staged => Context::StagedFiles,

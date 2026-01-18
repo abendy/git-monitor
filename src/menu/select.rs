@@ -1,6 +1,6 @@
 //! Selection menu implementation.
 //!
-//! Not yet integrated - provides generic SelectMenu for future use.
+//! Not yet integrated - provides generic `SelectMenu` for future use.
 
 #![allow(dead_code)] // Module reserved for future selection menus
 
@@ -60,7 +60,7 @@ impl<T> SelectItem<T> {
 
     /// Set enabled state
     #[must_use]
-    pub fn enabled(mut self, enabled: bool) -> Self {
+    pub const fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
@@ -119,6 +119,7 @@ impl<T: Clone + Send + 'static> Menu for SelectMenu<T> {
         }
     }
 
+    #[allow(clippy::option_if_let_else)] // if-let-else is clearer here
     fn handle_key(&mut self, key: KeyEvent) -> MenuResult {
         match key.code {
             // Navigation
@@ -146,7 +147,7 @@ impl<T: Clone + Send + 'static> Menu for SelectMenu<T> {
             }
 
             // Close
-            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('m') => MenuResult::Close,
+            KeyCode::Esc | KeyCode::Char('q' | 'm') => MenuResult::Close,
 
             _ => MenuResult::Continue,
         }

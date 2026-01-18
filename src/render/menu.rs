@@ -8,6 +8,7 @@ use crate::app::App;
 use crate::tui::Frame;
 
 /// Render the menu stack overlay
+#[allow(clippy::cast_possible_truncation)] // Value is bounded by .min(60)
 pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
     if let Some(menu) = app.menu_stack.current() {
         // Dynamic sizing based on menu items (min 20%, max 60%)

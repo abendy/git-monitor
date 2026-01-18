@@ -148,6 +148,8 @@ impl App {
 
         // Wait for user to press Enter before resuming TUI
         // See ADR-001 for rationale
+        // Intentionally ignore read errors - we just need to pause, and if
+        // stdin is broken the TUI will resume anyway
         println!("\n[Press Enter to continue]");
         let _ = std::io::stdin().read(&mut [0u8]);
 

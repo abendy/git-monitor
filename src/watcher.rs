@@ -26,7 +26,9 @@ impl RepoWatcher {
                     for event in events {
                         if event.kind == DebouncedEventKind::Any {
                             let watch_event = categorize_path(&event.path);
-                            // Send event, ignore if receiver dropped
+                            // Send event to main loop. Intentionally ignore send errors -
+                            // this happens during shutdown when the receiver is dropped,
+                            // which is expected and harmless.
                             let _ = event_tx.send(watch_event);
                         }
                     }

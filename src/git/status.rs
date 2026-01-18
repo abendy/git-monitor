@@ -217,6 +217,8 @@ fn collect_diff_stats(
     // Use RefCell to allow mutable access from the line callback
     let stats_cell = RefCell::new(stats);
 
+    // Intentionally ignore foreach result - we're collecting stats via callbacks,
+    // and partial results are acceptable (stats are optional enhancement)
     let _ = diff.foreach(
         &mut |_delta: DiffDelta<'_>, _progress: f32| true, // file callback
         None,                                              // binary callback

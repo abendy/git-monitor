@@ -1,5 +1,7 @@
-use super::{App, ViewMode};
+//! Input mode helper methods.
+
 use crate::actions::Action;
+use crate::app::{App, ViewMode};
 use crate::menu::{ActionMenu, AliasSectionMenu};
 
 impl App {

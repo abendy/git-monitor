@@ -18,7 +18,6 @@ mod commands;
 mod history;
 mod init;
 mod input;
-mod key_handlers;
 mod navigation;
 mod runtime;
 mod sections;

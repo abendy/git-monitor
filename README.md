@@ -32,7 +32,7 @@ A real-time TUI for monitoring and interacting with git repositories.
 
 ## Screenshot
 
-```
+```text
 ┌─ git-monitor ──────────────────────────────────────────────────┐
 │ ⎇ main ↑2 ↓0 │ my-project │ ● watching                        │
 ├────────────────────────────────────────────────────────────────┤

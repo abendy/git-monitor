@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-01-18
+
+### Added
+
+- Error details popup: press `e` while an error shows to read the full message
+
+### Fixed
+
+- Failures that used to be silent (file watcher, history, Git operations) are now logged
+
 ## [0.8.1] - 2026-01-18
 
 ### Fixed

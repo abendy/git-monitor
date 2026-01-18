@@ -207,5 +207,4 @@ impl Section for CommandSection {
             _ => None,
         }
     }
-
 }

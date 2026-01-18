@@ -87,7 +87,9 @@ impl GitRepo {
             .context("Failed to get git status")?;
 
         // Compute diff stats for all files
-        let diff_stats = self.compute_diff_stats().unwrap_or_default();
+        let diff_stats = self
+            .compute_diff_stats()
+            .unwrap_or_default();
 
         for entry in statuses.iter() {
             let path = entry
@@ -98,8 +100,10 @@ impl GitRepo {
             let git_status = entry.status();
 
             // Look up diff stats for this file
-            let (working_ins, working_del, staged_ins, staged_del) =
-                diff_stats.get(&path).copied().unwrap_or((0, 0, 0, 0));
+            let (working_ins, working_del, staged_ins, staged_del) = diff_stats
+                .get(&path)
+                .copied()
+                .unwrap_or((0, 0, 0, 0));
 
             let file_status = FileStatus {
                 path,
@@ -127,7 +131,8 @@ impl GitRepo {
 
     /// Compute diff stats for all files with changes
     ///
-    /// Returns a map of path to `(working_insertions, working_deletions, staged_insertions, staged_deletions)`
+    /// Returns a map of path to `(working_insertions, working_deletions, staged_insertions,
+    /// staged_deletions)`
     fn compute_diff_stats(&self) -> Result<HashMap<PathBuf, (usize, usize, usize, usize)>> {
         let mut stats: HashMap<PathBuf, (usize, usize, usize, usize)> = HashMap::new();
 
@@ -213,34 +218,40 @@ fn collect_diff_stats(
 
     let _ = diff.foreach(
         &mut |_delta: DiffDelta<'_>, _progress: f32| true, // file callback
-        None,                                               // binary callback
-        None,                                               // hunk callback
-        Some(&mut |delta: DiffDelta<'_>, _hunk: Option<DiffHunk<'_>>, line: DiffLine<'_>| {
-            if let Some(path) = delta.new_file().path().or_else(|| delta.old_file().path()) {
-                let mut stats_ref = stats_cell.borrow_mut();
-                let entry = stats_ref
-                    .entry(PathBuf::from(path))
-                    .or_insert((0, 0, 0, 0));
+        None,                                              // binary callback
+        None,                                              // hunk callback
+        Some(
+            &mut |delta: DiffDelta<'_>, _hunk: Option<DiffHunk<'_>>, line: DiffLine<'_>| {
+                if let Some(path) = delta
+                    .new_file()
+                    .path()
+                    .or_else(|| delta.old_file().path())
+                {
+                    let mut stats_ref = stats_cell.borrow_mut();
+                    let entry = stats_ref
+                        .entry(PathBuf::from(path))
+                        .or_insert((0, 0, 0, 0));
 
-                match line.origin() {
-                    '+' => {
-                        if is_working {
-                            entry.0 += 1; // working_insertions
-                        } else {
-                            entry.2 += 1; // staged_insertions
+                    match line.origin() {
+                        '+' => {
+                            if is_working {
+                                entry.0 += 1; // working_insertions
+                            } else {
+                                entry.2 += 1; // staged_insertions
+                            }
                         }
-                    }
-                    '-' => {
-                        if is_working {
-                            entry.1 += 1; // working_deletions
-                        } else {
-                            entry.3 += 1; // staged_deletions
+                        '-' => {
+                            if is_working {
+                                entry.1 += 1; // working_deletions
+                            } else {
+                                entry.3 += 1; // staged_deletions
+                            }
                         }
+                        _ => {}
                     }
-                    _ => {}
                 }
-            }
-            true
-        }),
+                true
+            },
+        ),
     );
 }

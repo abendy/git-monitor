@@ -1,6 +1,5 @@
-use crate::section::SectionId;
-
 use super::App;
+use crate::section::SectionId;
 
 impl App {
     /// Clamp selection to valid bounds

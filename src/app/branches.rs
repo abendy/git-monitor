@@ -1,7 +1,6 @@
+use super::App;
 use crate::git::BranchInfo;
 use crate::section::SectionId;
-
-use super::App;
 
 impl App {
     /// Check if selection is on a branch header
@@ -34,7 +33,10 @@ impl App {
             return 0;
         }
 
-        let commit_count = if self.expanded_branch_index(&branches).is_some() {
+        let commit_count = if self
+            .expanded_branch_index(&branches)
+            .is_some()
+        {
             self.expanded_branch_commits.len()
         } else {
             0
@@ -47,7 +49,9 @@ impl App {
     pub(super) fn branch_local_selection(&self) -> Option<usize> {
         let selected = self.selected?;
         let counts = self.section_item_counts();
-        let lookup = self.section_registry.lookup_index(selected, &counts)?;
+        let lookup = self
+            .section_registry
+            .lookup_index(selected, &counts)?;
         if lookup.section_id == SectionId::Branches {
             Some(lookup.local_index)
         } else {
@@ -58,7 +62,9 @@ impl App {
     /// Index of the expanded branch within the other-branches list.
     pub(super) fn expanded_branch_index(&self, branches: &[&BranchInfo]) -> Option<usize> {
         let expanded = self.expanded_branch.as_deref()?;
-        branches.iter().position(|b| b.name == expanded)
+        branches
+            .iter()
+            .position(|b| b.name == expanded)
     }
 
     /// Return the branch header at a local index, if the index targets a header.
@@ -88,7 +94,9 @@ impl App {
         if local_index < commit_start {
             branches.get(local_index).copied()
         } else if local_index >= commit_end {
-            branches.get(local_index - commit_len).copied()
+            branches
+                .get(local_index - commit_len)
+                .copied()
         } else {
             None
         }

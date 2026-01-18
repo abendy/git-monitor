@@ -60,7 +60,11 @@ impl Default for FileListStyle {
 /// - Working:  `▸ ○ M src/file.rs  +5/-2`
 /// - Staged:   `  ● A src/new.rs  +10`
 /// - Commit:   `  M src/file.rs  +5/-2`
-pub fn render_file_entry(entry: &FileEntryView<'_>, style: &FileListStyle, selected: bool) -> Line<'static> {
+pub fn render_file_entry(
+    entry: &FileEntryView<'_>,
+    style: &FileListStyle,
+    selected: bool,
+) -> Line<'static> {
     let prefix = if selected {
         style.selected_prefix
     } else {
@@ -70,7 +74,9 @@ pub fn render_file_entry(entry: &FileEntryView<'_>, style: &FileListStyle, selec
     let color = state_color(entry.status);
 
     let text_style = if selected {
-        Style::default().fg(color).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(color)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(color)
     };
@@ -86,8 +92,14 @@ pub fn render_file_entry(entry: &FileEntryView<'_>, style: &FileListStyle, selec
     }
 
     // Status character and path
-    spans.push(Span::styled(format!("{status_char} "), text_style));
-    spans.push(Span::styled(entry.path.to_string(), text_style));
+    spans.push(Span::styled(
+        format!("{status_char} "),
+        text_style,
+    ));
+    spans.push(Span::styled(
+        entry.path.to_string(),
+        text_style,
+    ));
 
     // Line change stats (only if there are changes)
     if entry.insertions > 0 || entry.deletions > 0 {
@@ -96,7 +108,9 @@ pub fn render_file_entry(entry: &FileEntryView<'_>, style: &FileListStyle, selec
             spans.push(Span::styled(
                 format!("+{}", entry.insertions),
                 if selected {
-                    Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(Color::Green)
                 },
@@ -109,7 +123,9 @@ pub fn render_file_entry(entry: &FileEntryView<'_>, style: &FileListStyle, selec
             spans.push(Span::styled(
                 format!("-{}", entry.deletions),
                 if selected {
-                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(Color::Red)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(Color::Red)
                 },
@@ -126,14 +142,38 @@ mod tests {
 
     #[test]
     fn state_color_returns_correct_colors() {
-        assert_eq!(state_color(FileState::Modified), Color::Yellow);
-        assert_eq!(state_color(FileState::Added), Color::Green);
-        assert_eq!(state_color(FileState::Deleted), Color::Red);
-        assert_eq!(state_color(FileState::Renamed), Color::Cyan);
-        assert_eq!(state_color(FileState::Untracked), Color::DarkGray);
-        assert_eq!(state_color(FileState::Conflicted), Color::Magenta);
-        assert_eq!(state_color(FileState::Unmodified), Color::White);
-        assert_eq!(state_color(FileState::Ignored), Color::White);
+        assert_eq!(
+            state_color(FileState::Modified),
+            Color::Yellow
+        );
+        assert_eq!(
+            state_color(FileState::Added),
+            Color::Green
+        );
+        assert_eq!(
+            state_color(FileState::Deleted),
+            Color::Red
+        );
+        assert_eq!(
+            state_color(FileState::Renamed),
+            Color::Cyan
+        );
+        assert_eq!(
+            state_color(FileState::Untracked),
+            Color::DarkGray
+        );
+        assert_eq!(
+            state_color(FileState::Conflicted),
+            Color::Magenta
+        );
+        assert_eq!(
+            state_color(FileState::Unmodified),
+            Color::White
+        );
+        assert_eq!(
+            state_color(FileState::Ignored),
+            Color::White
+        );
     }
 
     #[test]
@@ -163,7 +203,11 @@ mod tests {
         let line = render_file_entry(&entry, &style, false);
 
         // Should include +5/-2
-        let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+        let text: String = line
+            .spans
+            .iter()
+            .map(|s| s.content.as_ref())
+            .collect();
         assert!(text.contains("+5"));
         assert!(text.contains("-2"));
     }
@@ -182,7 +226,11 @@ mod tests {
         };
         let line = render_file_entry(&entry, &style, false);
 
-        let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+        let text: String = line
+            .spans
+            .iter()
+            .map(|s| s.content.as_ref())
+            .collect();
         assert!(text.contains("○"));
     }
 
@@ -197,7 +245,11 @@ mod tests {
         let style = FileListStyle::default();
         let line = render_file_entry(&entry, &style, true);
 
-        let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+        let text: String = line
+            .spans
+            .iter()
+            .map(|s| s.content.as_ref())
+            .collect();
         assert!(text.starts_with("▸"));
     }
 }

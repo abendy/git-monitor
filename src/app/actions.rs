@@ -1,7 +1,6 @@
+use super::App;
 use crate::actions::AppAction;
 use crate::command::ExternalCommand;
-
-use super::App;
 
 impl App {
     /// Execute a built-in app action

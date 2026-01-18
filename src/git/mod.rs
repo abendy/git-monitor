@@ -11,7 +11,7 @@ mod types;
 
 pub use time::format_relative_time;
 pub use types::{
-    BranchInfo, CommitDetail, CommitFile, CommandType, FileState, FileStatus, GitCommand,
+    BranchInfo, CommandType, CommitDetail, CommitFile, FileState, FileStatus, GitCommand,
     GitStatus, RefDecoration,
 };
 

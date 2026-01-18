@@ -4,7 +4,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 
 use crate::actions::{ActionRegistry, ActionType, AppAction, AppState, Context};
-use crate::git::{format_relative_time, CommitDetail, CommandType, GitCommand, RefDecoration};
+use crate::git::{format_relative_time, CommandType, CommitDetail, GitCommand, RefDecoration};
 use crate::render::file_list::{render_file_entry, FileEntryView, FileListStyle};
 
 pub fn render_commit_line(
@@ -61,7 +61,11 @@ pub fn render_commit_line(
     let (graph_color, sha_color, msg_color) = if cmd.is_remote_only {
         (Color::Red, Color::Red, Color::DarkGray)
     } else {
-        (Color::DarkGray, Color::Yellow, Color::White)
+        (
+            Color::DarkGray,
+            Color::Yellow,
+            Color::White,
+        )
     };
 
     let mut spans = vec![
@@ -70,7 +74,10 @@ pub fn render_commit_line(
             format!("{graph_char} "),
             Style::default().fg(graph_color),
         ),
-        Span::styled(format!("{sha_str} "), style.fg(sha_color)),
+        Span::styled(
+            format!("{sha_str} "),
+            style.fg(sha_color),
+        ),
         Span::styled(
             format!("{time_str}  "),
             style.fg(Color::DarkGray),
@@ -87,7 +94,9 @@ pub fn render_commit_line(
     {
         spans.push(Span::styled(
             prefix.to_string(),
-            style.fg(Color::Magenta).add_modifier(Modifier::BOLD),
+            style
+                .fg(Color::Magenta)
+                .add_modifier(Modifier::BOLD),
         ));
         spans.push(Span::styled(
             message[prefix.len()..].to_string(),
@@ -99,14 +108,19 @@ pub fn render_commit_line(
     {
         spans.push(Span::styled(
             prefix.to_string(),
-            style.fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            style
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
         ));
         spans.push(Span::styled(
             message[prefix.len()..].to_string(),
             style.fg(msg_color),
         ));
     } else {
-        spans.push(Span::styled(message, style.fg(msg_color)));
+        spans.push(Span::styled(
+            message,
+            style.fg(msg_color),
+        ));
     }
 
     if !decoration_spans.is_empty() {
@@ -141,8 +155,7 @@ pub fn render_commit_detail(
         Span::raw(">"),
     ]));
 
-    if detail.committer_name != detail.author_name
-        || detail.committer_email != detail.author_email
+    if detail.committer_name != detail.author_name || detail.committer_email != detail.author_email
     {
         lines.push(Line::from(vec![
             Span::raw("    Committer: "),
@@ -201,14 +214,20 @@ pub fn render_commit_detail(
         lines.push(Line::raw(""));
         lines.push(Line::from(vec![
             Span::styled(
-                format!("    {} file(s) changed  ", detail.files.len()),
+                format!(
+                    "    {} file(s) changed  ",
+                    detail.files.len()
+                ),
                 Style::default().fg(Color::DarkGray),
             ),
             Span::styled(
                 format!("+{}", detail.insertions),
                 Style::default().fg(Color::Green),
             ),
-            Span::styled(" / ", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                " / ",
+                Style::default().fg(Color::DarkGray),
+            ),
             Span::styled(
                 format!("-{}", detail.deletions),
                 Style::default().fg(Color::Red),
@@ -241,7 +260,11 @@ pub fn render_commit_detail(
                 deletions: file.deletions,
             };
 
-            lines.push(render_file_entry(&entry, &file_style, is_file_selected));
+            lines.push(render_file_entry(
+                &entry,
+                &file_style,
+                is_file_selected,
+            ));
         }
     }
 
@@ -268,7 +291,10 @@ pub fn render_context_hint(
                 )
             })
         {
-            if !actions.iter().any(|a| a.action_type == action.action_type) {
+            if !actions
+                .iter()
+                .any(|a| a.action_type == action.action_type)
+            {
                 actions.push(action);
                 actions.sort_by_key(|a| a.priority);
             }
@@ -436,7 +462,10 @@ fn truncate_message(message: &str, max_len: usize) -> String {
     }
 
     if message.len() > max_len {
-        format!("{}...", &message[..max_len.saturating_sub(3)])
+        format!(
+            "{}...",
+            &message[..max_len.saturating_sub(3)]
+        )
     } else {
         message.to_string()
     }

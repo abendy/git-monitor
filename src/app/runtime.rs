@@ -3,13 +3,12 @@ use std::sync::mpsc::Sender;
 use anyhow::Result;
 use tracing::warn;
 
+use super::{App, HistoryMode, PAGE_SIZE};
 use crate::command::ExternalCommand;
 use crate::event::Event;
 use crate::tui::Tui;
 use crate::ui;
 use crate::watcher::{RepoWatcher, WatchEvent};
-
-use super::{App, HistoryMode, PAGE_SIZE};
 
 impl App {
     // ─────────────────────────────────────────────────────────────────────────
@@ -71,9 +70,10 @@ impl App {
     pub(super) fn refresh_activity(&mut self) {
         self.history_total_items = match self.history_mode {
             HistoryMode::Reflog => self.repo.reflog_total().unwrap_or(0),
-            HistoryMode::CommitLog => {
-                self.repo.commit_log_total().unwrap_or(0)
-            }
+            HistoryMode::CommitLog => self
+                .repo
+                .commit_log_total()
+                .unwrap_or(0),
         };
         self.history_total_pages = if self.history_total_items == 0 {
             0
@@ -124,7 +124,11 @@ impl App {
     }
 
     /// Run an external command with TUI suspension
-    pub(super) fn run_external_command(&mut self, tui: &mut Tui, cmd: ExternalCommand) -> Result<()> {
+    pub(super) fn run_external_command(
+        &mut self,
+        tui: &mut Tui,
+        cmd: ExternalCommand,
+    ) -> Result<()> {
         // Pause event handler so it doesn't consume input meant for the external command
         tui.events.pause();
         // Give the event thread time to finish any pending poll

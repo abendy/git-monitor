@@ -131,7 +131,10 @@ impl GitRepo {
         refs_map: &HashMap<String, Vec<RefDecoration>>,
         is_remote_only: bool,
     ) -> GitCommand {
-        let message = commit.summary().unwrap_or("").to_string();
+        let message = commit
+            .summary()
+            .unwrap_or("")
+            .to_string();
         let time = commit.time();
         let timestamp = Local
             .timestamp_opt(time.seconds(), 0)
@@ -184,11 +187,7 @@ impl GitRepo {
                     Ok(c) => c,
                     Err(_) => continue,
                 };
-                commands.push(self.make_commit_command(
-                    &commit,
-                    refs_map,
-                    is_remote_only,
-                ));
+                commands.push(self.make_commit_command(&commit, refs_map, is_remote_only));
             }
         } else {
             for oid_result in revwalk.skip(skip) {
@@ -200,22 +199,14 @@ impl GitRepo {
                     Ok(c) => c,
                     Err(_) => continue,
                 };
-                commands.push(self.make_commit_command(
-                    &commit,
-                    refs_map,
-                    is_remote_only,
-                ));
+                commands.push(self.make_commit_command(&commit, refs_map, is_remote_only));
             }
         }
 
         commands
     }
 
-    fn count_commits(
-        &self,
-        start_oid: git2::Oid,
-        hide_oid: Option<git2::Oid>,
-    ) -> usize {
+    fn count_commits(&self, start_oid: git2::Oid, hide_oid: Option<git2::Oid>) -> usize {
         let mut revwalk = match self.repo.revwalk() {
             Ok(revwalk) => revwalk,
             Err(_) => return 0,
@@ -350,21 +341,12 @@ impl GitRepo {
         // Collect refs for decorations
         let refs_map = self.collect_refs();
         let mut commands = self.walk_commits(
-            branch_oid,
-            None,
-            0,
-            None,
-            &refs_map,
-            false,
+            branch_oid, None, 0, None, &refs_map, false,
         );
 
         if commands.is_empty() {
             if let Ok(tip_commit) = self.repo.find_commit(branch_oid) {
-                commands.push(self.make_commit_command(
-                    &tip_commit,
-                    &refs_map,
-                    false,
-                ));
+                commands.push(self.make_commit_command(&tip_commit, &refs_map, false));
             }
         }
 

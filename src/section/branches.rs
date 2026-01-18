@@ -9,9 +9,7 @@ use ratatui::text::{Line, Span};
 use super::{Section, SectionAction, SectionId, SectionState};
 use crate::actions::{ActionRegistry, AppAction, AppState, Context};
 use crate::git::{BranchInfo, CommitDetail, GitCommand};
-use crate::section::{
-    render_commit_detail, render_commit_line, render_context_hint,
-};
+use crate::section::{render_commit_detail, render_commit_line, render_context_hint};
 
 /// Data needed by the branches section for rendering
 #[derive(Debug, Clone, Default)]
@@ -67,7 +65,9 @@ impl BranchesSection {
     /// Find the index of the expanded branch within the other-branches list.
     fn expanded_branch_index(&self, branches: &[&BranchInfo]) -> Option<usize> {
         let expanded = self.data.expanded_branch.as_deref()?;
-        branches.iter().position(|b| b.name == expanded)
+        branches
+            .iter()
+            .position(|b| b.name == expanded)
     }
 
     /// Render context hints for branch actions
@@ -110,7 +110,10 @@ impl Section for BranchesSection {
             return 0;
         }
 
-        let commit_count = if self.expanded_branch_index(&branches).is_some() {
+        let commit_count = if self
+            .expanded_branch_index(&branches)
+            .is_some()
+        {
             self.data.expanded_branch_commits.len()
         } else {
             0
@@ -151,19 +154,21 @@ impl Section for BranchesSection {
 
         // Hints (only when focused)
         if in_section {
-            let hint_context = state.local_selection.map_or(Context::BranchHeader, |local_index| {
-                if let Some(expanded_idx) = expanded_idx {
-                    let commit_start = expanded_idx + 1;
-                    let commit_end = commit_start + commit_len;
-                    if (commit_start..commit_end).contains(&local_index) {
-                        Context::BranchCommits
+            let hint_context = state
+                .local_selection
+                .map_or(Context::BranchHeader, |local_index| {
+                    if let Some(expanded_idx) = expanded_idx {
+                        let commit_start = expanded_idx + 1;
+                        let commit_end = commit_start + commit_len;
+                        if (commit_start..commit_end).contains(&local_index) {
+                            Context::BranchCommits
+                        } else {
+                            Context::BranchHeader
+                        }
                     } else {
                         Context::BranchHeader
                     }
-                } else {
-                    Context::BranchHeader
-                }
-            });
+                });
             lines.push(self.render_hints(hint_context));
         }
 
@@ -275,5 +280,4 @@ impl Section for BranchesSection {
             _ => None,
         }
     }
-
 }

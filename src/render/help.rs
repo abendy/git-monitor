@@ -53,38 +53,29 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
         ],
     );
 
-    let history_actions =
-        registry.hint_actions_for_context(Context::HistoryCommits, &state);
-    let file_actions =
-        registry.hint_actions_for_context(Context::StagedFiles, &state);
-    let commit_file_actions =
-        registry.hint_actions_for_context(Context::CommitFiles, &state);
+    let history_actions = registry.hint_actions_for_context(Context::HistoryCommits, &state);
+    let file_actions = registry.hint_actions_for_context(Context::StagedFiles, &state);
+    let commit_file_actions = registry.hint_actions_for_context(Context::CommitFiles, &state);
 
-    let branch_header_actions =
-        registry.hint_actions_for_context(Context::BranchHeader, &state);
-    let branch_commit_actions =
-        registry.hint_actions_for_context(Context::BranchCommits, &state);
+    let branch_header_actions = registry.hint_actions_for_context(Context::BranchHeader, &state);
+    let branch_commit_actions = registry.hint_actions_for_context(Context::BranchCommits, &state);
     let branch_actions = merge_actions(&[branch_header_actions, branch_commit_actions]);
 
     let mut help_text = Vec::new();
 
-    push_section(
-        &mut help_text,
-        "Navigation",
-        {
-            let mut lines = vec![
-                Line::from("  j / ↓              Move down"),
-                Line::from("  k / ↑              Move up"),
-                Line::from("  g                  Go to first"),
-                Line::from("  G                  Go to last"),
-            ];
-            for action in navigation_actions {
-                let label = format!("Jump to {}", action.label);
-                lines.push(action_line(action, Some(&label)));
-            }
-            lines
-        },
-    );
+    push_section(&mut help_text, "Navigation", {
+        let mut lines = vec![
+            Line::from("  j / ↓              Move down"),
+            Line::from("  k / ↑              Move up"),
+            Line::from("  g                  Go to first"),
+            Line::from("  G                  Go to last"),
+        ];
+        for action in navigation_actions {
+            let label = format!("Jump to {}", action.label);
+            lines.push(action_line(action, Some(&label)));
+        }
+        lines
+    });
 
     push_section(
         &mut help_text,
@@ -110,30 +101,22 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
         action_lines(&branch_actions, None),
     );
 
-    push_section(
-        &mut help_text,
-        "Command & Aliases",
-        {
-            let mut lines = action_lines(&command_actions, None);
-            lines.extend([
-                Line::from("  o                  Expand output popup"),
-                Line::from("  Enter              Execute command"),
-                Line::from("  Esc / Ctrl+C       Cancel"),
-                Line::from("  Up / Down          Navigate history"),
-            ]);
-            lines
-        },
-    );
+    push_section(&mut help_text, "Command & Aliases", {
+        let mut lines = action_lines(&command_actions, None);
+        lines.extend([
+            Line::from("  o                  Expand output popup"),
+            Line::from("  Enter              Execute command"),
+            Line::from("  Esc / Ctrl+C       Cancel"),
+            Line::from("  Up / Down          Navigate history"),
+        ]);
+        lines
+    });
 
-    push_section(
-        &mut help_text,
-        "General",
-        {
-            let mut lines = vec![Line::from("  m                  Action menu")];
-            lines.extend(action_lines(&general_actions, None));
-            lines
-        },
-    );
+    push_section(&mut help_text, "General", {
+        let mut lines = vec![Line::from("  m                  Action menu")];
+        lines.extend(action_lines(&general_actions, None));
+        lines
+    });
 
     help_text.push(Line::from(""));
     help_text.push(Line::from(Span::styled(
@@ -173,10 +156,7 @@ fn section_title(title: &str) -> Line<'static> {
     ))
 }
 
-fn action_lines(
-    actions: &[&Action],
-    label_override: Option<&str>,
-) -> Vec<Line<'static>> {
+fn action_lines(actions: &[&Action], label_override: Option<&str>) -> Vec<Line<'static>> {
     actions
         .iter()
         .map(|action| action_line(action, label_override))
@@ -188,10 +168,7 @@ fn action_line(action: &Action, label_override: Option<&str>) -> Line<'static> {
     Line::from(format!("  {:<6} {}", action.key, label))
 }
 
-fn filter_actions<'a>(
-    actions: &'a [&'a Action],
-    wanted: &[AppAction],
-) -> Vec<&'a Action> {
+fn filter_actions<'a>(actions: &'a [&'a Action], wanted: &[AppAction]) -> Vec<&'a Action> {
     actions
         .iter()
         .copied()

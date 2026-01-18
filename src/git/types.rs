@@ -76,9 +76,7 @@ impl From<RepositoryState> for RepoState {
             RepositoryState::Merge => Self::Merge,
             RepositoryState::Rebase | RepositoryState::RebaseMerge => Self::Rebase,
             RepositoryState::RebaseInteractive => Self::RebaseInteractive,
-            RepositoryState::CherryPick | RepositoryState::CherryPickSequence => {
-                Self::CherryPick
-            }
+            RepositoryState::CherryPick | RepositoryState::CherryPickSequence => Self::CherryPick,
             RepositoryState::Revert | RepositoryState::RevertSequence => Self::Revert,
             RepositoryState::Bisect => Self::Bisect,
             _ => Self::Normal,

@@ -149,7 +149,9 @@ impl Section for WorkingSection {
                 deletions: file.working_deletions,
             };
 
-            lines.push(render_file_entry(&entry, &style, selected));
+            lines.push(render_file_entry(
+                &entry, &style, selected,
+            ));
         }
 
         lines
@@ -184,5 +186,4 @@ impl Section for WorkingSection {
             _ => None,
         }
     }
-
 }

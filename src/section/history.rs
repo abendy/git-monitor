@@ -9,12 +9,8 @@ use ratatui::text::{Line, Span};
 use super::{Section, SectionAction, SectionId, SectionState};
 use crate::actions::{ActionRegistry, ActionType, AppAction, AppState, Context};
 use crate::app::HistoryMode;
-use crate::git::{
-    BranchInfo, CommitDetail, GitCommand, GitStatus,
-};
-use crate::section::{
-    render_commit_detail, render_commit_line, render_context_hint,
-};
+use crate::git::{BranchInfo, CommitDetail, GitCommand, GitStatus};
+use crate::section::{render_commit_detail, render_commit_line, render_context_hint};
 
 /// Data needed by the history section for rendering
 #[derive(Debug, Clone, Default)]
@@ -211,9 +207,8 @@ impl HistorySection {
             self.data.page + 1
         };
 
-        let label = format!(
-            "  [ prev · page ]  {current_page}/{total_pages} of {total_items} items"
-        );
+        let label =
+            format!("  [ prev · page ]  {current_page}/{total_pages} of {total_items} items");
 
         Line::from(Span::styled(
             label,
@@ -392,5 +387,4 @@ impl Section for HistorySection {
             }
         }
     }
-
 }

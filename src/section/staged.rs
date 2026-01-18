@@ -149,7 +149,9 @@ impl Section for StagedSection {
                 deletions: file.staged_deletions,
             };
 
-            lines.push(render_file_entry(&entry, &style, selected));
+            lines.push(render_file_entry(
+                &entry, &style, selected,
+            ));
         }
 
         lines
@@ -183,5 +185,4 @@ impl Section for StagedSection {
             _ => None,
         }
     }
-
 }

@@ -1,12 +1,13 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
+use tracing::warn;
 
 use super::{App, HistoryMode, ViewMode};
 use crate::actions::ActionRegistry;
 use crate::command::{CommandExecutor, CommandHistory};
 use crate::config::GitConfig;
-use crate::git::GitRepo;
+use crate::git::{GitRepo, GitStatus};
 use crate::input::Keymap;
 use crate::menu::MenuStack;
 use crate::section::{
@@ -22,10 +23,19 @@ impl App {
             .workdir()
             .map_or_else(|| path.clone(), PathBuf::from);
 
-        let status = repo.status().unwrap_or_default();
+        let status = repo.status().unwrap_or_else(|e| {
+            warn!("Failed to get git status: {e}");
+            GitStatus::default()
+        });
         let activity = Vec::new();
-        let config = GitConfig::load(&repo_path).unwrap_or_default();
-        let branches = repo.list_branches().unwrap_or_default();
+        let config = GitConfig::load(&repo_path).unwrap_or_else(|e| {
+            warn!("Failed to load git config: {e}");
+            GitConfig::default()
+        });
+        let branches = repo.list_branches().unwrap_or_else(|e| {
+            warn!("Failed to list branches: {e}");
+            Vec::new()
+        });
 
         // Initialize action registry with aliases
         let mut action_registry = ActionRegistry::new();

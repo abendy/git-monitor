@@ -1,41 +1,15 @@
+//! Normal mode key handling.
+
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use super::{App, ViewMode, PAGE_SIZE};
 use crate::actions::AppAction;
+use crate::app::{App, PAGE_SIZE};
 use crate::command::ExternalCommand;
-use crate::menu::{MenuAction, MenuResult};
 
 impl App {
-    /// Handle keyboard input
+    /// Handle keyboard input in normal mode
     #[allow(clippy::too_many_lines)] // Key dispatch is naturally verbose
-    pub(super) fn handle_key(&mut self, key: KeyEvent) {
-        // Menu stack takes priority when active
-        if self.menu_stack.is_active() {
-            self.handle_menu_key(key);
-            return;
-        }
-
-        // ViewMode-based dispatch
-        match &self.view_mode {
-            ViewMode::Command => {
-                self.handle_command_mode_key(key);
-                return;
-            }
-            ViewMode::Normal => {}
-        }
-
-        // Popup mode captures keys (full-screen overlays)
-        if self.feedback.popup.is_open() {
-            self.handle_popup_key(key);
-            return;
-        }
-
-        // Help overlay captures keys
-        if self.show_help {
-            self.show_help = false;
-            return;
-        }
-
+    pub(in crate::app) fn handle_normal_key(&mut self, key: KeyEvent) {
         // Try declarative keymap lookup first
         let context = self.current_context();
         if let Some(action) = self.keymap.lookup(key, context) {
@@ -48,9 +22,7 @@ impl App {
         if self.selected == Some(0) {
             if let KeyCode::Char(c) = key.code {
                 if !matches!(c, 'q' | '?' | ':' | 'o')
-                    && !key
-                        .modifiers
-                        .contains(KeyModifiers::CONTROL)
+                    && !key.modifiers.contains(KeyModifiers::CONTROL)
                 {
                     self.enter_command_mode();
                     self.command_input.push(c);
@@ -65,11 +37,7 @@ impl App {
             KeyCode::Char('q') | KeyCode::Esc => {
                 self.running = false;
             }
-            KeyCode::Char('c')
-                if key
-                    .modifiers
-                    .contains(KeyModifiers::CONTROL) =>
-            {
+            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.running = false;
             }
 
@@ -153,10 +121,9 @@ impl App {
             // Diff (inline popup)
             KeyCode::Char('d') => {
                 // Check if we're on a file in an expanded commit
-                if let (Some(sha), Some(file_idx)) = (
-                    self.expanded_commit.clone(),
-                    self.expanded_file_idx,
-                ) {
+                if let (Some(sha), Some(file_idx)) =
+                    (self.expanded_commit.clone(), self.expanded_file_idx)
+                {
                     let file_path = self
                         .expanded_detail
                         .as_ref()
@@ -180,10 +147,9 @@ impl App {
                         file_path: path.to_string_lossy().to_string(),
                         staged: is_staged,
                     });
-                } else if let (Some(sha), Some(file_idx)) = (
-                    self.expanded_commit.clone(),
-                    self.expanded_file_idx,
-                ) {
+                } else if let (Some(sha), Some(file_idx)) =
+                    (self.expanded_commit.clone(), self.expanded_file_idx)
+                {
                     // Commit file difftool
                     let file_path = self
                         .expanded_detail
@@ -242,12 +208,7 @@ impl App {
                 }
             }
             KeyCode::Char('k') | KeyCode::Up => {
-                if self.selected == Some(0)
-                    && !self
-                        .command_history
-                        .commands()
-                        .is_empty()
-                {
+                if self.selected == Some(0) && !self.command_history.commands().is_empty() {
                     // On command section - enter command mode and show history
                     self.enter_command_mode();
                     self.history_prev();
@@ -296,7 +257,8 @@ impl App {
                     if let Some(detail) = &self.expanded_detail {
                         if self.expanded_commit.as_ref() == Some(&sha) {
                             if self.copy_to_clipboard(&detail.full_sha) {
-                                self.feedback.error = Some(format!("Copied: {}", detail.full_sha));
+                                self.feedback.error =
+                                    Some(format!("Copied: {}", detail.full_sha));
                             } else {
                                 self.feedback.error =
                                     Some("Failed to copy to clipboard".to_string());
@@ -380,150 +342,10 @@ impl App {
         }
     }
 
-    /// Handle keyboard input in command mode
-    pub(super) fn handle_command_mode_key(&mut self, key: KeyEvent) {
-        match key.code {
-            // Cancel command mode
-            KeyCode::Esc => {
-                self.exit_command_mode();
-            }
-            KeyCode::Char('c')
-                if key
-                    .modifiers
-                    .contains(KeyModifiers::CONTROL) =>
-            {
-                self.exit_command_mode();
-            }
-
-            // Execute command
-            KeyCode::Enter => {
-                self.view_mode = ViewMode::Normal;
-                self.execute_command();
-                self.command_draft = None;
-                self.update_sections();
-            }
-
-            // Type characters
-            KeyCode::Char(c) => {
-                self.command_input.push(c);
-                self.command_draft = None;
-                self.command_history.reset_navigation();
-                self.update_sections();
-            }
-
-            // Backspace
-            KeyCode::Backspace => {
-                self.command_input.pop();
-                self.command_draft = None;
-                self.command_history.reset_navigation();
-                self.update_sections();
-            }
-
-            // History navigation / exit
-            KeyCode::Up => {
-                self.history_prev();
-            }
-            KeyCode::Down => {
-                // When browsing history, Down moves toward newer entries and eventually
-                // restores the in-progress command. Once we're back at the draft (not
-                // navigating), Down should release focus back to the main list.
-                if self.command_history.is_navigating() || self.command_draft.is_some() {
-                    self.history_next();
-                } else {
-                    self.exit_command_mode();
-                    self.select_next();
-                }
-            }
-
-            _ => {}
-        }
-    }
-
-    /// Handle keyboard input in popup mode
-    pub(super) fn handle_popup_key(&mut self, key: KeyEvent) {
-        match key.code {
-            // Close popup
-            KeyCode::Esc | KeyCode::Char('q') => {
-                self.feedback.popup.close();
-            }
-
-            // Scroll down
-            KeyCode::Char('j') | KeyCode::Down => {
-                self.feedback.popup.scroll_down(1);
-            }
-
-            // Scroll up
-            KeyCode::Char('k') | KeyCode::Up => {
-                self.feedback.popup.scroll_up(1);
-            }
-
-            // Page down
-            KeyCode::Char('d')
-                if key
-                    .modifiers
-                    .contains(KeyModifiers::CONTROL) =>
-            {
-                self.feedback.popup.page_down();
-            }
-
-            // Page up
-            KeyCode::Char('u')
-                if key
-                    .modifiers
-                    .contains(KeyModifiers::CONTROL) =>
-            {
-                self.feedback.popup.page_up();
-            }
-
-            // Jump to top
-            KeyCode::Char('g') => {
-                self.feedback.popup.scroll_to_top();
-            }
-
-            // Jump to bottom
-            KeyCode::Char('G') => {
-                self.feedback.popup.scroll_to_bottom();
-            }
-
-            _ => {}
-        }
-    }
-
-    /// Handle key events when menu stack is active
-    pub(super) fn handle_menu_key(&mut self, key: KeyEvent) {
-        // Get the result from the active menu
-        let result = if let Some(menu) = self.menu_stack.current_mut() {
-            menu.handle_key(key)
-        } else {
-            return;
-        };
-
-        // Process the result
-        match result {
-            MenuResult::Continue => {}
-            MenuResult::Close | MenuResult::Pop => {
-                self.menu_stack.pop();
-            }
-            MenuResult::Execute(action) => {
-                self.menu_stack.clear();
-                match action {
-                    MenuAction::Command(request) => {
-                        self.run_command(request);
-                    }
-                    MenuAction::App(app_action) => {
-                        self.execute_app_action(app_action);
-                    }
-                    MenuAction::Custom(callback) => {
-                        callback();
-                    }
-                }
-            }
-            MenuResult::Push(menu) => {
-                self.menu_stack.push(menu);
-            }
-            MenuResult::CloseAll => {
-                self.menu_stack.clear();
-            }
-        }
+    /// Handle keyboard input when help overlay is shown
+    #[allow(clippy::missing_const_for_fn)] // Mutates self
+    pub(in crate::app) fn handle_help_key(&mut self) {
+        // Any key closes help
+        self.show_help = false;
     }
 }

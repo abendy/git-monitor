@@ -1,7 +1,6 @@
+use super::{App, ViewMode};
 use crate::actions::Action;
 use crate::menu::{ActionMenu, AliasSectionMenu};
-
-use super::{App, ViewMode};
 
 impl App {
     // ─────────────────────────────────────────────────────────────────────────
@@ -17,6 +16,7 @@ impl App {
     pub fn enter_command_mode(&mut self) {
         self.view_mode = ViewMode::Command;
         self.command_input.clear();
+        self.command_draft = None;
         self.command_history.reset_navigation();
         self.update_sections();
     }
@@ -25,6 +25,7 @@ impl App {
     pub fn exit_command_mode(&mut self) {
         self.view_mode = ViewMode::Normal;
         self.command_input.clear();
+        self.command_draft = None;
         self.command_history.reset_navigation();
         self.update_sections();
     }

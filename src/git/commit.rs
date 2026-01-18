@@ -3,6 +3,17 @@ use chrono::{DateTime, Local, Offset};
 
 use super::{CommitDetail, CommitFile, FileState, GitRepo};
 
+/// Convert a `git2::Time` to a local `DateTime`.
+fn git_time_to_local(time: git2::Time) -> DateTime<Local> {
+    let secs = time.seconds();
+    let offset_mins = time.offset_minutes();
+    let offset = chrono::FixedOffset::east_opt(offset_mins * 60)
+        .unwrap_or_else(|| chrono::Utc.fix());
+    DateTime::from_timestamp(secs, 0).map_or_else(Local::now, |dt| {
+        dt.with_timezone(&offset).with_timezone(&Local)
+    })
+}
+
 impl GitRepo {
     /// Get detailed commit information for a given SHA
     #[allow(clippy::similar_names)] // stats/status are distinct concepts
@@ -30,17 +41,7 @@ impl GitRepo {
             .unwrap_or("Unknown")
             .to_string();
         let author_email = author.email().unwrap_or("").to_string();
-        let author_time = {
-            let time = author.when();
-            let secs = time.seconds();
-            let offset_mins = time.offset_minutes();
-            let offset = chrono::FixedOffset::east_opt(offset_mins * 60)
-                .unwrap_or_else(|| chrono::Utc.fix());
-            DateTime::from_timestamp(secs, 0).map_or_else(Local::now, |dt| {
-                dt.with_timezone(&offset)
-                    .with_timezone(&Local)
-            })
-        };
+        let author_time = git_time_to_local(author.when());
 
         // Extract committer info
         let committer = commit.committer();
@@ -52,17 +53,7 @@ impl GitRepo {
             .email()
             .unwrap_or("")
             .to_string();
-        let committer_time = {
-            let time = committer.when();
-            let secs = time.seconds();
-            let offset_mins = time.offset_minutes();
-            let offset = chrono::FixedOffset::east_opt(offset_mins * 60)
-                .unwrap_or_else(|| chrono::Utc.fix());
-            DateTime::from_timestamp(secs, 0).map_or_else(Local::now, |dt| {
-                dt.with_timezone(&offset)
-                    .with_timezone(&Local)
-            })
-        };
+        let committer_time = git_time_to_local(committer.when());
 
         // Get full commit message
         let message = commit

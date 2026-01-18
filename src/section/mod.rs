@@ -8,20 +8,24 @@
 mod branches;
 mod command;
 mod commit;
+mod file_list;
 mod history;
 mod registry;
-mod staged;
-mod working;
 
 pub use branches::{BranchesSection, BranchesSectionData};
 pub use command::{CommandSection, CommandSectionData};
 pub use commit::{render_commit_detail, render_commit_line, render_context_hint};
 use crossterm::event::KeyEvent;
+pub use file_list::{FileListData, FileListSection};
 pub use history::{HistorySection, HistorySectionData};
 use ratatui::text::Line;
 pub use registry::{SectionItemCounts, SectionRegistry};
-pub use staged::{StagedSection, StagedSectionData};
-pub use working::{WorkingSection, WorkingSectionData};
+
+// Type aliases for backward compatibility
+pub type StagedSection = FileListSection;
+pub type WorkingSection = FileListSection;
+pub type StagedSectionData = FileListData;
+pub type WorkingSectionData = FileListData;
 
 use crate::actions::{Action, Context};
 use crate::input::KeyBinding;

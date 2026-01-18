@@ -2,8 +2,8 @@ use super::App;
 use crate::actions::{AppState, Context};
 use crate::git::FileState;
 use crate::section::{
-    BranchesSectionData, CommandSectionData, HistorySectionData, SectionItemCounts,
-    SectionRegistry, StagedSectionData, WorkingSectionData,
+    BranchesSectionData, CommandSectionData, FileListData, HistorySectionData, SectionItemCounts,
+    SectionRegistry,
 };
 
 impl App {
@@ -27,7 +27,7 @@ impl App {
 
         // Update staged section
         self.staged_section
-            .update(StagedSectionData {
+            .update(FileListData {
                 files: self
                     .status
                     .staged_changes()
@@ -41,7 +41,7 @@ impl App {
 
         // Update working section
         self.working_section
-            .update(WorkingSectionData {
+            .update(FileListData {
                 files: self
                     .status
                     .working_changes()

@@ -338,6 +338,11 @@ impl App {
                 }
             }
 
+            // Expand error details to popup (when error is showing)
+            KeyCode::Char('e') => {
+                self.feedback.expand_error();
+            }
+
             _ => {}
         }
     }

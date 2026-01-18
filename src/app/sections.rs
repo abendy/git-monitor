@@ -1,11 +1,10 @@
+use super::App;
 use crate::actions::{AppState, Context};
 use crate::git::FileState;
 use crate::section::{
     BranchesSectionData, CommandSectionData, HistorySectionData, SectionItemCounts,
     SectionRegistry, StagedSectionData, WorkingSectionData,
 };
-
-use super::App;
 
 impl App {
     // ─────────────────────────────────────────────────────────────────────────
@@ -134,7 +133,10 @@ impl App {
             return Context::CommitFiles;
         }
 
-        if self.branch_header_for_selection().is_some() {
+        if self
+            .branch_header_for_selection()
+            .is_some()
+        {
             return Context::BranchHeader;
         }
 

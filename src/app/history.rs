@@ -1,7 +1,6 @@
+use super::{App, HistoryMode};
 use crate::feedback::PopupContent;
 use crate::section::SectionId;
-
-use super::{App, HistoryMode};
 
 impl App {
     /// Toggle history mode between reflog and commit log

@@ -97,9 +97,7 @@ impl ExternalCommand {
                 cmd.args(["rebase", "-i", onto]);
                 cmd
             }
-            Self::OpenEditor { editor, path } => {
-                build_editor_command(editor, path)
-            }
+            Self::OpenEditor { editor, path } => build_editor_command(editor, path),
         }
     }
 

@@ -60,27 +60,27 @@ pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
         // Universal hints: nav top/btm m menu | : cmd  w files  h history  b branches | help quit
         {
             let mut spans = vec![
-            Span::styled(
-                " j/k ",
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" nav  "),
-            Span::styled(
-                " g/G ",
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" top/btm  "),
-            Span::styled(
-                " m ",
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" menu "),
+                Span::styled(
+                    " j/k ",
+                    Style::default()
+                        .bg(Color::DarkGray)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" nav  "),
+                Span::styled(
+                    " g/G ",
+                    Style::default()
+                        .bg(Color::DarkGray)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" top/btm  "),
+                Span::styled(
+                    " m ",
+                    Style::default()
+                        .bg(Color::DarkGray)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" menu "),
             ];
             if editor_available() {
                 spans.push(Span::styled(
@@ -92,56 +92,56 @@ pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 spans.push(Span::raw(" edit "));
             }
             spans.extend(vec![
-            Span::styled(
-                " │ ",
-                Style::default().fg(Color::DarkGray),
-            ),
-            Span::styled(
-                " : ",
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" cmd  "),
-            Span::styled(
-                " w ",
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" files  "),
-            Span::styled(
-                " h ",
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" history  "),
-            Span::styled(
-                " b ",
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" branches "),
-            Span::styled(
-                " │ ",
-                Style::default().fg(Color::DarkGray),
-            ),
-            Span::styled(
-                " ? ",
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" help "),
-            Span::styled(
-                " q ",
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" quit "),
+                Span::styled(
+                    " │ ",
+                    Style::default().fg(Color::DarkGray),
+                ),
+                Span::styled(
+                    " : ",
+                    Style::default()
+                        .bg(Color::DarkGray)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" cmd  "),
+                Span::styled(
+                    " w ",
+                    Style::default()
+                        .bg(Color::DarkGray)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" files  "),
+                Span::styled(
+                    " h ",
+                    Style::default()
+                        .bg(Color::DarkGray)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" history  "),
+                Span::styled(
+                    " b ",
+                    Style::default()
+                        .bg(Color::DarkGray)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" branches "),
+                Span::styled(
+                    " │ ",
+                    Style::default().fg(Color::DarkGray),
+                ),
+                Span::styled(
+                    " ? ",
+                    Style::default()
+                        .bg(Color::DarkGray)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" help "),
+                Span::styled(
+                    " q ",
+                    Style::default()
+                        .bg(Color::DarkGray)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" quit "),
             ]);
             Line::from(spans)
         }

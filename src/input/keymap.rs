@@ -54,13 +54,22 @@ impl KeyBinding {
     pub fn label(&self) -> String {
         let mut parts = Vec::new();
 
-        if self.modifiers.contains(KeyModifiers::CONTROL) {
+        if self
+            .modifiers
+            .contains(KeyModifiers::CONTROL)
+        {
             parts.push("Ctrl");
         }
-        if self.modifiers.contains(KeyModifiers::ALT) {
+        if self
+            .modifiers
+            .contains(KeyModifiers::ALT)
+        {
             parts.push("Alt");
         }
-        if self.modifiers.contains(KeyModifiers::SHIFT) {
+        if self
+            .modifiers
+            .contains(KeyModifiers::SHIFT)
+        {
             parts.push("Shift");
         }
 
@@ -161,7 +170,10 @@ impl Keymap {
                 continue;
             };
 
-            if action.contexts.contains(&Context::Global) {
+            if action
+                .contexts
+                .contains(&Context::Global)
+            {
                 keymap.bind_global(binding, app_action);
             }
 

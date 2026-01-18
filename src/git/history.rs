@@ -172,6 +172,9 @@ impl GitRepo {
         if revwalk.push(start_oid).is_err() {
             return commands;
         }
+        // Intentionally ignore hide/sorting errors - these are optional optimizations.
+        // If hide fails, we may see extra commits; if sorting fails, order may vary.
+        // Both are acceptable degradations for a display-only feature.
         if let Some(hide_oid) = hide_oid {
             let _ = revwalk.hide(hide_oid);
         }
@@ -209,6 +212,7 @@ impl GitRepo {
         if revwalk.push(start_oid).is_err() {
             return 0;
         }
+        // Intentionally ignore hide/sorting errors - see walk_commits for rationale
         if let Some(hide_oid) = hide_oid {
             let _ = revwalk.hide(hide_oid);
         }

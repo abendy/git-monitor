@@ -40,6 +40,8 @@ impl Tui {
         // Set up panic hook to restore terminal on panic
         let panic_hook = panic::take_hook();
         panic::set_hook(Box::new(move |panic_info| {
+            // Intentionally ignore reset errors - we're already panicking,
+            // and a double-panic would abort without showing the error
             let _ = Self::reset();
             panic_hook(panic_info);
         }));

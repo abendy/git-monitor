@@ -113,6 +113,7 @@ impl FeedbackManager {
     }
 
     /// Handle command output feedback
+    #[allow(clippy::needless_pass_by_value)] // Takes ownership for API consistency
     fn show_command_output(
         &mut self,
         command: String,
@@ -135,9 +136,7 @@ impl FeedbackManager {
         // Determine if popup should auto-open
         let should_popup = match policy {
             FeedbackPolicy::AlwaysPopup => true,
-            FeedbackPolicy::InlineOnly => false,
-            FeedbackPolicy::Silent => false,
-            FeedbackPolicy::External => false,
+            FeedbackPolicy::InlineOnly | FeedbackPolicy::Silent | FeedbackPolicy::External => false,
             FeedbackPolicy::Default => {
                 // Source-based defaults:
                 // - ActionMenu/AliasBrowser: Always popup (deliberate selection)
@@ -196,13 +195,13 @@ impl FeedbackManager {
 
     /// Check if there is output to display inline
     #[must_use]
-    pub fn has_output(&self) -> bool {
+    pub const fn has_output(&self) -> bool {
         self.command_output.is_some()
     }
 
     /// Get output for inline display
     #[must_use]
-    pub fn output(&self) -> Option<&CommandOutput> {
+    pub const fn output(&self) -> Option<&CommandOutput> {
         self.command_output.as_ref()
     }
 }

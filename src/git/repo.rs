@@ -52,7 +52,7 @@ impl GitRepo {
             .context("Failed to get HEAD tree")?;
 
         self.repo
-            .reset_default(Some(&head_commit.as_object()), [path])
+            .reset_default(Some(head_commit.as_object()), [path])
             .or_else(
                 |_| -> std::result::Result<(), git2::Error> {
                     // If reset fails (file is new), remove from index

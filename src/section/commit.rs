@@ -7,6 +7,7 @@ use crate::actions::{ActionRegistry, ActionType, AppAction, AppState, Context};
 use crate::git::{format_relative_time, CommandType, CommitDetail, GitCommand, RefDecoration};
 use crate::render::file_list::{render_file_entry, FileEntryView, FileListStyle};
 
+#[allow(clippy::too_many_lines)] // Render functions are naturally verbose
 pub fn render_commit_line(
     cmd: &GitCommand,
     selected: bool,
@@ -49,6 +50,7 @@ pub fn render_commit_line(
         } else {
             1 + decoration_width
         };
+    #[allow(clippy::cast_possible_truncation)] // fixed_width is a small sum of widths
     let max_msg_len = render_width.saturating_sub(fixed_width as u16) as usize;
     let message = truncate_message(&cmd.message, max_msg_len);
 
@@ -131,6 +133,7 @@ pub fn render_commit_line(
     Line::from(spans)
 }
 
+#[allow(clippy::too_many_lines)] // Render functions are naturally verbose
 pub fn render_commit_detail(
     detail: &CommitDetail,
     expanded_file_idx: Option<usize>,
@@ -331,19 +334,12 @@ pub fn render_context_hint(
 
 pub const fn commit_command_color(cmd: CommandType) -> Color {
     match cmd {
-        CommandType::Commit => Color::Green,
-        CommandType::Checkout => Color::Cyan,
-        CommandType::Merge => Color::Magenta,
-        CommandType::Rebase => Color::Yellow,
-        CommandType::Pull => Color::Blue,
-        CommandType::Push => Color::Blue,
-        CommandType::Reset => Color::Red,
-        CommandType::CherryPick => Color::Magenta,
-        CommandType::Revert => Color::Red,
-        CommandType::Branch => Color::Cyan,
-        CommandType::Clone | CommandType::Init => Color::Green,
-        CommandType::Fetch => Color::Blue,
-        CommandType::Stash => Color::Yellow,
+        CommandType::Commit | CommandType::Clone | CommandType::Init => Color::Green,
+        CommandType::Checkout | CommandType::Branch => Color::Cyan,
+        CommandType::Merge | CommandType::CherryPick => Color::Magenta,
+        CommandType::Rebase | CommandType::Stash => Color::Yellow,
+        CommandType::Pull | CommandType::Push | CommandType::Fetch => Color::Blue,
+        CommandType::Reset | CommandType::Revert => Color::Red,
         CommandType::Other => Color::DarkGray,
     }
 }
@@ -392,7 +388,6 @@ fn format_decorations(decorations: &[RefDecoration]) -> Vec<Span<'static>> {
                     .fg(Color::Green)
                     .add_modifier(Modifier::BOLD),
             ));
-            first = false;
         } else {
             spans.push(Span::styled(
                 "HEAD",
@@ -400,8 +395,8 @@ fn format_decorations(decorations: &[RefDecoration]) -> Vec<Span<'static>> {
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD),
             ));
-            first = false;
         }
+        first = false;
     }
 
     for dec in decorations {

@@ -78,7 +78,8 @@ impl App {
         self.history_total_pages = if self.history_total_items == 0 {
             0
         } else {
-            (self.history_total_items + PAGE_SIZE - 1) / PAGE_SIZE
+            self.history_total_items
+                .div_ceil(PAGE_SIZE)
         };
 
         if self.history_total_pages == 0 {
@@ -115,8 +116,7 @@ impl App {
                 Event::Key(key) => self.handle_key(key),
                 Event::Tick => self.on_tick(),
                 Event::FileChanged => self.refresh_status(),
-                Event::Resize(_, _) => {}
-                Event::Mouse(_) => {}
+                Event::Resize(_, _) | Event::Mouse(_) => {}
             }
         }
 
@@ -124,11 +124,14 @@ impl App {
     }
 
     /// Run an external command with TUI suspension
+    #[allow(clippy::needless_pass_by_value)] // Takes ownership of command for execution
     pub(super) fn run_external_command(
         &mut self,
         tui: &mut Tui,
         cmd: ExternalCommand,
     ) -> Result<()> {
+        use std::io::Read as _;
+
         // Pause event handler so it doesn't consume input meant for the external command
         tui.events.pause();
         // Give the event thread time to finish any pending poll
@@ -145,7 +148,6 @@ impl App {
 
         // Wait for user to press Enter before resuming TUI
         // See ADR-001 for rationale
-        use std::io::Read;
         println!("\n[Press Enter to continue]");
         let _ = std::io::stdin().read(&mut [0u8]);
 

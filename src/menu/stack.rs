@@ -29,7 +29,7 @@ impl MenuStack {
     /// Get reference to current (top) menu
     #[must_use]
     pub fn current(&self) -> Option<&dyn Menu> {
-        self.stack.last().map(|m| m.as_ref())
+        self.stack.last().map(AsRef::as_ref)
     }
 
     /// Get mutable reference to current (top) menu

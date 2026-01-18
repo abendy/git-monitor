@@ -1,6 +1,6 @@
 //! Confirmation dialog implementation.
 //!
-//! Not yet integrated - provides generic ConfirmMenu for future use.
+//! Not yet integrated - provides generic `ConfirmMenu` for future use.
 
 #![allow(dead_code)] // Module reserved for future generic confirm dialogs
 
@@ -52,14 +52,14 @@ impl Checkbox {
 
     /// Set initial checked state
     #[must_use]
-    pub fn checked(mut self, checked: bool) -> Self {
+    pub const fn checked(mut self, checked: bool) -> Self {
         self.checked = checked;
         self
     }
 
     /// Set keyboard shortcut
     #[must_use]
-    pub fn with_shortcut(mut self, shortcut: char) -> Self {
+    pub const fn with_shortcut(mut self, shortcut: char) -> Self {
         self.shortcut = Some(shortcut);
         self
     }
@@ -97,8 +97,7 @@ impl ConfirmMenu {
         self.checkboxes
             .iter()
             .find(|c| c.key == key)
-            .map(|c| c.checked)
-            .unwrap_or(false)
+            .is_some_and(|c| c.checked)
     }
 
     /// Toggle the focused checkbox
@@ -181,15 +180,12 @@ impl Menu for ConfirmMenu {
             KeyCode::Char('y') => MenuResult::Close,
 
             // Cancel
-            KeyCode::Esc | KeyCode::Char('n') | KeyCode::Char('q') => MenuResult::CloseAll,
+            KeyCode::Esc | KeyCode::Char('n' | 'q') => MenuResult::CloseAll,
 
             // Shortcuts
             KeyCode::Char(c) => {
-                if self.handle_shortcut(c) {
-                    MenuResult::Continue
-                } else {
-                    MenuResult::Continue
-                }
+                self.handle_shortcut(c);
+                MenuResult::Continue
             }
 
             _ => MenuResult::Continue,

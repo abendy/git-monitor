@@ -5,7 +5,12 @@ use super::{CommitDetail, CommitFile, FileState, GitRepo};
 
 impl GitRepo {
     /// Get detailed commit information for a given SHA
+    #[allow(clippy::similar_names)] // stats/status are distinct concepts
+    #[allow(clippy::too_many_lines)] // Complex function, refactoring would reduce clarity
     pub fn commit_detail(&self, short_sha: &str) -> Result<CommitDetail> {
+        use std::cell::RefCell;
+        use std::collections::HashMap;
+
         // Parse the short SHA to find the commit
         let obj = self
             .repo
@@ -29,14 +34,12 @@ impl GitRepo {
             let time = author.when();
             let secs = time.seconds();
             let offset_mins = time.offset_minutes();
-            let offset =
-                chrono::FixedOffset::east_opt(offset_mins * 60).unwrap_or(chrono::Utc.fix());
-            DateTime::from_timestamp(secs, 0)
-                .map(|dt| {
-                    dt.with_timezone(&offset)
-                        .with_timezone(&Local)
-                })
-                .unwrap_or_else(Local::now)
+            let offset = chrono::FixedOffset::east_opt(offset_mins * 60)
+                .unwrap_or_else(|| chrono::Utc.fix());
+            DateTime::from_timestamp(secs, 0).map_or_else(Local::now, |dt| {
+                dt.with_timezone(&offset)
+                    .with_timezone(&Local)
+            })
         };
 
         // Extract committer info
@@ -53,14 +56,12 @@ impl GitRepo {
             let time = committer.when();
             let secs = time.seconds();
             let offset_mins = time.offset_minutes();
-            let offset =
-                chrono::FixedOffset::east_opt(offset_mins * 60).unwrap_or(chrono::Utc.fix());
-            DateTime::from_timestamp(secs, 0)
-                .map(|dt| {
-                    dt.with_timezone(&offset)
-                        .with_timezone(&Local)
-                })
-                .unwrap_or_else(Local::now)
+            let offset = chrono::FixedOffset::east_opt(offset_mins * 60)
+                .unwrap_or_else(|| chrono::Utc.fix());
+            DateTime::from_timestamp(secs, 0).map_or_else(Local::now, |dt| {
+                dt.with_timezone(&offset)
+                    .with_timezone(&Local)
+            })
         };
 
         // Get full commit message
@@ -100,8 +101,6 @@ impl GitRepo {
         let deletions = stats.deletions();
 
         // Collect files with per-file stats using RefCell for interior mutability
-        use std::cell::RefCell;
-        use std::collections::HashMap;
         let file_stats: RefCell<HashMap<String, (FileState, usize, usize)>> =
             RefCell::new(HashMap::new());
 
@@ -111,15 +110,15 @@ impl GitRepo {
                     .new_file()
                     .path()
                     .or_else(|| delta.old_file().path())
-                    .map(|p| p.to_string_lossy().to_string())
-                    .unwrap_or_else(|| "<unknown>".to_string());
+                    .map_or_else(
+                        || "<unknown>".to_string(),
+                        |p| p.to_string_lossy().to_string(),
+                    );
 
                 let status = match delta.status() {
-                    git2::Delta::Added => FileState::Added,
+                    git2::Delta::Added | git2::Delta::Copied => FileState::Added,
                     git2::Delta::Deleted => FileState::Deleted,
-                    git2::Delta::Modified => FileState::Modified,
                     git2::Delta::Renamed => FileState::Renamed,
-                    git2::Delta::Copied => FileState::Added,
                     _ => FileState::Modified,
                 };
 

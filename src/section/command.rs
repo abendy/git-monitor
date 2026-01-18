@@ -161,7 +161,7 @@ impl Section for CommandSection {
         SectionId::Command
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Command"
     }
 

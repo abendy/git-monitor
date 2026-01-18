@@ -15,12 +15,12 @@ use crate::section::{
 
 impl App {
     /// Create a new application instance
+    #[allow(clippy::needless_pass_by_value)] // PathBuf API is cleaner than &Path
     pub fn new(path: PathBuf) -> Result<Self> {
         let repo = GitRepo::open(&path)?;
         let repo_path = repo
             .workdir()
-            .map(PathBuf::from)
-            .unwrap_or_else(|| path.clone());
+            .map_or_else(|| path.clone(), PathBuf::from);
 
         let status = repo.status().unwrap_or_default();
         let activity = Vec::new();

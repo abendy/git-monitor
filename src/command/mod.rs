@@ -111,7 +111,7 @@ impl CommandRequest {
 
     /// Set the command source
     #[must_use]
-    pub fn with_source(mut self, source: CommandSource) -> Self {
+    pub const fn with_source(mut self, source: CommandSource) -> Self {
         self.source = source;
         self
     }
@@ -119,7 +119,7 @@ impl CommandRequest {
     /// Set the feedback policy
     #[must_use]
     #[allow(dead_code)] // Builder method for future use
-    pub fn with_feedback(mut self, policy: FeedbackPolicy) -> Self {
+    pub const fn with_feedback(mut self, policy: FeedbackPolicy) -> Self {
         self.feedback = policy;
         self
     }
@@ -127,7 +127,7 @@ impl CommandRequest {
     /// Set whether to refresh after execution
     #[must_use]
     #[allow(dead_code)] // Builder method for future use
-    pub fn with_refresh(mut self, refresh: bool) -> Self {
+    pub const fn with_refresh(mut self, refresh: bool) -> Self {
         self.refresh_after = refresh;
         self
     }

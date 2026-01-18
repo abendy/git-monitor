@@ -163,7 +163,7 @@ impl App {
 
     /// Collapse the currently expanded branch
     ///
-    /// Note: Does NOT call update_sections() - callers are responsible for updating.
+    /// Note: Does NOT call `update_sections()` - callers are responsible for updating.
     pub(super) fn collapse_branch(&mut self) {
         self.expanded_branch = None;
         self.expanded_branch_commits.clear();

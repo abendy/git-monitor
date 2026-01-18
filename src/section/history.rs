@@ -65,7 +65,7 @@ impl HistorySection {
     }
 
     /// Get the history mode label
-    fn mode_label(&self) -> &'static str {
+    const fn mode_label(&self) -> &'static str {
         match self.data.history_mode {
             HistoryMode::Reflog => "Reflog",
             HistoryMode::CommitLog => "History",

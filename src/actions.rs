@@ -34,13 +34,12 @@ pub enum Context {
 impl Context {
     /// Display name for the context
     #[must_use]
-    pub fn display_name(&self) -> &'static str {
+    pub const fn display_name(self) -> &'static str {
         match self {
             Self::Command => "Command",
             Self::StagedFiles => "Staged Files",
             Self::WorkingFiles => "Working Files",
-            Self::HistoryHeader => "History",
-            Self::HistoryCommits => "History",
+            Self::HistoryHeader | Self::HistoryCommits => "History",
             Self::CommitFiles => "Commit Files",
             Self::BranchHeader => "Branch",
             Self::BranchCommits => "Branch Commits",
@@ -173,7 +172,7 @@ pub struct AppState {
 impl AppState {
     /// Check if a condition is satisfied
     #[must_use]
-    pub fn satisfies(&self, condition: ActionCondition) -> bool {
+    pub const fn satisfies(&self, condition: ActionCondition) -> bool {
         match condition {
             ActionCondition::Always => true,
             ActionCondition::BranchAhead => self.ahead > 0,
@@ -189,6 +188,7 @@ impl AppState {
 
 /// A single action definition
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(clippy::struct_field_names)] // action_type is clear naming
 pub struct Action {
     /// Keyboard shortcut (e.g., "s", "Space", "Ctrl+d")
     pub key: String,
@@ -276,6 +276,7 @@ impl Default for ActionRegistry {
 impl ActionRegistry {
     /// Build the action registry with all built-in actions
     #[must_use]
+    #[allow(clippy::too_many_lines)] // Registry initialization is naturally verbose
     pub fn new() -> Self {
         let mut actions = Vec::new();
 

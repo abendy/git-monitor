@@ -95,7 +95,7 @@ impl Section for WorkingSection {
         SectionId::Working
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Working"
     }
 

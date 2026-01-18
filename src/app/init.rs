@@ -10,7 +10,7 @@ use crate::git::GitRepo;
 use crate::input::Keymap;
 use crate::menu::MenuStack;
 use crate::section::{
-    BranchesSection, CommandSection, HistorySection, SectionRegistry, StagedSection, WorkingSection,
+    BranchesSection, CommandSection, FileListSection, HistorySection, SectionRegistry,
 };
 
 impl App {
@@ -72,8 +72,8 @@ impl App {
             menu_stack: MenuStack::new(),
             keymap,
             command_section: CommandSection::new(),
-            staged_section: StagedSection::new(),
-            working_section: WorkingSection::new(),
+            staged_section: FileListSection::staged(),
+            working_section: FileListSection::working(),
             history_section: HistorySection::new(),
             branches_section: BranchesSection::new(),
             section_registry: SectionRegistry::new(),

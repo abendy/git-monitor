@@ -8,7 +8,7 @@ use crate::git::{BranchInfo, CommitDetail, GitCommand, GitRepo, GitStatus};
 use crate::input::Keymap;
 use crate::menu::MenuStack;
 use crate::section::{
-    BranchesSection, CommandSection, HistorySection, SectionRegistry, StagedSection, WorkingSection,
+    BranchesSection, CommandSection, FileListSection, HistorySection, SectionRegistry,
 };
 use crate::watcher::RepoWatcher;
 
@@ -115,9 +115,9 @@ pub struct App {
     /// Command input section
     pub command_section: CommandSection,
     /// Staged files section
-    pub staged_section: StagedSection,
+    pub staged_section: FileListSection,
     /// Working files section
-    pub working_section: WorkingSection,
+    pub working_section: FileListSection,
     /// History section (commits/reflog)
     pub history_section: HistorySection,
     /// Branches section

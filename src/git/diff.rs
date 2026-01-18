@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use anyhow::{Context, Result};
+use tracing::debug;
 
 use super::GitRepo;
 
@@ -15,7 +16,15 @@ impl GitRepo {
         let diff = if staged {
             // Staged: diff HEAD to index
             let head = self.repo.head().ok();
-            let head_tree = head.and_then(|h| h.peel_to_tree().ok());
+            if head.is_none() {
+                debug!("No HEAD found for staged diff (empty repo?)");
+            }
+            let head_tree = head.and_then(|h| {
+                h.peel_to_tree().map_err(|e| {
+                    debug!("Failed to peel HEAD to tree: {}", e);
+                    e
+                }).ok()
+            });
             self.repo.diff_tree_to_index(
                 head_tree.as_ref(),
                 None,

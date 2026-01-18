@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use tracing::debug;
 
 use super::{BranchInfo, GitRepo};
 
@@ -11,6 +12,10 @@ impl GitRepo {
         let current_branch = self
             .repo
             .head()
+            .map_err(|e| {
+                debug!("Failed to get HEAD for branch comparison: {} (detached HEAD?)", e);
+                e
+            })
             .ok()
             .and_then(|h| h.shorthand().map(String::from));
 

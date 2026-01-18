@@ -1,3 +1,5 @@
+use tracing::warn;
+
 use super::{App, HistoryMode};
 use crate::feedback::PopupContent;
 use crate::section::SectionId;
@@ -152,7 +154,14 @@ impl App {
         }
 
         self.expanded_commit = Some(sha.to_string());
-        self.expanded_detail = self.repo.commit_detail(sha).ok();
+        self.expanded_detail = self
+            .repo
+            .commit_detail(sha)
+            .map_err(|e| {
+                warn!("Failed to get commit detail for {}: {}", sha, e);
+                e
+            })
+            .ok();
         self.expanded_file_idx = None;
         self.update_sections();
     }

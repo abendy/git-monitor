@@ -5,6 +5,7 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use notify::RecursiveMode;
 use notify_debouncer_mini::{new_debouncer, DebouncedEvent, DebouncedEventKind, Debouncer};
+use tracing::warn;
 
 /// File system watcher for git repository changes
 pub struct RepoWatcher {
@@ -51,32 +52,44 @@ impl RepoWatcher {
             // Watch specific git files, not the whole .git (too noisy)
             let index_path = git_dir.join("index");
             if index_path.exists() {
-                let _ = debouncer
+                if let Err(e) = debouncer
                     .watcher()
-                    .watch(&index_path, RecursiveMode::NonRecursive);
+                    .watch(&index_path, RecursiveMode::NonRecursive)
+                {
+                    warn!("Failed to watch git index: {}", e);
+                }
             }
 
             let head_path = git_dir.join("HEAD");
             if head_path.exists() {
-                let _ = debouncer
+                if let Err(e) = debouncer
                     .watcher()
-                    .watch(&head_path, RecursiveMode::NonRecursive);
+                    .watch(&head_path, RecursiveMode::NonRecursive)
+                {
+                    warn!("Failed to watch git HEAD: {}", e);
+                }
             }
 
             // Watch refs for branch changes
             let refs_path = git_dir.join("refs");
             if refs_path.exists() {
-                let _ = debouncer
+                if let Err(e) = debouncer
                     .watcher()
-                    .watch(&refs_path, RecursiveMode::Recursive);
+                    .watch(&refs_path, RecursiveMode::Recursive)
+                {
+                    warn!("Failed to watch git refs: {}", e);
+                }
             }
 
             // Watch logs for reflog changes
             let logs_path = git_dir.join("logs");
             if logs_path.exists() {
-                let _ = debouncer
+                if let Err(e) = debouncer
                     .watcher()
-                    .watch(&logs_path, RecursiveMode::Recursive);
+                    .watch(&logs_path, RecursiveMode::Recursive)
+                {
+                    warn!("Failed to watch git logs: {}", e);
+                }
             }
         }
 

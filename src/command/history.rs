@@ -4,6 +4,8 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
 
+use tracing::debug;
+
 /// Maximum number of commands to keep in history
 const MAX_HISTORY: usize = 100;
 
@@ -136,15 +138,20 @@ fn load_from_disk() -> Vec<String> {
 /// Save history to disk
 fn save_to_disk(history: &[String]) {
     let Some(path) = history_file_path() else {
+        debug!("Cannot save command history: no home directory");
         return;
     };
 
     let Ok(mut file) = File::create(&path) else {
+        debug!("Cannot save command history: failed to create {}", path.display());
         return;
     };
 
     for cmd in history.iter().take(MAX_HISTORY) {
-        let _ = writeln!(file, "{cmd}");
+        if let Err(e) = writeln!(file, "{cmd}") {
+            debug!("Failed to write to history file: {}", e);
+            return;
+        }
     }
 }
 

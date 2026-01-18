@@ -184,6 +184,36 @@ impl FeedbackManager {
         self.error = None;
     }
 
+    /// Show detailed error information in a popup
+    ///
+    /// Opens a popup with the error message and additional context.
+    /// The footer continues to show a brief error, but the user can
+    /// see full details in the popup.
+    pub fn show_error_details(&mut self, title: &str, message: &str, context: Vec<String>) {
+        self.popup.open(PopupContent::ErrorDetails {
+            title: title.to_string(),
+            message: message.to_string(),
+            context,
+        });
+    }
+
+    /// Expand current error to popup (if one exists)
+    ///
+    /// Called when user presses 'e' to see more error details.
+    /// Returns true if there was an error to expand.
+    pub fn expand_error(&mut self) -> bool {
+        if let Some(ref error) = self.error {
+            self.popup.open(PopupContent::ErrorDetails {
+                title: "Error".to_string(),
+                message: error.clone(),
+                context: vec![],
+            });
+            true
+        } else {
+            false
+        }
+    }
+
     /// Tick - handle time-based updates (toast expiry)
     pub fn tick(&mut self) {
         if let Some(ref toast) = self.toast {

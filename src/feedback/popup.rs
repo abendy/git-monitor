@@ -25,6 +25,15 @@ pub enum PopupContent {
         #[allow(dead_code)]
         is_staged: bool,
     },
+    /// Error details with context
+    ErrorDetails {
+        /// Short error title
+        title: String,
+        /// Primary error message
+        message: String,
+        /// Additional context lines (stack trace, suggestions, etc.)
+        context: Vec<String>,
+    },
 }
 
 impl PopupContent {
@@ -41,6 +50,10 @@ impl PopupContent {
             Self::None => 0,
             Self::CommandOutput { output, .. } => output.lines().count(),
             Self::Diff { content, .. } => content.lines().count(),
+            // Title line + blank + message lines + blank + context lines
+            Self::ErrorDetails {
+                message, context, ..
+            } => 1 + 1 + message.lines().count() + 1 + context.len(),
         }
     }
 
@@ -51,6 +64,7 @@ impl PopupContent {
             Self::None => String::new(),
             Self::CommandOutput { command, .. } => format!(" Output: {command} "),
             Self::Diff { path, .. } => format!(" Diff: {path} "),
+            Self::ErrorDetails { title, .. } => format!(" Error: {title} "),
         }
     }
 
@@ -62,6 +76,7 @@ impl PopupContent {
             Self::None => "",
             Self::CommandOutput { output, .. } => output,
             Self::Diff { content, .. } => content,
+            Self::ErrorDetails { message, .. } => message,
         }
     }
 

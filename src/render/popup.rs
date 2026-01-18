@@ -58,6 +58,13 @@ pub fn render(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
             .take(visible_height)
             .map(style_diff_line)
             .collect(),
+        PopupContent::ErrorDetails {
+            message, context, ..
+        } => build_error_lines(message, context)
+            .into_iter()
+            .skip(app.feedback.popup.scroll_offset)
+            .take(visible_height)
+            .collect(),
     };
 
     let block = Block::default()
@@ -119,4 +126,32 @@ fn style_diff_line(line: &str) -> Line<'static> {
             .bg(Color::Reset)
     };
     Line::from(Span::styled(format!(" {line}"), style))
+}
+
+/// Build styled lines for error details display
+fn build_error_lines(message: &str, context: &[String]) -> Vec<Line<'static>> {
+    let mut lines = Vec::new();
+
+    // Error message in red
+    for line in message.lines() {
+        lines.push(Line::from(Span::styled(
+            format!(" {line}"),
+            Style::default().fg(Color::Red).bg(Color::Reset),
+        )));
+    }
+
+    // Blank line before context
+    if !context.is_empty() {
+        lines.push(Line::from(""));
+
+        // Context lines in dim gray
+        for line in context {
+            lines.push(Line::from(Span::styled(
+                format!(" {line}"),
+                Style::default().fg(Color::DarkGray).bg(Color::Reset),
+            )));
+        }
+    }
+
+    lines
 }

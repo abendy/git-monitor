@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-01-18
+
+### Fixed
+
+- `↓` leaves the command prompt and returns to the list; a half-typed command is kept while
+  browsing prompt history
+- Startup logs Git errors instead of hiding them
+
 ## [0.8.0] - 2026-01-17
 
 ### Added

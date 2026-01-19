@@ -127,3 +127,67 @@ fn categorize_path(path: &Path) -> WatchEvent {
         WatchEvent::WorkingDirectory(path.to_path_buf())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod categorize_path {
+        use super::*;
+
+        #[test]
+        fn detects_git_index() {
+            let path = Path::new("/repo/.git/index");
+            let event = categorize_path(path);
+            assert!(matches!(event, WatchEvent::GitIndex));
+        }
+
+        #[test]
+        fn detects_git_index_lock() {
+            let path = Path::new("/repo/.git/index.lock");
+            let event = categorize_path(path);
+            // index.lock contains "index" so it's still GitIndex
+            assert!(matches!(event, WatchEvent::GitIndex));
+        }
+
+        #[test]
+        fn detects_git_head() {
+            let path = Path::new("/repo/.git/HEAD");
+            let event = categorize_path(path);
+            assert!(matches!(event, WatchEvent::GitHead));
+        }
+
+        #[test]
+        fn detects_git_refs() {
+            let path = Path::new("/repo/.git/refs/heads/main");
+            let event = categorize_path(path);
+            assert!(matches!(event, WatchEvent::GitRefs));
+        }
+
+        #[test]
+        fn detects_git_refs_remotes() {
+            let path = Path::new("/repo/.git/refs/remotes/origin/main");
+            let event = categorize_path(path);
+            assert!(matches!(event, WatchEvent::GitRefs));
+        }
+
+        #[test]
+        fn detects_working_directory_file() {
+            let path = Path::new("/repo/src/main.rs");
+            let event = categorize_path(path);
+            assert!(matches!(event, WatchEvent::WorkingDirectory(_)));
+
+            if let WatchEvent::WorkingDirectory(p) = event {
+                assert_eq!(p, PathBuf::from("/repo/src/main.rs"));
+            }
+        }
+
+        #[test]
+        fn detects_working_directory_nested() {
+            let path = Path::new("/repo/src/git/mod.rs");
+            let event = categorize_path(path);
+            // "git" in path is not ".git", so it's working directory
+            assert!(matches!(event, WatchEvent::WorkingDirectory(_)));
+        }
+    }
+}

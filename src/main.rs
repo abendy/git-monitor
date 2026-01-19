@@ -3,20 +3,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::Parser;
 
-mod actions;
-mod app;
-mod command;
-mod config;
-mod event;
-mod feedback;
-mod git;
-mod input;
-mod menu;
-mod render;
-mod section;
-mod tui;
-mod ui;
-mod watcher;
+use git_monitor::{app, tui};
 
 #[derive(Parser, Debug)]
 #[command(name = "git-monitor")]

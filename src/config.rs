@@ -198,3 +198,167 @@ impl GitConfig {
         None
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod parse_section_header {
+        use super::*;
+
+        #[test]
+        fn parses_dashed_header() {
+            let result = GitConfig::parse_section_header("# --- fetch ---");
+
+            assert_eq!(result, Some("fetch".to_string()));
+        }
+
+        #[test]
+        fn parses_dashed_header_with_extra_spaces() {
+            let result = GitConfig::parse_section_header("#   ---   commit   ---");
+
+            assert_eq!(result, Some("commit".to_string()));
+        }
+
+        #[test]
+        fn returns_none_for_non_comment() {
+            let result = GitConfig::parse_section_header("co = checkout");
+
+            assert!(result.is_none());
+        }
+
+        #[test]
+        fn returns_none_for_plain_comment() {
+            let result = GitConfig::parse_section_header("# This is a comment");
+
+            assert!(result.is_none());
+        }
+
+        #[test]
+        fn returns_none_for_multi_word_header() {
+            let result = GitConfig::parse_section_header("# --- fetch remote ---");
+
+            assert!(result.is_none());
+        }
+
+        #[test]
+        fn lowercases_header_name() {
+            let result = GitConfig::parse_section_header("# --- FETCH ---");
+
+            assert_eq!(result, Some("fetch".to_string()));
+        }
+    }
+
+    mod parse_alias_line {
+        use super::*;
+
+        #[test]
+        fn parses_simple_alias() {
+            let result = GitConfig::parse_alias_line("co = checkout");
+
+            assert_eq!(
+                result,
+                Some(("co".to_string(), "checkout".to_string()))
+            );
+        }
+
+        #[test]
+        fn parses_alias_with_arguments() {
+            let result = GitConfig::parse_alias_line("lg = log --oneline --graph");
+
+            assert_eq!(
+                result,
+                Some(("lg".to_string(), "log --oneline --graph".to_string()))
+            );
+        }
+
+        #[test]
+        fn parses_quoted_alias() {
+            let result = GitConfig::parse_alias_line("st = \"status -sb\"");
+
+            assert_eq!(
+                result,
+                Some(("st".to_string(), "status -sb".to_string()))
+            );
+        }
+
+        #[test]
+        fn handles_extra_whitespace() {
+            let result = GitConfig::parse_alias_line("  br   =   branch  ");
+
+            assert_eq!(
+                result,
+                Some(("br".to_string(), "branch".to_string()))
+            );
+        }
+
+        #[test]
+        fn returns_none_for_comment() {
+            let result = GitConfig::parse_alias_line("# co = checkout");
+
+            assert!(result.is_none());
+        }
+
+        #[test]
+        fn returns_none_for_empty_line() {
+            let result = GitConfig::parse_alias_line("");
+
+            assert!(result.is_none());
+        }
+
+        #[test]
+        fn returns_none_for_line_without_equals() {
+            let result = GitConfig::parse_alias_line("checkout");
+
+            assert!(result.is_none());
+        }
+
+        #[test]
+        fn handles_equals_in_command() {
+            let result =
+                GitConfig::parse_alias_line("cfg = config --global user.name=test");
+
+            assert_eq!(
+                result,
+                Some((
+                    "cfg".to_string(),
+                    "config --global user.name=test".to_string()
+                ))
+            );
+        }
+    }
+
+    mod alias {
+        use super::*;
+
+        #[test]
+        fn alias_equality() {
+            let a1 = Alias {
+                name: "co".to_string(),
+                command: "checkout".to_string(),
+            };
+            let a2 = Alias {
+                name: "co".to_string(),
+                command: "checkout".to_string(),
+            };
+            let a3 = Alias {
+                name: "br".to_string(),
+                command: "branch".to_string(),
+            };
+
+            assert_eq!(a1, a2);
+            assert_ne!(a1, a3);
+        }
+    }
+
+    mod git_config {
+        use super::*;
+
+        #[test]
+        fn default_creates_empty_config() {
+            let config = GitConfig::default();
+
+            assert!(config.sections.is_empty());
+        }
+    }
+}

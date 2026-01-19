@@ -349,3 +349,274 @@ impl GitRepo {
         Ok(commands)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use git2::Repository;
+    use std::fs;
+    use std::path::Path;
+    use tempfile::TempDir;
+
+    /// Create a test repo with an initial commit
+    fn create_test_repo() -> (TempDir, GitRepo) {
+        let dir = TempDir::new().expect("Failed to create temp dir");
+        let repo = Repository::init(dir.path()).expect("Failed to init repo");
+
+        let mut config = repo.config().expect("Failed to get config");
+        config
+            .set_str("user.name", "Test User")
+            .expect("Failed to set user.name");
+        config
+            .set_str("user.email", "test@example.com")
+            .expect("Failed to set user.email");
+        drop(config);
+
+        // Create initial commit
+        let file_path = dir.path().join("file.txt");
+        fs::write(&file_path, "initial\n").expect("Failed to write file");
+
+        let mut index = repo.index().expect("Failed to get index");
+        index
+            .add_path(Path::new("file.txt"))
+            .expect("Failed to add file");
+        index.write().expect("Failed to write index");
+
+        let tree_id = index.write_tree().expect("Failed to write tree");
+        let tree = repo.find_tree(tree_id).expect("Failed to find tree");
+        let sig = repo.signature().expect("Failed to get signature");
+        repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
+            .expect("Failed to commit");
+
+        drop(tree);
+        drop(repo);
+
+        let git_repo = GitRepo::open(dir.path()).expect("Failed to open repo");
+        (dir, git_repo)
+    }
+
+    /// Add another commit to the repo
+    fn add_commit(dir: &TempDir, message: &str) {
+        let repo = Repository::open(dir.path()).expect("Failed to open");
+
+        // Modify file
+        let file_path = dir.path().join("file.txt");
+        let content = fs::read_to_string(&file_path).unwrap_or_default();
+        fs::write(&file_path, format!("{content}{message}\n")).expect("Failed to write");
+
+        let mut index = repo.index().expect("Failed to get index");
+        index
+            .add_path(Path::new("file.txt"))
+            .expect("Failed to add");
+        index.write().expect("Failed to write index");
+
+        let tree_id = index.write_tree().expect("Failed to write tree");
+        let tree = repo.find_tree(tree_id).expect("Failed to find tree");
+        let sig = repo.signature().expect("Failed to get signature");
+        let head = repo.head().expect("Failed to get HEAD");
+        let parent = head.peel_to_commit().expect("Failed to get commit");
+
+        repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &[&parent])
+            .expect("Failed to commit");
+    }
+
+    mod reflog {
+        use super::*;
+
+        #[test]
+        fn returns_entries_for_repo_with_commits() {
+            let (_dir, repo) = create_test_repo();
+
+            let entries = repo.reflog(0, 10).expect("Failed to get reflog");
+
+            // At least one entry for initial commit
+            assert!(!entries.is_empty());
+        }
+
+        #[test]
+        fn entries_have_sha() {
+            let (_dir, repo) = create_test_repo();
+
+            let entries = repo.reflog(0, 10).expect("Failed to get reflog");
+
+            for entry in &entries {
+                assert!(entry.sha.is_some());
+                let sha = entry.sha.as_ref().expect("sha should exist");
+                assert_eq!(sha.len(), 7);
+            }
+        }
+
+        #[test]
+        fn respects_pagination_limit() {
+            let (dir, _repo) = create_test_repo();
+
+            // Add more commits to have multiple reflog entries
+            add_commit(&dir, "Second commit");
+            add_commit(&dir, "Third commit");
+
+            let repo = GitRepo::open(dir.path()).expect("Failed to reopen");
+            let entries = repo.reflog(0, 2).expect("Failed to get reflog");
+
+            assert!(entries.len() <= 2);
+        }
+
+        #[test]
+        fn respects_pagination_skip() {
+            let (dir, _repo) = create_test_repo();
+
+            add_commit(&dir, "Second commit");
+            add_commit(&dir, "Third commit");
+
+            let repo = GitRepo::open(dir.path()).expect("Failed to reopen");
+
+            let all = repo.reflog(0, 100).expect("Failed to get all");
+            let skipped = repo.reflog(1, 100).expect("Failed to get skipped");
+
+            assert_eq!(skipped.len(), all.len().saturating_sub(1));
+        }
+    }
+
+    mod reflog_total {
+        use super::*;
+
+        #[test]
+        fn counts_reflog_entries() {
+            let (dir, _repo) = create_test_repo();
+
+            add_commit(&dir, "Second commit");
+
+            let repo = GitRepo::open(dir.path()).expect("Failed to reopen");
+            let total = repo.reflog_total().expect("Failed to get total");
+
+            // At least 2 entries (initial + second commit)
+            assert!(total >= 2);
+        }
+    }
+
+    mod commit_log {
+        use super::*;
+
+        #[test]
+        fn returns_commits() {
+            let (_dir, repo) = create_test_repo();
+
+            let commits = repo.commit_log(0, 10).expect("Failed to get log");
+
+            assert_eq!(commits.len(), 1);
+            assert_eq!(commits[0].message, "Initial commit");
+        }
+
+        #[test]
+        fn returns_all_commits() {
+            let (dir, _repo) = create_test_repo();
+
+            add_commit(&dir, "Second commit");
+            add_commit(&dir, "Third commit");
+
+            let repo = GitRepo::open(dir.path()).expect("Failed to reopen");
+            let commits = repo.commit_log(0, 10).expect("Failed to get log");
+
+            assert_eq!(commits.len(), 3);
+
+            // Verify all commits are present (order may vary with same timestamps)
+            let messages: Vec<_> = commits.iter().map(|c| c.message.as_str()).collect();
+            assert!(messages.contains(&"Initial commit"));
+            assert!(messages.contains(&"Second commit"));
+            assert!(messages.contains(&"Third commit"));
+        }
+
+        #[test]
+        fn respects_pagination_limit() {
+            let (dir, _repo) = create_test_repo();
+
+            add_commit(&dir, "Second commit");
+            add_commit(&dir, "Third commit");
+
+            let repo = GitRepo::open(dir.path()).expect("Failed to reopen");
+
+            let page1 = repo.commit_log(0, 2).expect("Failed to get page 1");
+            let page2 = repo.commit_log(2, 2).expect("Failed to get page 2");
+
+            // Verify pagination limits work
+            assert_eq!(page1.len(), 2);
+            assert_eq!(page2.len(), 1);
+
+            // All 3 commits should be covered across pages
+            let all_messages: Vec<_> = page1
+                .iter()
+                .chain(page2.iter())
+                .map(|c| c.message.as_str())
+                .collect();
+            assert!(all_messages.contains(&"Initial commit"));
+            assert!(all_messages.contains(&"Second commit"));
+            assert!(all_messages.contains(&"Third commit"));
+        }
+
+        #[test]
+        fn commits_have_sha() {
+            let (_dir, repo) = create_test_repo();
+
+            let commits = repo.commit_log(0, 10).expect("Failed to get log");
+
+            assert!(commits[0].sha.is_some());
+            let sha = commits[0].sha.as_ref().expect("sha should exist");
+            assert_eq!(sha.len(), 7);
+            assert!(sha.chars().all(|c| c.is_ascii_hexdigit()));
+        }
+    }
+
+    mod commit_log_total {
+        use super::*;
+
+        #[test]
+        fn counts_commits() {
+            let (dir, _repo) = create_test_repo();
+
+            add_commit(&dir, "Second commit");
+            add_commit(&dir, "Third commit");
+
+            let repo = GitRepo::open(dir.path()).expect("Failed to reopen");
+            let total = repo.commit_log_total().expect("Failed to get total");
+
+            assert_eq!(total, 3);
+        }
+    }
+
+    mod commit_log_for_branch {
+        use super::*;
+
+        #[test]
+        fn returns_commits_for_branch() {
+            let (dir, repo) = create_test_repo();
+
+            // Create a branch
+            {
+                let git_repo = Repository::open(dir.path()).expect("Failed to open");
+                let head = git_repo.head().expect("Failed to get HEAD");
+                let commit = head.peel_to_commit().expect("Failed to get commit");
+                git_repo
+                    .branch("feature", &commit, false)
+                    .expect("Failed to create branch");
+            }
+
+            // Get the default branch name
+            let branches = repo.list_branches().expect("Failed to list");
+            let default_branch = &branches[0].name;
+
+            let commits = repo
+                .commit_log_for_branch(default_branch)
+                .expect("Failed to get log");
+
+            assert_eq!(commits.len(), 1);
+        }
+
+        #[test]
+        fn returns_error_for_nonexistent_branch() {
+            let (_dir, repo) = create_test_repo();
+
+            let result = repo.commit_log_for_branch("nonexistent");
+
+            assert!(result.is_err());
+        }
+    }
+}

@@ -225,3 +225,235 @@ impl GitRepo {
         Ok(output)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use git2::Repository;
+    use std::fs;
+    use std::path::Path;
+    use tempfile::TempDir;
+
+    /// Create a test repo with an initial commit
+    fn create_test_repo() -> (TempDir, GitRepo, String) {
+        let dir = TempDir::new().expect("Failed to create temp dir");
+        let repo = Repository::init(dir.path()).expect("Failed to init repo");
+
+        let mut config = repo.config().expect("Failed to get config");
+        config
+            .set_str("user.name", "Test User")
+            .expect("Failed to set user.name");
+        config
+            .set_str("user.email", "test@example.com")
+            .expect("Failed to set user.email");
+        drop(config);
+
+        // Create initial commit
+        let file_path = dir.path().join("file.txt");
+        fs::write(&file_path, "initial content\n").expect("Failed to write file");
+
+        let mut index = repo.index().expect("Failed to get index");
+        index
+            .add_path(Path::new("file.txt"))
+            .expect("Failed to add file");
+        index.write().expect("Failed to write index");
+
+        let tree_id = index.write_tree().expect("Failed to write tree");
+        let tree = repo.find_tree(tree_id).expect("Failed to find tree");
+        let sig = repo.signature().expect("Failed to get signature");
+        let commit_oid = repo
+            .commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
+            .expect("Failed to commit");
+
+        let short_sha = format!("{:.7}", commit_oid);
+
+        drop(tree);
+        drop(repo);
+
+        let git_repo = GitRepo::open(dir.path()).expect("Failed to open repo");
+        (dir, git_repo, short_sha)
+    }
+
+    /// Add a commit that modifies a file
+    fn add_modifying_commit(dir: &TempDir, message: &str) -> String {
+        let repo = Repository::open(dir.path()).expect("Failed to open");
+
+        // Modify file
+        let file_path = dir.path().join("file.txt");
+        let content = fs::read_to_string(&file_path).unwrap_or_default();
+        fs::write(&file_path, format!("{content}added line\n")).expect("Failed to write");
+
+        let mut index = repo.index().expect("Failed to get index");
+        index
+            .add_path(Path::new("file.txt"))
+            .expect("Failed to add");
+        index.write().expect("Failed to write index");
+
+        let tree_id = index.write_tree().expect("Failed to write tree");
+        let tree = repo.find_tree(tree_id).expect("Failed to find tree");
+        let sig = repo.signature().expect("Failed to get signature");
+        let head = repo.head().expect("Failed to get HEAD");
+        let parent = head.peel_to_commit().expect("Failed to get commit");
+
+        let commit_oid = repo
+            .commit(Some("HEAD"), &sig, &sig, message, &tree, &[&parent])
+            .expect("Failed to commit");
+
+        format!("{:.7}", commit_oid)
+    }
+
+    mod commit_detail {
+        use super::*;
+
+        #[test]
+        fn returns_commit_info() {
+            let (_dir, repo, sha) = create_test_repo();
+
+            let detail = repo.commit_detail(&sha).expect("Failed to get detail");
+
+            assert_eq!(detail.full_sha.len(), 40);
+            assert!(detail.full_sha.starts_with(&sha));
+            assert_eq!(detail.author_name, "Test User");
+            assert_eq!(detail.author_email, "test@example.com");
+            assert_eq!(detail.message, "Initial commit");
+        }
+
+        #[test]
+        fn returns_files_changed() {
+            let (dir, _repo, _sha) = create_test_repo();
+
+            let sha = add_modifying_commit(&dir, "Modify file");
+
+            let repo = GitRepo::open(dir.path()).expect("Failed to reopen");
+            let detail = repo.commit_detail(&sha).expect("Failed to get detail");
+
+            assert_eq!(detail.files.len(), 1);
+            assert_eq!(detail.files[0].path, "file.txt");
+            assert_eq!(detail.files[0].status, FileState::Modified);
+        }
+
+        #[test]
+        fn returns_diff_stats() {
+            let (dir, _repo, _sha) = create_test_repo();
+
+            let sha = add_modifying_commit(&dir, "Add line");
+
+            let repo = GitRepo::open(dir.path()).expect("Failed to reopen");
+            let detail = repo.commit_detail(&sha).expect("Failed to get detail");
+
+            // We added one line
+            assert!(detail.insertions >= 1);
+            assert_eq!(detail.files[0].insertions, 1);
+        }
+
+        #[test]
+        fn returns_error_for_invalid_sha() {
+            let (_dir, repo, _sha) = create_test_repo();
+
+            let result = repo.commit_detail("invalid");
+
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn detects_added_file() {
+            let (dir, _repo, _sha) = create_test_repo();
+
+            // Add a new file in second commit
+            {
+                let git_repo = Repository::open(dir.path()).expect("Failed to open");
+                fs::write(dir.path().join("new.txt"), "new file\n").expect("Failed to write");
+
+                let mut index = git_repo.index().expect("Failed to get index");
+                index
+                    .add_path(Path::new("new.txt"))
+                    .expect("Failed to add");
+                index.write().expect("Failed to write index");
+
+                let tree_id = index.write_tree().expect("Failed to write tree");
+                let tree = git_repo.find_tree(tree_id).expect("Failed to find tree");
+                let sig = git_repo.signature().expect("Failed to get signature");
+                let head = git_repo.head().expect("Failed to get HEAD");
+                let parent = head.peel_to_commit().expect("Failed to get commit");
+
+                git_repo
+                    .commit(Some("HEAD"), &sig, &sig, "Add new file", &tree, &[&parent])
+                    .expect("Failed to commit");
+            }
+
+            let repo = GitRepo::open(dir.path()).expect("Failed to reopen");
+            let commits = repo.commit_log(0, 1).expect("Failed to get log");
+            let sha = commits[0].sha.as_ref().expect("sha");
+
+            let detail = repo.commit_detail(sha).expect("Failed to get detail");
+
+            let new_file = detail.files.iter().find(|f| f.path == "new.txt");
+            assert!(new_file.is_some());
+            assert_eq!(new_file.expect("file").status, FileState::Added);
+        }
+    }
+
+    mod commit_file_diff {
+        use super::*;
+
+        #[test]
+        fn returns_diff_for_file() {
+            let (dir, _repo, _sha) = create_test_repo();
+
+            let sha = add_modifying_commit(&dir, "Modify file");
+
+            let repo = GitRepo::open(dir.path()).expect("Failed to reopen");
+            let diff = repo
+                .commit_file_diff(&sha, "file.txt")
+                .expect("Failed to get diff");
+
+            assert!(diff.contains("+added line"));
+        }
+
+        #[test]
+        fn returns_no_changes_for_unchanged_file() {
+            let (dir, _repo, _sha) = create_test_repo();
+
+            // Add a different file
+            {
+                let git_repo = Repository::open(dir.path()).expect("Failed to open");
+                fs::write(dir.path().join("other.txt"), "other\n").expect("Failed to write");
+
+                let mut index = git_repo.index().expect("Failed to get index");
+                index
+                    .add_path(Path::new("other.txt"))
+                    .expect("Failed to add");
+                index.write().expect("Failed to write index");
+
+                let tree_id = index.write_tree().expect("Failed to write tree");
+                let tree = git_repo.find_tree(tree_id).expect("Failed to find tree");
+                let sig = git_repo.signature().expect("Failed to get signature");
+                let head = git_repo.head().expect("Failed to get HEAD");
+                let parent = head.peel_to_commit().expect("Failed to get commit");
+
+                git_repo
+                    .commit(Some("HEAD"), &sig, &sig, "Add other file", &tree, &[&parent])
+                    .expect("Failed to commit");
+            }
+
+            let repo = GitRepo::open(dir.path()).expect("Failed to reopen");
+            let commits = repo.commit_log(0, 1).expect("Failed to get log");
+            let sha = commits[0].sha.as_ref().expect("sha");
+
+            let diff = repo
+                .commit_file_diff(sha, "file.txt")
+                .expect("Failed to get diff");
+
+            assert!(diff.contains("No changes"));
+        }
+
+        #[test]
+        fn returns_error_for_invalid_commit() {
+            let (_dir, repo, _sha) = create_test_repo();
+
+            let result = repo.commit_file_diff("invalid", "file.txt");
+
+            assert!(result.is_err());
+        }
+    }
+}

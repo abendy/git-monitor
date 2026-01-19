@@ -50,3 +50,160 @@ impl AppState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod action_condition {
+        use super::*;
+
+        #[test]
+        fn default_is_always() {
+            let condition = ActionCondition::default();
+            assert_eq!(condition, ActionCondition::Always);
+        }
+    }
+
+    mod app_state {
+        use super::*;
+
+        #[test]
+        fn default_has_zero_values() {
+            let state = AppState::default();
+
+            assert_eq!(state.ahead, 0);
+            assert_eq!(state.behind, 0);
+            assert!(!state.has_upstream);
+            assert_eq!(state.staged_count, 0);
+            assert_eq!(state.working_count, 0);
+            assert_eq!(state.untracked_count, 0);
+        }
+
+        #[test]
+        fn satisfies_always_is_true() {
+            let state = AppState::default();
+
+            assert!(state.satisfies(ActionCondition::Always));
+        }
+
+        #[test]
+        fn satisfies_branch_ahead_when_ahead() {
+            let state = AppState {
+                ahead: 3,
+                ..Default::default()
+            };
+
+            assert!(state.satisfies(ActionCondition::BranchAhead));
+        }
+
+        #[test]
+        fn satisfies_branch_ahead_false_when_not_ahead() {
+            let state = AppState::default();
+
+            assert!(!state.satisfies(ActionCondition::BranchAhead));
+        }
+
+        #[test]
+        fn satisfies_branch_behind_when_behind() {
+            let state = AppState {
+                behind: 2,
+                ..Default::default()
+            };
+
+            assert!(state.satisfies(ActionCondition::BranchBehind));
+        }
+
+        #[test]
+        fn satisfies_branch_behind_false_when_not_behind() {
+            let state = AppState::default();
+
+            assert!(!state.satisfies(ActionCondition::BranchBehind));
+        }
+
+        #[test]
+        fn satisfies_has_upstream_when_true() {
+            let state = AppState {
+                has_upstream: true,
+                ..Default::default()
+            };
+
+            assert!(state.satisfies(ActionCondition::HasUpstream));
+        }
+
+        #[test]
+        fn satisfies_has_upstream_false_when_no_upstream() {
+            let state = AppState::default();
+
+            assert!(!state.satisfies(ActionCondition::HasUpstream));
+        }
+
+        #[test]
+        fn satisfies_no_upstream_when_no_upstream() {
+            let state = AppState::default();
+
+            assert!(state.satisfies(ActionCondition::NoUpstream));
+        }
+
+        #[test]
+        fn satisfies_no_upstream_false_when_has_upstream() {
+            let state = AppState {
+                has_upstream: true,
+                ..Default::default()
+            };
+
+            assert!(!state.satisfies(ActionCondition::NoUpstream));
+        }
+
+        #[test]
+        fn satisfies_has_staged_changes_when_staged() {
+            let state = AppState {
+                staged_count: 5,
+                ..Default::default()
+            };
+
+            assert!(state.satisfies(ActionCondition::HasStagedChanges));
+        }
+
+        #[test]
+        fn satisfies_has_staged_changes_false_when_none() {
+            let state = AppState::default();
+
+            assert!(!state.satisfies(ActionCondition::HasStagedChanges));
+        }
+
+        #[test]
+        fn satisfies_has_working_changes_when_working() {
+            let state = AppState {
+                working_count: 3,
+                ..Default::default()
+            };
+
+            assert!(state.satisfies(ActionCondition::HasWorkingChanges));
+        }
+
+        #[test]
+        fn satisfies_has_working_changes_false_when_none() {
+            let state = AppState::default();
+
+            assert!(!state.satisfies(ActionCondition::HasWorkingChanges));
+        }
+
+        #[test]
+        fn satisfies_has_untracked_files_when_untracked() {
+            let state = AppState {
+                untracked_count: 2,
+                ..Default::default()
+            };
+
+            assert!(state.satisfies(ActionCondition::HasUntrackedFiles));
+        }
+
+        #[test]
+        fn satisfies_has_untracked_files_false_when_none() {
+            let state = AppState::default();
+
+            assert!(!state.satisfies(ActionCondition::HasUntrackedFiles));
+        }
+    }
+}

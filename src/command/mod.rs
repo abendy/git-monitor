@@ -165,3 +165,165 @@ impl CommandRequest {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod command_source {
+        use super::*;
+
+        #[test]
+        fn default_is_keyboard() {
+            let source = CommandSource::default();
+            assert_eq!(source, CommandSource::Keyboard);
+        }
+    }
+
+    mod feedback_policy {
+        use super::*;
+
+        #[test]
+        fn default_is_default_policy() {
+            let policy = FeedbackPolicy::default();
+            assert_eq!(policy, FeedbackPolicy::Default);
+        }
+    }
+
+    mod command_request {
+        use super::*;
+
+        #[test]
+        fn git_creates_git_command() {
+            let request = CommandRequest::git(["status", "-sb"]);
+
+            assert_eq!(request.program, "git");
+            assert_eq!(request.args, vec!["status", "-sb"]);
+            assert_eq!(request.display_name, "git status -sb");
+            assert!(request.refresh_after);
+        }
+
+        #[test]
+        fn git_with_vec_args() {
+            let args = vec!["log", "--oneline", "-n", "10"];
+            let request = CommandRequest::git(args);
+
+            assert_eq!(request.program, "git");
+            assert_eq!(request.args, vec!["log", "--oneline", "-n", "10"]);
+        }
+
+        #[test]
+        fn from_input_parses_simple_command() {
+            let request = CommandRequest::from_input("ls -la").unwrap();
+
+            assert_eq!(request.program, "ls");
+            assert_eq!(request.args, vec!["-la"]);
+            assert_eq!(request.display_name, "ls -la");
+            assert_eq!(request.source, CommandSource::Palette);
+        }
+
+        #[test]
+        fn from_input_parses_git_command() {
+            let request = CommandRequest::from_input("git status").unwrap();
+
+            assert_eq!(request.program, "git");
+            assert_eq!(request.args, vec!["status"]);
+        }
+
+        #[test]
+        fn from_input_returns_none_for_empty() {
+            let request = CommandRequest::from_input("");
+
+            assert!(request.is_none());
+        }
+
+        #[test]
+        fn from_input_returns_none_for_whitespace() {
+            let request = CommandRequest::from_input("   ");
+
+            assert!(request.is_none());
+        }
+
+        #[test]
+        fn from_input_handles_multiple_spaces() {
+            let request = CommandRequest::from_input("git   status  -sb").unwrap();
+
+            assert_eq!(request.program, "git");
+            assert_eq!(request.args, vec!["status", "-sb"]);
+        }
+
+        #[test]
+        fn with_source_sets_source() {
+            let request = CommandRequest::git(["status"]).with_source(CommandSource::ActionMenu);
+
+            assert_eq!(request.source, CommandSource::ActionMenu);
+        }
+
+        #[test]
+        fn with_feedback_sets_policy() {
+            let request =
+                CommandRequest::git(["status"]).with_feedback(FeedbackPolicy::AlwaysPopup);
+
+            assert_eq!(request.feedback, FeedbackPolicy::AlwaysPopup);
+        }
+
+        #[test]
+        fn with_refresh_sets_refresh() {
+            let request = CommandRequest::git(["log"]).with_refresh(false);
+
+            assert!(!request.refresh_after);
+        }
+
+        #[test]
+        fn with_cwd_sets_directory() {
+            let request = CommandRequest::git(["status"]).with_cwd(PathBuf::from("/tmp"));
+
+            assert_eq!(request.cwd, Some(PathBuf::from("/tmp")));
+        }
+
+        #[test]
+        fn with_display_name_sets_name() {
+            let request = CommandRequest::git(["status"]).with_display_name("Check status");
+
+            assert_eq!(request.display_name, "Check status");
+        }
+
+        #[test]
+        fn git_alias_creates_alias_command() {
+            let request =
+                CommandRequest::git_alias("st", "status -sb", Path::new("/repo"));
+
+            assert_eq!(request.program, "git");
+            assert_eq!(request.args, vec!["status", "-sb"]);
+            assert_eq!(request.display_name, "git st");
+            assert_eq!(request.cwd, Some(PathBuf::from("/repo")));
+        }
+
+        #[test]
+        fn git_alias_with_complex_command() {
+            let request = CommandRequest::git_alias(
+                "lg",
+                "log --oneline --graph --all",
+                Path::new("/repo"),
+            );
+
+            assert_eq!(request.args, vec!["log", "--oneline", "--graph", "--all"]);
+            assert_eq!(request.display_name, "git lg");
+        }
+
+        #[test]
+        fn builder_chain_works() {
+            let request = CommandRequest::git(["push"])
+                .with_source(CommandSource::ActionMenu)
+                .with_feedback(FeedbackPolicy::AlwaysPopup)
+                .with_refresh(true)
+                .with_display_name("Push to origin");
+
+            assert_eq!(request.program, "git");
+            assert_eq!(request.source, CommandSource::ActionMenu);
+            assert_eq!(request.feedback, FeedbackPolicy::AlwaysPopup);
+            assert!(request.refresh_after);
+            assert_eq!(request.display_name, "Push to origin");
+        }
+    }
+}

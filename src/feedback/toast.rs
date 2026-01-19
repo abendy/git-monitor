@@ -87,3 +87,79 @@ impl Toast {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod toast {
+        use super::*;
+
+        #[test]
+        fn new_creates_toast_with_level() {
+            let toast = Toast::new("Test message", ToastLevel::Info);
+
+            assert_eq!(toast.message, "Test message");
+            assert_eq!(toast.level, ToastLevel::Info);
+        }
+
+        #[test]
+        fn info_creates_info_toast() {
+            let toast = Toast::info("Info message");
+
+            assert_eq!(toast.message, "Info message");
+            assert_eq!(toast.level, ToastLevel::Info);
+        }
+
+        #[test]
+        fn success_creates_success_toast() {
+            let toast = Toast::success("Success message");
+
+            assert_eq!(toast.message, "Success message");
+            assert_eq!(toast.level, ToastLevel::Success);
+        }
+
+        #[test]
+        fn warning_creates_warning_toast() {
+            let toast = Toast::warning("Warning message");
+
+            assert_eq!(toast.message, "Warning message");
+            assert_eq!(toast.level, ToastLevel::Warning);
+        }
+
+        #[test]
+        fn error_creates_error_toast() {
+            let toast = Toast::error("Error message");
+
+            assert_eq!(toast.message, "Error message");
+            assert_eq!(toast.level, ToastLevel::Error);
+        }
+
+        #[test]
+        fn new_toast_is_not_expired() {
+            let toast = Toast::new("Test", ToastLevel::Info);
+
+            assert!(!toast.is_expired());
+        }
+
+        #[test]
+        fn new_toast_has_high_remaining_fraction() {
+            let toast = Toast::new("Test", ToastLevel::Info);
+
+            // Should be close to 1.0 (just created)
+            assert!(toast.remaining_fraction() > 0.9);
+        }
+    }
+
+    mod toast_level {
+        use super::*;
+
+        #[test]
+        fn levels_are_distinct() {
+            assert_ne!(ToastLevel::Info, ToastLevel::Success);
+            assert_ne!(ToastLevel::Success, ToastLevel::Warning);
+            assert_ne!(ToastLevel::Warning, ToastLevel::Error);
+            assert_ne!(ToastLevel::Error, ToastLevel::Info);
+        }
+    }
+}

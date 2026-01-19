@@ -178,3 +178,265 @@ impl PopupState {
         self.visible_height = height;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod popup_content {
+        use super::*;
+
+        #[test]
+        fn none_is_not_active() {
+            let content = PopupContent::None;
+
+            assert!(!content.is_active());
+        }
+
+        #[test]
+        fn command_output_is_active() {
+            let content = PopupContent::CommandOutput {
+                command: "git status".to_string(),
+                output: "On branch main".to_string(),
+                success: true,
+            };
+
+            assert!(content.is_active());
+        }
+
+        #[test]
+        fn diff_is_active() {
+            let content = PopupContent::Diff {
+                path: "file.txt".to_string(),
+                content: "+new line".to_string(),
+                is_staged: false,
+            };
+
+            assert!(content.is_active());
+        }
+
+        #[test]
+        fn none_line_count_is_zero() {
+            let content = PopupContent::None;
+
+            assert_eq!(content.line_count(), 0);
+        }
+
+        #[test]
+        fn command_output_line_count() {
+            let content = PopupContent::CommandOutput {
+                command: "test".to_string(),
+                output: "line1\nline2\nline3".to_string(),
+                success: true,
+            };
+
+            assert_eq!(content.line_count(), 3);
+        }
+
+        #[test]
+        fn diff_line_count() {
+            let content = PopupContent::Diff {
+                path: "file.txt".to_string(),
+                content: "+a\n-b".to_string(),
+                is_staged: false,
+            };
+
+            assert_eq!(content.line_count(), 2);
+        }
+
+        #[test]
+        fn command_output_title() {
+            let content = PopupContent::CommandOutput {
+                command: "git status".to_string(),
+                output: "".to_string(),
+                success: true,
+            };
+
+            assert_eq!(content.title(), " Output: git status ");
+        }
+
+        #[test]
+        fn diff_title() {
+            let content = PopupContent::Diff {
+                path: "src/main.rs".to_string(),
+                content: "".to_string(),
+                is_staged: false,
+            };
+
+            assert_eq!(content.title(), " Diff: src/main.rs ");
+        }
+
+        #[test]
+        fn error_details_title() {
+            let content = PopupContent::ErrorDetails {
+                title: "Failed".to_string(),
+                message: "Something went wrong".to_string(),
+                context: vec![],
+            };
+
+            assert_eq!(content.title(), " Error: Failed ");
+        }
+
+        #[test]
+        fn is_success_true_for_successful_command() {
+            let content = PopupContent::CommandOutput {
+                command: "test".to_string(),
+                output: "".to_string(),
+                success: true,
+            };
+
+            assert!(content.is_success());
+        }
+
+        #[test]
+        fn is_success_false_for_failed_command() {
+            let content = PopupContent::CommandOutput {
+                command: "test".to_string(),
+                output: "".to_string(),
+                success: false,
+            };
+
+            assert!(!content.is_success());
+        }
+
+        #[test]
+        fn is_success_true_for_non_command() {
+            let content = PopupContent::Diff {
+                path: "".to_string(),
+                content: "".to_string(),
+                is_staged: false,
+            };
+
+            assert!(content.is_success());
+        }
+    }
+
+    mod popup_state {
+        use super::*;
+
+        #[test]
+        fn default_is_closed() {
+            let state = PopupState::default();
+
+            assert!(!state.is_open());
+        }
+
+        #[test]
+        fn open_sets_content() {
+            let mut state = PopupState::default();
+
+            state.open(PopupContent::CommandOutput {
+                command: "test".to_string(),
+                output: "output".to_string(),
+                success: true,
+            });
+
+            assert!(state.is_open());
+        }
+
+        #[test]
+        fn open_resets_scroll() {
+            let mut state = PopupState::default();
+            state.scroll_offset = 10;
+
+            state.open(PopupContent::CommandOutput {
+                command: "test".to_string(),
+                output: "output".to_string(),
+                success: true,
+            });
+
+            assert_eq!(state.scroll_offset, 0);
+        }
+
+        #[test]
+        fn close_clears_content() {
+            let mut state = PopupState::default();
+            state.open(PopupContent::CommandOutput {
+                command: "test".to_string(),
+                output: "output".to_string(),
+                success: true,
+            });
+
+            state.close();
+
+            assert!(!state.is_open());
+        }
+
+        #[test]
+        fn scroll_down_increases_offset() {
+            let mut state = PopupState::default();
+            state.open(PopupContent::CommandOutput {
+                command: "test".to_string(),
+                output: "1\n2\n3\n4\n5\n6\n7\n8\n9\n10".to_string(),
+                success: true,
+            });
+            state.visible_height = 5;
+
+            state.scroll_down(2);
+
+            assert_eq!(state.scroll_offset, 2);
+        }
+
+        #[test]
+        fn scroll_down_respects_max() {
+            let mut state = PopupState::default();
+            state.open(PopupContent::CommandOutput {
+                command: "test".to_string(),
+                output: "1\n2\n3".to_string(), // 3 lines
+                success: true,
+            });
+            state.visible_height = 2;
+
+            state.scroll_down(100);
+
+            // Max offset = 3 - 2 = 1
+            assert_eq!(state.scroll_offset, 1);
+        }
+
+        #[test]
+        fn scroll_up_decreases_offset() {
+            let mut state = PopupState::default();
+            state.scroll_offset = 5;
+
+            state.scroll_up(2);
+
+            assert_eq!(state.scroll_offset, 3);
+        }
+
+        #[test]
+        fn scroll_up_stops_at_zero() {
+            let mut state = PopupState::default();
+            state.scroll_offset = 2;
+
+            state.scroll_up(100);
+
+            assert_eq!(state.scroll_offset, 0);
+        }
+
+        #[test]
+        fn scroll_to_top_resets_offset() {
+            let mut state = PopupState::default();
+            state.scroll_offset = 10;
+
+            state.scroll_to_top();
+
+            assert_eq!(state.scroll_offset, 0);
+        }
+
+        #[test]
+        fn scroll_to_bottom_sets_max_offset() {
+            let mut state = PopupState::default();
+            state.open(PopupContent::CommandOutput {
+                command: "test".to_string(),
+                output: "1\n2\n3\n4\n5".to_string(), // 5 lines
+                success: true,
+            });
+            state.visible_height = 3;
+
+            state.scroll_to_bottom();
+
+            // Max offset = 5 - 3 = 2
+            assert_eq!(state.scroll_offset, 2);
+        }
+    }
+}

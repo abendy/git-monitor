@@ -307,3 +307,96 @@ pub fn render_menu(menu: &dyn Menu, frame: &mut Frame<'_>, area: Rect) {
 
     frame.render_widget(list, area);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod menu_item {
+        use super::*;
+
+        #[test]
+        fn new_creates_default_item() {
+            let item = MenuItem::new("Test");
+
+            assert_eq!(item.label, "Test");
+            assert!(item.description.is_none());
+            assert!(item.key_hint.is_none());
+            assert!(item.enabled);
+            assert!(matches!(item.style, ItemStyle::Normal));
+        }
+
+        #[test]
+        fn with_description_sets_description() {
+            let item = MenuItem::new("Test").with_description("A description");
+
+            assert_eq!(item.description, Some("A description".to_string()));
+        }
+
+        #[test]
+        fn with_key_sets_key_hint() {
+            let item = MenuItem::new("Test").with_key("Enter");
+
+            assert_eq!(item.key_hint, Some("Enter".to_string()));
+        }
+
+        #[test]
+        fn enabled_sets_state() {
+            let item = MenuItem::new("Test").enabled(false);
+
+            assert!(!item.enabled);
+        }
+
+        #[test]
+        fn with_style_sets_style() {
+            let item = MenuItem::new("Test").with_style(ItemStyle::Disabled);
+
+            assert!(matches!(item.style, ItemStyle::Disabled));
+        }
+
+        #[test]
+        fn separator_creates_disabled_separator() {
+            let item = MenuItem::separator();
+
+            assert!(item.label.is_empty());
+            assert!(!item.enabled);
+            assert!(matches!(item.style, ItemStyle::Separator));
+        }
+
+        #[test]
+        fn header_creates_disabled_header() {
+            let item = MenuItem::header("Section");
+
+            assert_eq!(item.label, "Section");
+            assert!(!item.enabled);
+            assert!(matches!(item.style, ItemStyle::Header));
+        }
+
+        #[test]
+        fn checkbox_creates_checkbox_item() {
+            let checked = MenuItem::checkbox("Option", true);
+            let unchecked = MenuItem::checkbox("Option", false);
+
+            assert!(checked.enabled);
+            assert!(matches!(checked.style, ItemStyle::Checkbox { checked: true }));
+            assert!(matches!(
+                unchecked.style,
+                ItemStyle::Checkbox { checked: false }
+            ));
+        }
+
+        #[test]
+        fn builder_chain_works() {
+            let item = MenuItem::new("Action")
+                .with_description("Does something")
+                .with_key("a")
+                .enabled(true)
+                .with_style(ItemStyle::Normal);
+
+            assert_eq!(item.label, "Action");
+            assert_eq!(item.description, Some("Does something".to_string()));
+            assert_eq!(item.key_hint, Some("a".to_string()));
+            assert!(item.enabled);
+        }
+    }
+}

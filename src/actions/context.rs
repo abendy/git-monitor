@@ -39,3 +39,61 @@ impl Context {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_name_command() {
+        assert_eq!(Context::Command.display_name(), "Command");
+    }
+
+    #[test]
+    fn display_name_staged_files() {
+        assert_eq!(Context::StagedFiles.display_name(), "Staged Files");
+    }
+
+    #[test]
+    fn display_name_working_files() {
+        assert_eq!(Context::WorkingFiles.display_name(), "Working Files");
+    }
+
+    #[test]
+    fn display_name_history_header() {
+        assert_eq!(Context::HistoryHeader.display_name(), "History");
+    }
+
+    #[test]
+    fn display_name_history_commits() {
+        assert_eq!(Context::HistoryCommits.display_name(), "History");
+    }
+
+    #[test]
+    fn display_name_commit_files() {
+        assert_eq!(Context::CommitFiles.display_name(), "Commit Files");
+    }
+
+    #[test]
+    fn display_name_branch_header() {
+        assert_eq!(Context::BranchHeader.display_name(), "Branch");
+    }
+
+    #[test]
+    fn display_name_branch_commits() {
+        assert_eq!(Context::BranchCommits.display_name(), "Branch Commits");
+    }
+
+    #[test]
+    fn display_name_global() {
+        assert_eq!(Context::Global.display_name(), "Global");
+    }
+
+    #[test]
+    fn contexts_are_distinct() {
+        assert_ne!(Context::Command, Context::StagedFiles);
+        assert_ne!(Context::StagedFiles, Context::WorkingFiles);
+        assert_ne!(Context::HistoryHeader, Context::HistoryCommits);
+        assert_ne!(Context::BranchHeader, Context::BranchCommits);
+    }
+}

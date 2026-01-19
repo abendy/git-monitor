@@ -179,3 +179,308 @@ impl Menu for AliasItemsMenu {
         super::render_menu(self, frame, area);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn test_aliases() -> Vec<Alias> {
+        vec![
+            Alias {
+                name: "co".to_string(),
+                command: "checkout".to_string(),
+            },
+            Alias {
+                name: "br".to_string(),
+                command: "branch".to_string(),
+            },
+            Alias {
+                name: "st".to_string(),
+                command: "status -sb".to_string(),
+            },
+        ]
+    }
+
+    fn test_sections() -> Vec<AliasSection> {
+        vec![
+            AliasSection {
+                name: "checkout".to_string(),
+                aliases: vec![
+                    Alias {
+                        name: "co".to_string(),
+                        command: "checkout".to_string(),
+                    },
+                ],
+            },
+            AliasSection {
+                name: "branch".to_string(),
+                aliases: vec![
+                    Alias {
+                        name: "br".to_string(),
+                        command: "branch".to_string(),
+                    },
+                    Alias {
+                        name: "bra".to_string(),
+                        command: "branch -a".to_string(),
+                    },
+                ],
+            },
+        ]
+    }
+
+    mod alias_section_menu {
+        use super::*;
+
+        #[test]
+        fn new_creates_menu() {
+            let sections = test_sections();
+            let menu = AliasSectionMenu::new(sections, PathBuf::from("/repo"));
+
+            assert_eq!(menu.title(), "Alias Sections");
+            assert_eq!(menu.selected(), 0);
+        }
+
+        #[test]
+        fn items_returns_sections_with_counts() {
+            let sections = test_sections();
+            let menu = AliasSectionMenu::new(sections, PathBuf::from("/repo"));
+
+            let items = menu.items();
+
+            assert_eq!(items.len(), 2);
+            assert_eq!(items[0].label, "checkout");
+            assert_eq!(items[0].description, Some("1 aliases".to_string()));
+            assert_eq!(items[1].label, "branch");
+            assert_eq!(items[1].description, Some("2 aliases".to_string()));
+        }
+
+        #[test]
+        fn set_selected_updates_selection() {
+            let sections = test_sections();
+            let mut menu = AliasSectionMenu::new(sections, PathBuf::from("/repo"));
+
+            menu.set_selected(1);
+
+            assert_eq!(menu.selected(), 1);
+        }
+
+        #[test]
+        fn set_selected_ignores_out_of_bounds() {
+            let sections = test_sections();
+            let mut menu = AliasSectionMenu::new(sections, PathBuf::from("/repo"));
+
+            menu.set_selected(10);
+
+            assert_eq!(menu.selected(), 0);
+        }
+
+        #[test]
+        fn handle_key_esc_closes() {
+            let sections = test_sections();
+            let mut menu = AliasSectionMenu::new(sections, PathBuf::from("/repo"));
+
+            let result = menu.handle_key(KeyEvent::from(KeyCode::Esc));
+
+            assert!(matches!(result, MenuResult::Close));
+        }
+
+        #[test]
+        fn handle_key_q_closes() {
+            let sections = test_sections();
+            let mut menu = AliasSectionMenu::new(sections, PathBuf::from("/repo"));
+
+            let result = menu.handle_key(KeyEvent::from(KeyCode::Char('q')));
+
+            assert!(matches!(result, MenuResult::Close));
+        }
+
+        #[test]
+        fn handle_key_a_closes() {
+            let sections = test_sections();
+            let mut menu = AliasSectionMenu::new(sections, PathBuf::from("/repo"));
+
+            let result = menu.handle_key(KeyEvent::from(KeyCode::Char('a')));
+
+            assert!(matches!(result, MenuResult::Close));
+        }
+
+        #[test]
+        fn handle_key_enter_pushes_items_menu() {
+            let sections = test_sections();
+            let mut menu = AliasSectionMenu::new(sections, PathBuf::from("/repo"));
+
+            let result = menu.handle_key(KeyEvent::from(KeyCode::Enter));
+
+            assert!(matches!(result, MenuResult::Push(_)));
+        }
+
+        #[test]
+        fn handle_key_down_navigates() {
+            let sections = test_sections();
+            let mut menu = AliasSectionMenu::new(sections, PathBuf::from("/repo"));
+
+            menu.handle_key(KeyEvent::from(KeyCode::Down));
+
+            assert_eq!(menu.selected(), 1);
+        }
+
+        #[test]
+        fn handle_key_j_navigates_down() {
+            let sections = test_sections();
+            let mut menu = AliasSectionMenu::new(sections, PathBuf::from("/repo"));
+
+            menu.handle_key(KeyEvent::from(KeyCode::Char('j')));
+
+            assert_eq!(menu.selected(), 1);
+        }
+    }
+
+    mod alias_items_menu {
+        use super::*;
+
+        #[test]
+        fn new_creates_menu() {
+            let aliases = test_aliases();
+            let menu = AliasItemsMenu::new(
+                "checkout".to_string(),
+                aliases,
+                PathBuf::from("/repo"),
+            );
+
+            assert_eq!(menu.title(), "checkout");
+            assert_eq!(menu.selected(), 0);
+        }
+
+        #[test]
+        fn items_returns_aliases() {
+            let aliases = test_aliases();
+            let menu = AliasItemsMenu::new(
+                "section".to_string(),
+                aliases,
+                PathBuf::from("/repo"),
+            );
+
+            let items = menu.items();
+
+            assert_eq!(items.len(), 3);
+            assert_eq!(items[0].label, "co");
+            assert_eq!(items[0].key_hint, Some("co".to_string()));
+            assert_eq!(items[0].description, Some("checkout".to_string()));
+            assert_eq!(items[2].description, Some("status -sb".to_string()));
+        }
+
+        #[test]
+        fn set_selected_updates_selection() {
+            let aliases = test_aliases();
+            let mut menu = AliasItemsMenu::new(
+                "section".to_string(),
+                aliases,
+                PathBuf::from("/repo"),
+            );
+
+            menu.set_selected(2);
+
+            assert_eq!(menu.selected(), 2);
+        }
+
+        #[test]
+        fn set_selected_ignores_out_of_bounds() {
+            let aliases = test_aliases();
+            let mut menu = AliasItemsMenu::new(
+                "section".to_string(),
+                aliases,
+                PathBuf::from("/repo"),
+            );
+
+            menu.set_selected(10);
+
+            assert_eq!(menu.selected(), 0);
+        }
+
+        #[test]
+        fn handle_key_esc_pops() {
+            let aliases = test_aliases();
+            let mut menu = AliasItemsMenu::new(
+                "section".to_string(),
+                aliases,
+                PathBuf::from("/repo"),
+            );
+
+            let result = menu.handle_key(KeyEvent::from(KeyCode::Esc));
+
+            assert!(matches!(result, MenuResult::Pop));
+        }
+
+        #[test]
+        fn handle_key_q_pops() {
+            let aliases = test_aliases();
+            let mut menu = AliasItemsMenu::new(
+                "section".to_string(),
+                aliases,
+                PathBuf::from("/repo"),
+            );
+
+            let result = menu.handle_key(KeyEvent::from(KeyCode::Char('q')));
+
+            assert!(matches!(result, MenuResult::Pop));
+        }
+
+        #[test]
+        fn handle_key_a_closes_all() {
+            let aliases = test_aliases();
+            let mut menu = AliasItemsMenu::new(
+                "section".to_string(),
+                aliases,
+                PathBuf::from("/repo"),
+            );
+
+            let result = menu.handle_key(KeyEvent::from(KeyCode::Char('a')));
+
+            assert!(matches!(result, MenuResult::CloseAll));
+        }
+
+        #[test]
+        fn handle_key_enter_executes_alias() {
+            let aliases = test_aliases();
+            let mut menu = AliasItemsMenu::new(
+                "section".to_string(),
+                aliases,
+                PathBuf::from("/repo"),
+            );
+
+            let result = menu.handle_key(KeyEvent::from(KeyCode::Enter));
+
+            assert!(matches!(result, MenuResult::Execute(MenuAction::Command(_))));
+        }
+
+        #[test]
+        fn handle_key_down_navigates() {
+            let aliases = test_aliases();
+            let mut menu = AliasItemsMenu::new(
+                "section".to_string(),
+                aliases,
+                PathBuf::from("/repo"),
+            );
+
+            menu.handle_key(KeyEvent::from(KeyCode::Down));
+
+            assert_eq!(menu.selected(), 1);
+        }
+
+        #[test]
+        fn handle_key_up_navigates() {
+            let aliases = test_aliases();
+            let mut menu = AliasItemsMenu::new(
+                "section".to_string(),
+                aliases,
+                PathBuf::from("/repo"),
+            );
+            menu.set_selected(2);
+
+            menu.handle_key(KeyEvent::from(KeyCode::Up));
+
+            assert_eq!(menu.selected(), 1);
+        }
+    }
+}

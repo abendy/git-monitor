@@ -295,3 +295,234 @@ impl Menu for ConfirmMenu {
         frame.render_widget(para, area);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod checkbox {
+        use super::*;
+
+        #[test]
+        fn new_creates_unchecked_checkbox() {
+            let cb = Checkbox::new("Test", "test_key");
+
+            assert_eq!(cb.label, "Test");
+            assert_eq!(cb.key, "test_key");
+            assert!(!cb.checked);
+            assert!(cb.shortcut.is_none());
+        }
+
+        #[test]
+        fn checked_sets_initial_state() {
+            let cb = Checkbox::new("Test", "key").checked(true);
+
+            assert!(cb.checked);
+        }
+
+        #[test]
+        fn with_shortcut_sets_shortcut() {
+            let cb = Checkbox::new("Test", "key").with_shortcut('t');
+
+            assert_eq!(cb.shortcut, Some('t'));
+        }
+
+        #[test]
+        fn builder_chain_works() {
+            let cb = Checkbox::new("Force", "force")
+                .checked(false)
+                .with_shortcut('f');
+
+            assert_eq!(cb.label, "Force");
+            assert_eq!(cb.key, "force");
+            assert!(!cb.checked);
+            assert_eq!(cb.shortcut, Some('f'));
+        }
+    }
+
+    mod confirm_menu {
+        use super::*;
+
+        #[test]
+        fn new_creates_menu() {
+            let menu = ConfirmMenu::new("Confirm", "Are you sure?");
+
+            assert_eq!(menu.title(), "Confirm");
+            assert_eq!(menu.selected(), 0); // Focus on confirm button
+        }
+
+        #[test]
+        fn with_info_adds_info_line() {
+            let menu = ConfirmMenu::new("Confirm", "Message")
+                .with_info("Branch", "main");
+
+            assert_eq!(menu.info.len(), 1);
+            assert_eq!(menu.info[0], ("Branch".to_string(), "main".to_string()));
+        }
+
+        #[test]
+        fn with_checkbox_adds_checkbox() {
+            let menu = ConfirmMenu::new("Confirm", "Message")
+                .with_checkbox(Checkbox::new("Option", "opt"));
+
+            assert_eq!(menu.checkboxes.len(), 1);
+        }
+
+        #[test]
+        fn get_checkbox_returns_false_for_unchecked() {
+            let menu = ConfirmMenu::new("Confirm", "Message")
+                .with_checkbox(Checkbox::new("Option", "opt"));
+
+            assert!(!menu.get_checkbox("opt"));
+        }
+
+        #[test]
+        fn get_checkbox_returns_true_for_checked() {
+            let menu = ConfirmMenu::new("Confirm", "Message")
+                .with_checkbox(Checkbox::new("Option", "opt").checked(true));
+
+            assert!(menu.get_checkbox("opt"));
+        }
+
+        #[test]
+        fn get_checkbox_returns_false_for_unknown_key() {
+            let menu = ConfirmMenu::new("Confirm", "Message");
+
+            assert!(!menu.get_checkbox("unknown"));
+        }
+
+        #[test]
+        fn set_selected_updates_focus() {
+            let mut menu = ConfirmMenu::new("Confirm", "Message")
+                .with_checkbox(Checkbox::new("Opt1", "opt1"))
+                .with_checkbox(Checkbox::new("Opt2", "opt2"));
+
+            menu.set_selected(1);
+
+            assert_eq!(menu.selected(), 1);
+        }
+
+        #[test]
+        fn set_selected_ignores_out_of_bounds() {
+            let mut menu = ConfirmMenu::new("Confirm", "Message")
+                .with_checkbox(Checkbox::new("Opt", "opt"));
+
+            menu.set_selected(10);
+
+            // Max is 2 (confirm button + 1 checkbox)
+            assert_eq!(menu.selected(), 0);
+        }
+
+        #[test]
+        fn handle_key_y_closes_with_confirm() {
+            let mut menu = ConfirmMenu::new("Confirm", "Message");
+
+            let result = menu.handle_key(KeyEvent::from(KeyCode::Char('y')));
+
+            assert!(matches!(result, MenuResult::Close));
+        }
+
+        #[test]
+        fn handle_key_n_closes_all() {
+            let mut menu = ConfirmMenu::new("Confirm", "Message");
+
+            let result = menu.handle_key(KeyEvent::from(KeyCode::Char('n')));
+
+            assert!(matches!(result, MenuResult::CloseAll));
+        }
+
+        #[test]
+        fn handle_key_esc_closes_all() {
+            let mut menu = ConfirmMenu::new("Confirm", "Message");
+
+            let result = menu.handle_key(KeyEvent::from(KeyCode::Esc));
+
+            assert!(matches!(result, MenuResult::CloseAll));
+        }
+
+        #[test]
+        fn handle_key_enter_on_button_closes() {
+            let mut menu = ConfirmMenu::new("Confirm", "Message");
+            // Focus is on button by default (0)
+
+            let result = menu.handle_key(KeyEvent::from(KeyCode::Enter));
+
+            assert!(matches!(result, MenuResult::Close));
+        }
+
+        #[test]
+        fn handle_key_enter_on_checkbox_toggles() {
+            let mut menu = ConfirmMenu::new("Confirm", "Message")
+                .with_checkbox(Checkbox::new("Option", "opt"));
+            menu.set_selected(1); // Focus on checkbox
+
+            let result = menu.handle_key(KeyEvent::from(KeyCode::Enter));
+
+            assert!(matches!(result, MenuResult::Continue));
+            assert!(menu.get_checkbox("opt"));
+        }
+
+        #[test]
+        fn handle_key_space_toggles_focused_checkbox() {
+            let mut menu = ConfirmMenu::new("Confirm", "Message")
+                .with_checkbox(Checkbox::new("Option", "opt"));
+            menu.set_selected(1); // Focus on checkbox
+
+            menu.handle_key(KeyEvent::from(KeyCode::Char(' ')));
+
+            assert!(menu.get_checkbox("opt"));
+        }
+
+        #[test]
+        fn handle_key_shortcut_toggles_checkbox() {
+            let mut menu = ConfirmMenu::new("Confirm", "Message")
+                .with_checkbox(Checkbox::new("Force", "force").with_shortcut('f'));
+
+            menu.handle_key(KeyEvent::from(KeyCode::Char('f')));
+
+            assert!(menu.get_checkbox("force"));
+        }
+
+        #[test]
+        fn handle_key_down_navigates() {
+            let mut menu = ConfirmMenu::new("Confirm", "Message")
+                .with_checkbox(Checkbox::new("Option", "opt"));
+
+            menu.handle_key(KeyEvent::from(KeyCode::Down));
+
+            assert_eq!(menu.selected(), 1);
+        }
+
+        #[test]
+        fn handle_key_up_navigates() {
+            let mut menu = ConfirmMenu::new("Confirm", "Message")
+                .with_checkbox(Checkbox::new("Option", "opt"));
+            menu.set_selected(1);
+
+            menu.handle_key(KeyEvent::from(KeyCode::Up));
+
+            assert_eq!(menu.selected(), 0);
+        }
+
+        #[test]
+        fn handle_key_j_navigates_down() {
+            let mut menu = ConfirmMenu::new("Confirm", "Message")
+                .with_checkbox(Checkbox::new("Option", "opt"));
+
+            menu.handle_key(KeyEvent::from(KeyCode::Char('j')));
+
+            assert_eq!(menu.selected(), 1);
+        }
+
+        #[test]
+        fn handle_key_k_navigates_up() {
+            let mut menu = ConfirmMenu::new("Confirm", "Message")
+                .with_checkbox(Checkbox::new("Option", "opt"));
+            menu.set_selected(1);
+
+            menu.handle_key(KeyEvent::from(KeyCode::Char('k')));
+
+            assert_eq!(menu.selected(), 0);
+        }
+    }
+}

@@ -271,3 +271,250 @@ impl Menu for PushConfirmMenu {
         frame.render_widget(para, area);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod push_confirm_menu {
+        use super::*;
+
+        fn create_menu() -> PushConfirmMenu {
+            PushConfirmMenu::new(
+                "main".to_string(),
+                "origin".to_string(),
+                true,  // has_upstream
+                3,     // ahead
+                false, // force
+            )
+        }
+
+        #[test]
+        fn new_creates_menu() {
+            let menu = create_menu();
+
+            assert_eq!(menu.title(), "Push Confirmation");
+            assert_eq!(menu.selected(), 0); // Focus on confirm button
+        }
+
+        #[test]
+        fn new_without_upstream() {
+            let menu = PushConfirmMenu::new(
+                "feature".to_string(),
+                "origin".to_string(),
+                false, // no upstream
+                0,
+                false,
+            );
+
+            assert!(!menu.has_upstream);
+        }
+
+        #[test]
+        fn set_selected_updates_focus() {
+            let mut menu = create_menu();
+
+            menu.set_selected(1);
+
+            assert_eq!(menu.selected(), 1);
+        }
+
+        #[test]
+        fn set_selected_ignores_out_of_bounds() {
+            let mut menu = create_menu();
+
+            menu.set_selected(5);
+
+            assert_eq!(menu.selected(), 0);
+        }
+
+        #[test]
+        fn handle_key_f_toggles_force() {
+            let mut menu = create_menu();
+            assert!(!menu.force);
+
+            menu.handle_key(KeyEvent::from(KeyCode::Char('f')));
+
+            assert!(menu.force);
+        }
+
+        #[test]
+        fn handle_key_f_toggles_force_off() {
+            let mut menu = PushConfirmMenu::new(
+                "main".to_string(),
+                "origin".to_string(),
+                true,
+                0,
+                true, // force enabled
+            );
+
+            menu.handle_key(KeyEvent::from(KeyCode::Char('f')));
+
+            assert!(!menu.force);
+        }
+
+        #[test]
+        fn handle_key_space_toggles_when_on_checkbox() {
+            let mut menu = create_menu();
+            menu.set_selected(1); // Focus on checkbox
+
+            menu.handle_key(KeyEvent::from(KeyCode::Char(' ')));
+
+            assert!(menu.force);
+        }
+
+        #[test]
+        fn handle_key_space_does_nothing_when_on_button() {
+            let mut menu = create_menu();
+            // Focus is on button (0)
+
+            menu.handle_key(KeyEvent::from(KeyCode::Char(' ')));
+
+            assert!(!menu.force);
+        }
+
+        #[test]
+        fn handle_key_y_executes() {
+            let mut menu = create_menu();
+
+            let result = menu.handle_key(KeyEvent::from(KeyCode::Char('y')));
+
+            assert!(matches!(result, MenuResult::Execute(MenuAction::Command(_))));
+        }
+
+        #[test]
+        fn handle_key_enter_on_button_executes() {
+            let mut menu = create_menu();
+            // Focus is on button (0)
+
+            let result = menu.handle_key(KeyEvent::from(KeyCode::Enter));
+
+            assert!(matches!(result, MenuResult::Execute(MenuAction::Command(_))));
+        }
+
+        #[test]
+        fn handle_key_enter_on_checkbox_toggles() {
+            let mut menu = create_menu();
+            menu.set_selected(1); // Focus on checkbox
+
+            let result = menu.handle_key(KeyEvent::from(KeyCode::Enter));
+
+            assert!(matches!(result, MenuResult::Continue));
+            assert!(menu.force);
+        }
+
+        #[test]
+        fn handle_key_n_closes_all() {
+            let mut menu = create_menu();
+
+            let result = menu.handle_key(KeyEvent::from(KeyCode::Char('n')));
+
+            assert!(matches!(result, MenuResult::CloseAll));
+        }
+
+        #[test]
+        fn handle_key_esc_closes_all() {
+            let mut menu = create_menu();
+
+            let result = menu.handle_key(KeyEvent::from(KeyCode::Esc));
+
+            assert!(matches!(result, MenuResult::CloseAll));
+        }
+
+        #[test]
+        fn handle_key_q_closes_all() {
+            let mut menu = create_menu();
+
+            let result = menu.handle_key(KeyEvent::from(KeyCode::Char('q')));
+
+            assert!(matches!(result, MenuResult::CloseAll));
+        }
+
+        #[test]
+        fn handle_key_down_navigates() {
+            let mut menu = create_menu();
+
+            menu.handle_key(KeyEvent::from(KeyCode::Down));
+
+            assert_eq!(menu.selected(), 1);
+        }
+
+        #[test]
+        fn handle_key_up_navigates() {
+            let mut menu = create_menu();
+            menu.set_selected(1);
+
+            menu.handle_key(KeyEvent::from(KeyCode::Up));
+
+            assert_eq!(menu.selected(), 0);
+        }
+
+        #[test]
+        fn handle_key_j_navigates_down() {
+            let mut menu = create_menu();
+
+            menu.handle_key(KeyEvent::from(KeyCode::Char('j')));
+
+            assert_eq!(menu.selected(), 1);
+        }
+
+        #[test]
+        fn handle_key_k_navigates_up() {
+            let mut menu = create_menu();
+            menu.set_selected(1);
+
+            menu.handle_key(KeyEvent::from(KeyCode::Char('k')));
+
+            assert_eq!(menu.selected(), 0);
+        }
+    }
+
+    mod build_command {
+        use super::*;
+
+        #[test]
+        fn simple_push_with_upstream() {
+            let menu = PushConfirmMenu::new(
+                "main".to_string(),
+                "origin".to_string(),
+                true,  // has_upstream
+                0,
+                false, // no force
+            );
+
+            let cmd = menu.build_command();
+
+            assert_eq!(cmd.display_name, "git push");
+        }
+
+        #[test]
+        fn push_without_upstream_sets_upstream() {
+            let menu = PushConfirmMenu::new(
+                "feature".to_string(),
+                "origin".to_string(),
+                false, // no upstream
+                0,
+                false,
+            );
+
+            let cmd = menu.build_command();
+
+            assert_eq!(cmd.display_name, "git push -u origin feature");
+        }
+
+        #[test]
+        fn force_push_uses_force_with_lease() {
+            let menu = PushConfirmMenu::new(
+                "main".to_string(),
+                "origin".to_string(),
+                true,
+                0,
+                true, // force
+            );
+
+            let cmd = menu.build_command();
+
+            assert_eq!(cmd.display_name, "git push --force-with-lease origin");
+        }
+    }
+}

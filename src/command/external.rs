@@ -150,35 +150,287 @@ fn build_editor_command(editor: &str, path: &str) -> Command {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_file_pager_diff_description() {
-        let cmd = ExternalCommand::FilePagerDiff {
-            file_path: "src/main.rs".to_string(),
-            staged: false,
-        };
-        assert_eq!(
-            cmd.description(),
-            "git diff -- src/main.rs"
-        );
+    mod description {
+        use super::*;
 
-        let staged = ExternalCommand::FilePagerDiff {
-            file_path: "src/main.rs".to_string(),
-            staged: true,
-        };
-        assert_eq!(
-            staged.description(),
-            "git diff --staged -- src/main.rs"
-        );
+        #[test]
+        fn pager_diff_shows_commit_and_file() {
+            let cmd = ExternalCommand::PagerDiff {
+                commit_sha: "abc1234".to_string(),
+                file_path: "src/main.rs".to_string(),
+            };
+
+            assert_eq!(cmd.description(), "git show abc1234 -- src/main.rs");
+        }
+
+        #[test]
+        fn diff_tool_shows_commit_and_file() {
+            let cmd = ExternalCommand::DiffTool {
+                commit_sha: "abc1234".to_string(),
+                file_path: "src/lib.rs".to_string(),
+            };
+
+            assert_eq!(cmd.description(), "git difftool abc1234 -- src/lib.rs");
+        }
+
+        #[test]
+        fn file_pager_diff_unstaged_shows_diff() {
+            let cmd = ExternalCommand::FilePagerDiff {
+                file_path: "src/main.rs".to_string(),
+                staged: false,
+            };
+
+            assert_eq!(cmd.description(), "git diff -- src/main.rs");
+        }
+
+        #[test]
+        fn file_pager_diff_staged_includes_flag() {
+            let cmd = ExternalCommand::FilePagerDiff {
+                file_path: "src/main.rs".to_string(),
+                staged: true,
+            };
+
+            assert_eq!(cmd.description(), "git diff --staged -- src/main.rs");
+        }
+
+        #[test]
+        fn file_diff_tool_unstaged_shows_difftool() {
+            let cmd = ExternalCommand::FileDiffTool {
+                file_path: "src/app.rs".to_string(),
+                staged: false,
+            };
+
+            assert_eq!(cmd.description(), "git difftool -- src/app.rs");
+        }
+
+        #[test]
+        fn file_diff_tool_staged_includes_flag() {
+            let cmd = ExternalCommand::FileDiffTool {
+                file_path: "src/app.rs".to_string(),
+                staged: true,
+            };
+
+            assert_eq!(cmd.description(), "git difftool --staged -- src/app.rs");
+        }
+
+        #[test]
+        fn interactive_rebase_shows_onto() {
+            let cmd = ExternalCommand::InteractiveRebase {
+                onto: "HEAD~3".to_string(),
+            };
+
+            assert_eq!(cmd.description(), "git rebase -i HEAD~3");
+        }
+
+        #[test]
+        fn interactive_rebase_with_sha() {
+            let cmd = ExternalCommand::InteractiveRebase {
+                onto: "abc1234".to_string(),
+            };
+
+            assert_eq!(cmd.description(), "git rebase -i abc1234");
+        }
+
+        #[test]
+        fn open_editor_shows_command_and_path() {
+            let cmd = ExternalCommand::OpenEditor {
+                editor: "vim".to_string(),
+                path: "/path/to/file.rs".to_string(),
+            };
+
+            assert_eq!(cmd.description(), "vim /path/to/file.rs");
+        }
+
+        #[test]
+        fn open_editor_with_editor_args() {
+            let cmd = ExternalCommand::OpenEditor {
+                editor: "code --wait".to_string(),
+                path: "/path/to/file.rs".to_string(),
+            };
+
+            assert_eq!(cmd.description(), "code --wait /path/to/file.rs");
+        }
     }
 
-    #[test]
-    fn test_interactive_rebase_description() {
-        let cmd = ExternalCommand::InteractiveRebase {
-            onto: "HEAD~3".to_string(),
-        };
-        assert_eq!(
-            cmd.description(),
-            "git rebase -i HEAD~3"
-        );
+    mod build_editor_command {
+        use super::*;
+
+        #[test]
+        fn simple_editor_name() {
+            let cmd = build_editor_command("vim", "file.txt");
+
+            assert_eq!(cmd.get_program(), "vim");
+            let args: Vec<_> = cmd.get_args().collect();
+            assert_eq!(args, vec!["file.txt"]);
+        }
+
+        #[test]
+        fn editor_with_single_arg() {
+            let cmd = build_editor_command("code --wait", "file.txt");
+
+            assert_eq!(cmd.get_program(), "code");
+            let args: Vec<_> = cmd.get_args().collect();
+            assert_eq!(args, vec!["--wait", "file.txt"]);
+        }
+
+        #[test]
+        fn editor_with_multiple_args() {
+            let cmd = build_editor_command("emacs -nw --no-splash", "project/main.rs");
+
+            assert_eq!(cmd.get_program(), "emacs");
+            let args: Vec<_> = cmd.get_args().collect();
+            assert_eq!(args, vec!["-nw", "--no-splash", "project/main.rs"]);
+        }
+
+        #[test]
+        fn empty_editor_uses_empty_as_program() {
+            let cmd = build_editor_command("", "file.txt");
+
+            assert_eq!(cmd.get_program(), "");
+            let args: Vec<_> = cmd.get_args().collect();
+            assert_eq!(args, vec!["file.txt"]);
+        }
+    }
+
+    mod build_command {
+        use super::*;
+
+        #[test]
+        fn pager_diff_uses_git_paginate() {
+            let external = ExternalCommand::PagerDiff {
+                commit_sha: "abc1234".to_string(),
+                file_path: "src/main.rs".to_string(),
+            };
+
+            let cmd = external.build_command();
+
+            assert_eq!(cmd.get_program(), "git");
+            let args: Vec<_> = cmd.get_args().collect();
+            assert_eq!(args, vec!["--paginate", "show", "abc1234", "--", "src/main.rs"]);
+        }
+
+        #[test]
+        fn diff_tool_uses_parent_commit_range() {
+            let external = ExternalCommand::DiffTool {
+                commit_sha: "abc1234".to_string(),
+                file_path: "src/lib.rs".to_string(),
+            };
+
+            let cmd = external.build_command();
+
+            assert_eq!(cmd.get_program(), "git");
+            let args: Vec<_> = cmd.get_args().collect();
+            assert_eq!(
+                args,
+                vec!["difftool", "--no-prompt", "abc1234~1..abc1234", "--", "src/lib.rs"]
+            );
+        }
+
+        #[test]
+        fn file_pager_diff_unstaged() {
+            let external = ExternalCommand::FilePagerDiff {
+                file_path: "src/app.rs".to_string(),
+                staged: false,
+            };
+
+            let cmd = external.build_command();
+
+            assert_eq!(cmd.get_program(), "git");
+            let args: Vec<_> = cmd.get_args().collect();
+            assert_eq!(args, vec!["--paginate", "diff", "--", "src/app.rs"]);
+        }
+
+        #[test]
+        fn file_pager_diff_staged() {
+            let external = ExternalCommand::FilePagerDiff {
+                file_path: "src/app.rs".to_string(),
+                staged: true,
+            };
+
+            let cmd = external.build_command();
+
+            assert_eq!(cmd.get_program(), "git");
+            let args: Vec<_> = cmd.get_args().collect();
+            assert_eq!(args, vec!["--paginate", "diff", "--staged", "--", "src/app.rs"]);
+        }
+
+        #[test]
+        fn file_diff_tool_unstaged() {
+            let external = ExternalCommand::FileDiffTool {
+                file_path: "README.md".to_string(),
+                staged: false,
+            };
+
+            let cmd = external.build_command();
+
+            assert_eq!(cmd.get_program(), "git");
+            let args: Vec<_> = cmd.get_args().collect();
+            assert_eq!(args, vec!["difftool", "--no-prompt", "--", "README.md"]);
+        }
+
+        #[test]
+        fn file_diff_tool_staged() {
+            let external = ExternalCommand::FileDiffTool {
+                file_path: "Cargo.toml".to_string(),
+                staged: true,
+            };
+
+            let cmd = external.build_command();
+
+            assert_eq!(cmd.get_program(), "git");
+            let args: Vec<_> = cmd.get_args().collect();
+            assert_eq!(args, vec!["difftool", "--no-prompt", "--staged", "--", "Cargo.toml"]);
+        }
+
+        #[test]
+        fn interactive_rebase_command() {
+            let external = ExternalCommand::InteractiveRebase {
+                onto: "HEAD~5".to_string(),
+            };
+
+            let cmd = external.build_command();
+
+            assert_eq!(cmd.get_program(), "git");
+            let args: Vec<_> = cmd.get_args().collect();
+            assert_eq!(args, vec!["rebase", "-i", "HEAD~5"]);
+        }
+
+        #[test]
+        fn open_editor_command() {
+            let external = ExternalCommand::OpenEditor {
+                editor: "nvim".to_string(),
+                path: "/tmp/test.txt".to_string(),
+            };
+
+            let cmd = external.build_command();
+
+            assert_eq!(cmd.get_program(), "nvim");
+            let args: Vec<_> = cmd.get_args().collect();
+            assert_eq!(args, vec!["/tmp/test.txt"]);
+        }
+    }
+
+    mod external_command_variants {
+        use super::*;
+
+        #[test]
+        fn pager_diff_is_debug_printable() {
+            let cmd = ExternalCommand::PagerDiff {
+                commit_sha: "abc".to_string(),
+                file_path: "test".to_string(),
+            };
+            let debug = format!("{:?}", cmd);
+            assert!(debug.contains("PagerDiff"));
+        }
+
+        #[test]
+        fn diff_tool_is_clonable() {
+            let cmd = ExternalCommand::DiffTool {
+                commit_sha: "abc".to_string(),
+                file_path: "test".to_string(),
+            };
+            let cloned = cmd.clone();
+            assert_eq!(cmd.description(), cloned.description());
+        }
     }
 }

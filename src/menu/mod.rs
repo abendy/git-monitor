@@ -11,10 +11,12 @@ mod stack;
 
 pub use action::ActionMenu;
 pub use alias::AliasSectionMenu;
+pub use confirm::ConfirmMenu;
 use crossterm::event::KeyEvent;
 pub use push::PushConfirmMenu;
 use ratatui::layout::Rect;
 use ratatui::Frame;
+pub use select::{SelectItem, SelectMenu};
 pub use stack::MenuStack;
 
 /// A menu item for display

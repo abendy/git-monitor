@@ -364,6 +364,269 @@ mod menu_handling {
     }
 }
 
+mod menu_transitions {
+    use super::*;
+    use git_monitor::menu::{ConfirmMenu, PushConfirmMenu, SelectMenu, SelectItem};
+
+    #[test]
+    fn menu_push_activates_stack() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+
+        assert!(!app.menu_stack.is_active());
+
+        let menu = ConfirmMenu::new(
+            "Test".to_string(),
+            "Confirm action?".to_string(),
+        );
+        app.menu_stack.push(Box::new(menu));
+
+        assert!(app.menu_stack.is_active());
+    }
+
+    #[test]
+    fn esc_closes_single_menu() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+
+        let menu = ConfirmMenu::new(
+            "Test".to_string(),
+            "Confirm action?".to_string(),
+        );
+        app.menu_stack.push(Box::new(menu));
+        assert!(app.menu_stack.is_active());
+
+        app.handle_key(key(KeyCode::Esc));
+
+        assert!(!app.menu_stack.is_active());
+        assert!(app.running);
+    }
+
+    #[test]
+    fn q_closes_menu_not_app() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+
+        let menu = ConfirmMenu::new(
+            "Test".to_string(),
+            "Confirm action?".to_string(),
+        );
+        app.menu_stack.push(Box::new(menu));
+
+        app.handle_key(key_char('q'));
+
+        assert!(!app.menu_stack.is_active());
+        assert!(app.running);
+    }
+
+    #[test]
+    fn nested_menus_pop_in_order() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+
+        // Push first menu (SelectMenu uses Close, not CloseAll)
+        let menu1 = SelectMenu::new(
+            "First".to_string(),
+            vec![SelectItem::new("opt1", "Option 1")],
+        );
+        app.menu_stack.push(Box::new(menu1));
+
+        // Push second menu
+        let menu2 = SelectMenu::new(
+            "Second".to_string(),
+            vec![SelectItem::new("opt2", "Option 2")],
+        );
+        app.menu_stack.push(Box::new(menu2));
+
+        assert!(app.menu_stack.is_active());
+        assert_eq!(app.menu_stack.current().map(|m| m.title()), Some("Second"));
+
+        // Pop top menu (Esc on SelectMenu returns Close, not CloseAll)
+        app.handle_key(key(KeyCode::Esc));
+
+        assert!(app.menu_stack.is_active());
+        assert_eq!(app.menu_stack.current().map(|m| m.title()), Some("First"));
+
+        // Pop remaining menu
+        app.handle_key(key(KeyCode::Esc));
+
+        assert!(!app.menu_stack.is_active());
+    }
+
+    #[test]
+    fn select_menu_navigates_with_j_k() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+
+        let menu = SelectMenu::new(
+            "Test".to_string(),
+            vec![
+                SelectItem::new("opt1", "Option 1").with_description("First option"),
+                SelectItem::new("opt2", "Option 2").with_description("Second option"),
+                SelectItem::new("opt3", "Option 3").with_description("Third option"),
+            ],
+        );
+        app.menu_stack.push(Box::new(menu));
+
+        // Initially at 0
+        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(0));
+
+        // Move down with j
+        app.handle_key(key_char('j'));
+        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(1));
+
+        // Move down again
+        app.handle_key(key_char('j'));
+        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(2));
+
+        // Move up with k
+        app.handle_key(key_char('k'));
+        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(1));
+    }
+
+    #[test]
+    fn select_menu_navigates_with_arrows() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+
+        let menu = SelectMenu::new(
+            "Test".to_string(),
+            vec![
+                SelectItem::new("opt1", "Option 1"),
+                SelectItem::new("opt2", "Option 2"),
+            ],
+        );
+        app.menu_stack.push(Box::new(menu));
+
+        app.handle_key(key(KeyCode::Down));
+        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(1));
+
+        app.handle_key(key(KeyCode::Up));
+        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(0));
+    }
+
+    #[test]
+    fn push_confirm_menu_toggles_checkboxes() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+
+        let menu = PushConfirmMenu::new(
+            "main".to_string(),
+            "origin".to_string(),
+            true,  // has_upstream
+            3,     // ahead
+            false, // force
+        );
+        app.menu_stack.push(Box::new(menu));
+
+        // Space toggles checkbox on the selected item
+        app.handle_key(key(KeyCode::Char(' ')));
+
+        // Menu should still be active (space doesn't close)
+        assert!(app.menu_stack.is_active());
+    }
+
+    #[test]
+    fn confirm_menu_y_confirms() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+
+        let menu = ConfirmMenu::new(
+            "Test".to_string(),
+            "Confirm?".to_string(),
+        );
+        app.menu_stack.push(Box::new(menu));
+
+        // 'y' should close the menu (confirm action)
+        app.handle_key(key_char('y'));
+
+        assert!(!app.menu_stack.is_active());
+    }
+
+    #[test]
+    fn confirm_menu_n_cancels() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+
+        let menu = ConfirmMenu::new(
+            "Test".to_string(),
+            "Confirm?".to_string(),
+        );
+        app.menu_stack.push(Box::new(menu));
+
+        // 'n' should close the menu (cancel)
+        app.handle_key(key_char('n'));
+
+        assert!(!app.menu_stack.is_active());
+        assert!(app.running);
+    }
+
+    #[test]
+    fn menu_blocks_normal_navigation() {
+        let dir = create_repo_with_files();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+        app.selected = Some(0);
+
+        let menu = ConfirmMenu::new(
+            "Test".to_string(),
+            "Confirm?".to_string(),
+        );
+        app.menu_stack.push(Box::new(menu));
+
+        // 'g' normally jumps to top, but with menu active it shouldn't affect app selection
+        let selection_before = app.selected;
+        app.handle_key(key_char('g'));
+
+        // Selection should be unchanged (menu captured the key)
+        assert_eq!(app.selected, selection_before);
+    }
+
+    #[test]
+    fn enter_triggers_menu_selection() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+
+        let menu = SelectMenu::new(
+            "Test".to_string(),
+            vec![
+                SelectItem::new("opt1", "Option 1"),
+            ],
+        );
+        app.menu_stack.push(Box::new(menu));
+
+        // Enter should trigger selection and close menu
+        app.handle_key(key(KeyCode::Enter));
+
+        assert!(!app.menu_stack.is_active());
+    }
+
+    #[test]
+    fn menu_state_preserved_across_navigation() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+
+        let menu = SelectMenu::new(
+            "Test".to_string(),
+            vec![
+                SelectItem::new("opt1", "Option 1"),
+                SelectItem::new("opt2", "Option 2"),
+                SelectItem::new("opt3", "Option 3"),
+            ],
+        );
+        app.menu_stack.push(Box::new(menu));
+
+        // Navigate to item 2
+        app.handle_key(key_char('j'));
+        app.handle_key(key_char('j'));
+        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(2));
+
+        // State should be preserved after other keys that don't change selection
+        // (This is just demonstrating the menu maintains state)
+        app.handle_key(key_char('j')); // Try to go past end
+        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(2)); // Should stay at 2 (or wrap)
+    }
+}
+
 mod popup_handling {
     use super::*;
 

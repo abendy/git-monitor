@@ -361,4 +361,209 @@ mod tests {
             assert!(config.sections.is_empty());
         }
     }
+
+    mod parse_sections_from_gitconfig {
+        use super::*;
+
+        #[test]
+        fn fallback_to_all_section_when_no_gitconfig() {
+            // When HOME points to a directory without .gitconfig,
+            // all aliases should be in an "all" section
+            let mut alias_map = BTreeMap::new();
+            alias_map.insert("co".to_string(), "checkout".to_string());
+            alias_map.insert("br".to_string(), "branch".to_string());
+
+            // Save and override HOME to a nonexistent path
+            let original_home = std::env::var("HOME").ok();
+            std::env::set_var("HOME", "/nonexistent/path/that/does/not/exist");
+
+            let sections = GitConfig::parse_sections_from_gitconfig(&alias_map);
+
+            // Restore HOME
+            if let Some(home) = original_home {
+                std::env::set_var("HOME", home);
+            }
+
+            assert_eq!(sections.len(), 1);
+            assert_eq!(sections[0].name, "all");
+            assert_eq!(sections[0].aliases.len(), 2);
+        }
+
+        #[test]
+        fn empty_alias_map_returns_empty_sections() {
+            let alias_map = BTreeMap::new();
+
+            // Override HOME to ensure we use fallback
+            let original_home = std::env::var("HOME").ok();
+            std::env::set_var("HOME", "/nonexistent/path");
+
+            let sections = GitConfig::parse_sections_from_gitconfig(&alias_map);
+
+            if let Some(home) = original_home {
+                std::env::set_var("HOME", home);
+            }
+
+            // With fallback, we get an "all" section but with 0 aliases
+            // The retain call removes empty sections
+            assert!(sections.is_empty() || sections[0].aliases.is_empty());
+        }
+    }
+
+    mod load {
+        use super::*;
+        use std::process::Command;
+        use tempfile::TempDir;
+
+        fn setup_git_repo() -> TempDir {
+            let dir = TempDir::new().expect("create temp dir");
+
+            // Initialize git repo
+            Command::new("git")
+                .args(["init"])
+                .current_dir(dir.path())
+                .output()
+                .expect("git init");
+
+            // Configure user for the repo
+            Command::new("git")
+                .args(["config", "user.email", "test@test.com"])
+                .current_dir(dir.path())
+                .output()
+                .expect("git config email");
+
+            Command::new("git")
+                .args(["config", "user.name", "Test User"])
+                .current_dir(dir.path())
+                .output()
+                .expect("git config name");
+
+            dir
+        }
+
+        #[test]
+        fn loads_aliases_from_repo() {
+            let dir = setup_git_repo();
+
+            // Add some aliases to the repo's local config
+            Command::new("git")
+                .args(["config", "alias.co", "checkout"])
+                .current_dir(dir.path())
+                .output()
+                .expect("add alias");
+
+            Command::new("git")
+                .args(["config", "alias.br", "branch"])
+                .current_dir(dir.path())
+                .output()
+                .expect("add alias");
+
+            let config = GitConfig::load(dir.path()).expect("load config");
+
+            // Should have sections with our aliases
+            let all_aliases: Vec<_> = config
+                .sections
+                .iter()
+                .flat_map(|s| &s.aliases)
+                .collect();
+
+            assert!(all_aliases.iter().any(|a| a.name == "co" && a.command == "checkout"));
+            assert!(all_aliases.iter().any(|a| a.name == "br" && a.command == "branch"));
+        }
+
+        #[test]
+        fn loads_empty_config_when_no_aliases() {
+            let dir = setup_git_repo();
+
+            let config = GitConfig::load(dir.path()).expect("load config");
+
+            // No aliases means empty sections (after retain removes empty ones)
+            let total_aliases: usize = config
+                .sections
+                .iter()
+                .map(|s| s.aliases.len())
+                .sum();
+            assert_eq!(total_aliases, 0);
+        }
+
+        #[test]
+        fn loads_alias_with_arguments() {
+            let dir = setup_git_repo();
+
+            Command::new("git")
+                .args(["config", "alias.lg", "log --oneline --graph"])
+                .current_dir(dir.path())
+                .output()
+                .expect("add alias");
+
+            let config = GitConfig::load(dir.path()).expect("load config");
+
+            let all_aliases: Vec<_> = config
+                .sections
+                .iter()
+                .flat_map(|s| &s.aliases)
+                .collect();
+
+            let lg_alias = all_aliases.iter().find(|a| a.name == "lg");
+            assert!(lg_alias.is_some());
+            assert_eq!(lg_alias.unwrap().command, "log --oneline --graph");
+        }
+
+        #[test]
+        fn handles_complex_alias_commands() {
+            let dir = setup_git_repo();
+
+            // Add an alias with shell command
+            Command::new("git")
+                .args(["config", "alias.last", "log -1 HEAD"])
+                .current_dir(dir.path())
+                .output()
+                .expect("add alias");
+
+            let config = GitConfig::load(dir.path()).expect("load config");
+
+            let all_aliases: Vec<_> = config
+                .sections
+                .iter()
+                .flat_map(|s| &s.aliases)
+                .collect();
+
+            assert!(all_aliases.iter().any(|a| a.name == "last"));
+        }
+    }
+
+    mod alias_section {
+        use super::*;
+
+        #[test]
+        fn section_stores_name_and_aliases() {
+            let section = AliasSection {
+                name: "fetch".to_string(),
+                aliases: vec![
+                    Alias {
+                        name: "f".to_string(),
+                        command: "fetch".to_string(),
+                    },
+                    Alias {
+                        name: "fa".to_string(),
+                        command: "fetch --all".to_string(),
+                    },
+                ],
+            };
+
+            assert_eq!(section.name, "fetch");
+            assert_eq!(section.aliases.len(), 2);
+            assert_eq!(section.aliases[0].name, "f");
+            assert_eq!(section.aliases[1].name, "fa");
+        }
+
+        #[test]
+        fn section_can_be_empty() {
+            let section = AliasSection {
+                name: "empty".to_string(),
+                aliases: vec![],
+            };
+
+            assert!(section.aliases.is_empty());
+        }
+    }
 }

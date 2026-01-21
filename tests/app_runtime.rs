@@ -1,11 +1,11 @@
 //! Integration tests for App runtime methods.
 
 use std::sync::mpsc;
-use tempfile::TempDir;
 
 use git_monitor::app::HistoryMode;
 use git_monitor::event::Event;
 use git_monitor::App;
+use tempfile::TempDir;
 
 /// Helper to create a test git repository
 fn create_test_repo() -> TempDir {
@@ -14,10 +14,23 @@ fn create_test_repo() -> TempDir {
 
     // Create initial commit so we have a valid HEAD
     let sig = git2::Signature::now("Test", "test@example.com").expect("signature");
-    let tree_id = repo.index().expect("index").write_tree().expect("write tree");
-    let tree = repo.find_tree(tree_id).expect("find tree");
-    repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
-        .expect("commit");
+    let tree_id = repo
+        .index()
+        .expect("index")
+        .write_tree()
+        .expect("write tree");
+    let tree = repo
+        .find_tree(tree_id)
+        .expect("find tree");
+    repo.commit(
+        Some("HEAD"),
+        &sig,
+        &sig,
+        "Initial commit",
+        &tree,
+        &[],
+    )
+    .expect("commit");
 
     dir
 }
@@ -30,15 +43,32 @@ fn create_repo_with_history() -> TempDir {
     let sig = git2::Signature::now("Test", "test@example.com").expect("signature");
 
     // Initial commit
-    let tree_id = repo.index().expect("index").write_tree().expect("write tree");
-    let tree = repo.find_tree(tree_id).expect("find tree");
-    repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
-        .expect("commit");
+    let tree_id = repo
+        .index()
+        .expect("index")
+        .write_tree()
+        .expect("write tree");
+    let tree = repo
+        .find_tree(tree_id)
+        .expect("find tree");
+    repo.commit(
+        Some("HEAD"),
+        &sig,
+        &sig,
+        "Initial commit",
+        &tree,
+        &[],
+    )
+    .expect("commit");
 
     // Add several commits
     for i in 1..=5 {
         let file_name = format!("file{i}.txt");
-        std::fs::write(dir.path().join(&file_name), format!("content {i}")).expect("write file");
+        std::fs::write(
+            dir.path().join(&file_name),
+            format!("content {i}"),
+        )
+        .expect("write file");
 
         let mut index = repo.index().expect("index");
         index
@@ -47,8 +77,14 @@ fn create_repo_with_history() -> TempDir {
         index.write().expect("write index");
 
         let tree_id = index.write_tree().expect("write tree");
-        let tree = repo.find_tree(tree_id).expect("find tree");
-        let parent = repo.head().expect("head").peel_to_commit().expect("commit");
+        let tree = repo
+            .find_tree(tree_id)
+            .expect("find tree");
+        let parent = repo
+            .head()
+            .expect("head")
+            .peel_to_commit()
+            .expect("commit");
         repo.commit(
             Some("HEAD"),
             &sig,
@@ -77,7 +113,10 @@ mod setup_watcher {
         let (tx, _rx) = mpsc::channel::<Event>();
         let result = app.setup_watcher(tx);
 
-        assert!(result.is_ok(), "setup_watcher should succeed");
+        assert!(
+            result.is_ok(),
+            "setup_watcher should succeed"
+        );
     }
 
     #[test]
@@ -108,7 +147,11 @@ mod refresh_status {
         let initial_count = app.status.files.len();
 
         // Create a new file
-        std::fs::write(dir.path().join("new_file.txt"), "content").expect("write file");
+        std::fs::write(
+            dir.path().join("new_file.txt"),
+            "content",
+        )
+        .expect("write file");
 
         // Refresh status
         app.refresh_status();
@@ -145,8 +188,13 @@ mod refresh_status {
         // Create a new branch using git2
         {
             let repo = git2::Repository::open(dir.path()).expect("open repo");
-            let head = repo.head().expect("head").peel_to_commit().expect("commit");
-            repo.branch("new-branch", &head, false).expect("create branch");
+            let head = repo
+                .head()
+                .expect("head")
+                .peel_to_commit()
+                .expect("commit");
+            repo.branch("new-branch", &head, false)
+                .expect("create branch");
         }
 
         let initial_branch_count = app.branches.len();
@@ -201,7 +249,7 @@ mod refresh_activity {
     #[test]
     fn populates_activity_in_commit_log_mode() {
         let dir = create_repo_with_history();
-        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+        let app = App::new(dir.path().to_path_buf()).expect("create app");
 
         assert_eq!(app.history_mode, HistoryMode::CommitLog);
 
@@ -243,7 +291,10 @@ mod refresh_activity {
         let dir = create_repo_with_history();
         let app = App::new(dir.path().to_path_buf()).expect("create app");
 
-        assert_eq!(app.history_page, 0, "History page should start at 0");
+        assert_eq!(
+            app.history_page, 0,
+            "History page should start at 0"
+        );
     }
 
     #[test]
@@ -252,14 +303,22 @@ mod refresh_activity {
         let app = App::new(dir.path().to_path_buf()).expect("create app");
 
         // Check that activity contains expected commit messages
-        let messages: Vec<_> = app.activity.iter().map(|c| &c.message).collect();
+        let messages: Vec<_> = app
+            .activity
+            .iter()
+            .map(|c| &c.message)
+            .collect();
 
         assert!(
-            messages.iter().any(|m| m.contains("Initial commit")),
+            messages
+                .iter()
+                .any(|m| m.contains("Initial commit")),
             "Activity should contain 'Initial commit'"
         );
         assert!(
-            messages.iter().any(|m| m.contains("Add file")),
+            messages
+                .iter()
+                .any(|m| m.contains("Add file")),
             "Activity should contain 'Add file' commits"
         );
     }
@@ -282,8 +341,9 @@ mod refresh_activity {
 }
 
 mod on_tick {
-    use super::*;
     use git_monitor::feedback::{Toast, ToastLevel};
+
+    use super::*;
 
     #[test]
     fn tick_does_not_crash() {
@@ -302,14 +362,20 @@ mod on_tick {
         let mut app = App::new(dir.path().to_path_buf()).expect("create app");
 
         // Set a toast
-        app.feedback.toast = Some(Toast::new("Test message", ToastLevel::Info));
+        app.feedback.toast = Some(Toast::new(
+            "Test message",
+            ToastLevel::Info,
+        ));
 
         // Toast should exist
         assert!(app.feedback.toast.is_some());
 
         // Tick shouldn't clear it immediately (TOAST_DURATION is 3 seconds)
         app.feedback.tick();
-        assert!(app.feedback.toast.is_some(), "Toast should not expire immediately");
+        assert!(
+            app.feedback.toast.is_some(),
+            "Toast should not expire immediately"
+        );
     }
 
     #[test]
@@ -317,7 +383,10 @@ mod on_tick {
         let dir = create_test_repo();
         let app = App::new(dir.path().to_path_buf()).expect("create app");
 
-        assert!(app.feedback.toast.is_none(), "Toast should start as None");
+        assert!(
+            app.feedback.toast.is_none(),
+            "Toast should start as None"
+        );
     }
 }
 

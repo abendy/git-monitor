@@ -268,7 +268,10 @@ mod tests {
 
             assert_eq!(
                 result,
-                Some(("lg".to_string(), "log --oneline --graph".to_string()))
+                Some((
+                    "lg".to_string(),
+                    "log --oneline --graph".to_string()
+                ))
             );
         }
 
@@ -278,7 +281,10 @@ mod tests {
 
             assert_eq!(
                 result,
-                Some(("st".to_string(), "status -sb".to_string()))
+                Some((
+                    "st".to_string(),
+                    "status -sb".to_string()
+                ))
             );
         }
 
@@ -315,8 +321,7 @@ mod tests {
 
         #[test]
         fn handles_equals_in_command() {
-            let result =
-                GitConfig::parse_alias_line("cfg = config --global user.name=test");
+            let result = GitConfig::parse_alias_line("cfg = config --global user.name=test");
 
             assert_eq!(
                 result,
@@ -375,7 +380,10 @@ mod tests {
 
             // Save and override HOME to a nonexistent path
             let original_home = std::env::var("HOME").ok();
-            std::env::set_var("HOME", "/nonexistent/path/that/does/not/exist");
+            std::env::set_var(
+                "HOME",
+                "/nonexistent/path/that/does/not/exist",
+            );
 
             let sections = GitConfig::parse_sections_from_gitconfig(&alias_map);
 
@@ -410,54 +418,97 @@ mod tests {
     }
 
     mod load {
-        use super::*;
+        use std::path::PathBuf;
         use std::process::Command;
+
         use tempfile::TempDir;
 
-        fn setup_git_repo() -> TempDir {
+        use super::*;
+
+        struct IsolatedRepo {
+            dir: TempDir,
+            empty_config: PathBuf,
+        }
+
+        impl IsolatedRepo {
+            fn path(&self) -> &Path {
+                self.dir.path()
+            }
+
+            /// Load config with isolation from global/system git config
+            fn load_config(&self) -> Result<GitConfig> {
+                // Temporarily set environment to isolate from global config
+                std::env::set_var("GIT_CONFIG_GLOBAL", &self.empty_config);
+                std::env::set_var("GIT_CONFIG_SYSTEM", &self.empty_config);
+
+                let result = GitConfig::load(self.dir.path());
+
+                // Clean up environment (restore to previous state)
+                std::env::remove_var("GIT_CONFIG_GLOBAL");
+                std::env::remove_var("GIT_CONFIG_SYSTEM");
+
+                result
+            }
+        }
+
+        fn setup_git_repo() -> IsolatedRepo {
             let dir = TempDir::new().expect("create temp dir");
 
-            // Initialize git repo
+            // Create empty config file to isolate from user's global config
+            let empty_config = dir.path().join(".empty_gitconfig");
+            std::fs::write(&empty_config, "").expect("create empty config");
+
+            // Initialize git repo (isolated from global config)
             Command::new("git")
                 .args(["init"])
                 .current_dir(dir.path())
+                .env("GIT_CONFIG_GLOBAL", &empty_config)
+                .env("GIT_CONFIG_SYSTEM", &empty_config)
                 .output()
                 .expect("git init");
 
-            // Configure user for the repo
+            // Configure user for the repo (isolated from global config)
             Command::new("git")
                 .args(["config", "user.email", "test@test.com"])
                 .current_dir(dir.path())
+                .env("GIT_CONFIG_GLOBAL", &empty_config)
+                .env("GIT_CONFIG_SYSTEM", &empty_config)
                 .output()
                 .expect("git config email");
 
             Command::new("git")
                 .args(["config", "user.name", "Test User"])
                 .current_dir(dir.path())
+                .env("GIT_CONFIG_GLOBAL", &empty_config)
+                .env("GIT_CONFIG_SYSTEM", &empty_config)
                 .output()
                 .expect("git config name");
 
-            dir
+            IsolatedRepo { dir, empty_config }
         }
 
         #[test]
         fn loads_aliases_from_repo() {
-            let dir = setup_git_repo();
+            let repo = setup_git_repo();
 
             // Add some aliases to the repo's local config
             Command::new("git")
                 .args(["config", "alias.co", "checkout"])
-                .current_dir(dir.path())
+                .current_dir(repo.path())
+                .env("GIT_CONFIG_GLOBAL", &repo.empty_config)
+                .env("GIT_CONFIG_SYSTEM", &repo.empty_config)
                 .output()
                 .expect("add alias");
 
             Command::new("git")
                 .args(["config", "alias.br", "branch"])
-                .current_dir(dir.path())
+                .current_dir(repo.path())
+                .env("GIT_CONFIG_GLOBAL", &repo.empty_config)
+                .env("GIT_CONFIG_SYSTEM", &repo.empty_config)
                 .output()
                 .expect("add alias");
 
-            let config = GitConfig::load(dir.path()).expect("load config");
+            let config = repo.load_config().expect("load config");
 
             // Should have sections with our aliases
             let all_aliases: Vec<_> = config
@@ -466,15 +517,19 @@ mod tests {
                 .flat_map(|s| &s.aliases)
                 .collect();
 
-            assert!(all_aliases.iter().any(|a| a.name == "co" && a.command == "checkout"));
-            assert!(all_aliases.iter().any(|a| a.name == "br" && a.command == "branch"));
+            assert!(all_aliases
+                .iter()
+                .any(|a| a.name == "co" && a.command == "checkout"));
+            assert!(all_aliases
+                .iter()
+                .any(|a| a.name == "br" && a.command == "branch"));
         }
 
         #[test]
         fn loads_empty_config_when_no_aliases() {
-            let dir = setup_git_repo();
+            let repo = setup_git_repo();
 
-            let config = GitConfig::load(dir.path()).expect("load config");
+            let config = repo.load_config().expect("load config");
 
             // No aliases means empty sections (after retain removes empty ones)
             let total_aliases: usize = config
@@ -487,15 +542,17 @@ mod tests {
 
         #[test]
         fn loads_alias_with_arguments() {
-            let dir = setup_git_repo();
+            let repo = setup_git_repo();
 
             Command::new("git")
                 .args(["config", "alias.lg", "log --oneline --graph"])
-                .current_dir(dir.path())
+                .current_dir(repo.path())
+                .env("GIT_CONFIG_GLOBAL", &repo.empty_config)
+                .env("GIT_CONFIG_SYSTEM", &repo.empty_config)
                 .output()
                 .expect("add alias");
 
-            let config = GitConfig::load(dir.path()).expect("load config");
+            let config = repo.load_config().expect("load config");
 
             let all_aliases: Vec<_> = config
                 .sections
@@ -503,23 +560,30 @@ mod tests {
                 .flat_map(|s| &s.aliases)
                 .collect();
 
-            let lg_alias = all_aliases.iter().find(|a| a.name == "lg");
+            let lg_alias = all_aliases
+                .iter()
+                .find(|a| a.name == "lg");
             assert!(lg_alias.is_some());
-            assert_eq!(lg_alias.unwrap().command, "log --oneline --graph");
+            assert_eq!(
+                lg_alias.unwrap().command,
+                "log --oneline --graph"
+            );
         }
 
         #[test]
         fn handles_complex_alias_commands() {
-            let dir = setup_git_repo();
+            let repo = setup_git_repo();
 
             // Add an alias with shell command
             Command::new("git")
                 .args(["config", "alias.last", "log -1 HEAD"])
-                .current_dir(dir.path())
+                .current_dir(repo.path())
+                .env("GIT_CONFIG_GLOBAL", &repo.empty_config)
+                .env("GIT_CONFIG_SYSTEM", &repo.empty_config)
                 .output()
                 .expect("add alias");
 
-            let config = GitConfig::load(dir.path()).expect("load config");
+            let config = repo.load_config().expect("load config");
 
             let all_aliases: Vec<_> = config
                 .sections
@@ -527,7 +591,9 @@ mod tests {
                 .flat_map(|s| &s.aliases)
                 .collect();
 
-            assert!(all_aliases.iter().any(|a| a.name == "last"));
+            assert!(all_aliases
+                .iter()
+                .any(|a| a.name == "last"));
         }
     }
 

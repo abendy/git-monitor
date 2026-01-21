@@ -17,8 +17,8 @@ use crossterm::event::KeyEvent;
 use super::{App, ViewMode};
 
 impl App {
-    /// Handle keyboard input - main entry point
-    pub(super) fn handle_key(&mut self, key: KeyEvent) {
+    /// Handle keyboard input - main entry point for event loop
+    pub fn handle_key(&mut self, key: KeyEvent) {
         // Menu stack takes priority when active
         if self.menu_stack.is_active() {
             self.handle_menu_key(key);

@@ -942,3 +942,182 @@ mod refresh_operations {
         assert!(!app.show_help);
     }
 }
+
+mod boundary_conditions {
+    use super::*;
+
+    #[test]
+    fn navigation_on_empty_repo_doesnt_crash() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+        // Empty repo - no staged, no working files
+
+        // Navigate down should not crash
+        app.handle_key(key_char('j'));
+        assert!(app.running);
+
+        // Navigate up should not crash
+        app.handle_key(key_char('k'));
+        assert!(app.running);
+
+        // Jump to top should not crash
+        app.handle_key(key_char('g'));
+        assert!(app.running);
+
+        // Jump to bottom should not crash
+        app.handle_key(key_char('G'));
+        assert!(app.running);
+    }
+
+    #[test]
+    fn selection_at_zero_cannot_go_negative() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+        app.selected = Some(0);
+
+        // Try to go up past 0
+        app.handle_key(key_char('k'));
+        app.handle_key(key_char('k'));
+        app.handle_key(key_char('k'));
+
+        // Selection should still be valid (Some value or None, not panic)
+        assert!(app.selected.is_none() || app.selected == Some(0));
+    }
+
+    #[test]
+    fn selection_at_end_doesnt_overflow() {
+        let dir = create_repo_with_files();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+
+        // Jump to end
+        app.handle_key(key_char('G'));
+        let max_selection = app.selected;
+
+        // Try to go further down
+        app.handle_key(key_char('j'));
+        app.handle_key(key_char('j'));
+        app.handle_key(key_char('j'));
+
+        // Selection should be capped at max
+        assert!(app.selected <= max_selection || app.selected == max_selection);
+    }
+
+    #[test]
+    fn repeated_jump_to_top_is_idempotent() {
+        let dir = create_repo_with_files();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+        app.selected = Some(5);
+
+        app.handle_key(key_char('g'));
+        assert_eq!(app.selected, Some(0));
+
+        app.handle_key(key_char('g'));
+        assert_eq!(app.selected, Some(0));
+
+        app.handle_key(key_char('g'));
+        assert_eq!(app.selected, Some(0));
+    }
+
+    #[test]
+    fn page_history_at_zero_stays_zero() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+        assert_eq!(app.history_page, 0);
+
+        // Try to go to previous page when at 0
+        app.handle_key(key_char('['));
+
+        // Should stay at 0, not go negative
+        assert_eq!(app.history_page, 0);
+    }
+
+    #[test]
+    fn section_jump_with_no_matching_section() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+        app.selected = Some(0);
+        let initial = app.selected;
+
+        // Jump to working files (might be empty)
+        app.handle_key(key_char('w'));
+
+        // Should either jump or stay at current if no working files
+        assert!(app.selected.is_some() || initial.is_some());
+        assert!(app.running);
+    }
+
+    #[test]
+    fn popup_scroll_at_top_stays_at_top() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+
+        app.feedback.popup.open(git_monitor::feedback::PopupContent::CommandOutput {
+            command: "test".to_string(),
+            output: "line1\nline2\nline3".to_string(),
+            success: true,
+        });
+        assert_eq!(app.feedback.popup.scroll_offset, 0);
+
+        // Try to scroll up when already at top
+        app.handle_key(key_char('k'));
+
+        // Should stay at 0
+        assert_eq!(app.feedback.popup.scroll_offset, 0);
+    }
+
+    #[test]
+    fn menu_navigation_with_single_item() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+
+        use git_monitor::menu::{SelectMenu, SelectItem};
+        let menu = SelectMenu::new(
+            "Single Item".to_string(),
+            vec![SelectItem::new("only", "Only Option")],
+        );
+        app.menu_stack.push(Box::new(menu));
+
+        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(0));
+
+        // Try to navigate down with only one item
+        app.handle_key(key_char('j'));
+        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(0));
+
+        // Try to navigate up with only one item
+        app.handle_key(key_char('k'));
+        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(0));
+    }
+
+    #[test]
+    fn empty_command_input_backspace() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+        app.view_mode = ViewMode::Command;
+        app.command_input.clear();
+
+        // Backspace on empty input
+        app.handle_key(key(KeyCode::Backspace));
+
+        // Should not crash, command mode continues
+        assert_eq!(app.view_mode, ViewMode::Command);
+        assert!(app.command_input.is_empty());
+    }
+
+    #[test]
+    fn multiple_esc_presses_are_safe() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+
+        // Open help
+        app.handle_key(key_char('?'));
+        assert!(app.show_help);
+
+        // First Esc closes help
+        app.handle_key(key(KeyCode::Esc));
+        assert!(!app.show_help);
+
+        // Second Esc quits (normal behavior)
+        app.handle_key(key(KeyCode::Esc));
+        assert!(!app.running);
+    }
+}

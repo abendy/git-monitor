@@ -24,7 +24,7 @@ impl GitRepo {
         // Iterate through all references
         if let Ok(refs) = self.repo.references() {
             for reference in refs.flatten() {
-                let Some(name) = reference.name() else {
+                let Ok(name) = reference.name() else {
                     continue;
                 };
 
@@ -82,6 +82,8 @@ impl GitRepo {
         for entry in reflog.iter().skip(skip).take(limit) {
             let message = entry
                 .message()
+                .ok()
+                .flatten()
                 .unwrap_or("")
                 .to_string();
             let command_type = CommandType::from_message(&message);
@@ -134,6 +136,8 @@ impl GitRepo {
     ) -> GitCommand {
         let message = commit
             .summary()
+            .ok()
+            .flatten()
             .unwrap_or("")
             .to_string();
         let time = commit.time();
@@ -257,7 +261,7 @@ impl GitRepo {
 
         // Check for upstream and get remote-only commits + merge base (only on first page)
         if skip == 0 && head.is_branch() {
-            if let Some(branch_name) = head.shorthand() {
+            if let Ok(branch_name) = head.shorthand() {
                 if let Ok(branch) = self
                     .repo
                     .find_branch(branch_name, git2::BranchType::Local)

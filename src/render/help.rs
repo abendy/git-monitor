@@ -5,7 +5,7 @@
 use std::collections::HashSet;
 
 use ratatui::layout::{Alignment, Rect};
-use ratatui::style::{Color, Modifier, Style, Stylize};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 

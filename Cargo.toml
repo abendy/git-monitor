@@ -11,18 +11,18 @@ categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
 # TUI Framework
-ratatui = "0.28"
-crossterm = "0.28"
+ratatui = "0.30"
+crossterm = "0.29"
 
 # Git operations (vendored OpenSSL keeps release binaries portable)
-git2 = { version = "0.19", features = ["vendored-openssl"] }
+git2 = { version = "0.21", features = ["vendored-openssl"] }
 
 # File system events
 notify = "6.1"
 notify-debouncer-mini = "0.4"
 
 # Error handling
-anyhow = "1.0"
+anyhow = "1.0.103"
 
 # Clipboard
 arboard = "3"

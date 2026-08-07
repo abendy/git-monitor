@@ -63,13 +63,11 @@ impl GitRepo {
             .to_string();
 
         // Check for GPG signature
-        let gpg_status = commit.raw_header().and_then(|header| {
-            if header.contains("gpgsig") {
-                Some("Signed".to_string())
-            } else {
-                None
-            }
-        });
+        let gpg_status = commit
+            .raw_header()
+            .ok()
+            .filter(|header| header.contains("gpgsig"))
+            .map(|_| "Signed".to_string());
 
         // Get files changed by diffing against parent
         let tree = commit

@@ -33,7 +33,7 @@ impl GitRepo {
 
         // Get branch name
         if head.is_branch() {
-            status.branch = head.shorthand().map(String::from);
+            status.branch = head.shorthand().ok().map(String::from);
 
             // Get upstream tracking info
             if let Some(branch_name) = &status.branch {
@@ -93,7 +93,7 @@ impl GitRepo {
 
         for entry in statuses.iter() {
             let path = entry.path().map_or_else(
-                || PathBuf::from("<invalid>"),
+                |_| PathBuf::from("<invalid>"),
                 PathBuf::from,
             );
 

@@ -14,8 +14,18 @@ pub struct RepoWatcher {
 }
 
 impl RepoWatcher {
-    /// Create a new watcher for the given repository path
-    pub fn new(repo_path: &Path, tx: Sender<WatchEvent>) -> Result<Self> {
+    /// Create a watcher for a repository's working and administrative paths.
+    pub fn new(
+        repo_path: &Path,
+        git_dir: &Path,
+        common_dir: &Path,
+        tx: Sender<WatchEvent>,
+    ) -> Result<Self> {
+        let repo_path = normalize_path(repo_path);
+        let git_dir = normalize_path(git_dir);
+        let common_dir = normalize_path(common_dir);
+        let event_git_dir = git_dir.clone();
+        let event_common_dir = common_dir.clone();
         let event_tx = tx;
 
         // Create debouncer with 100ms delay
@@ -25,7 +35,11 @@ impl RepoWatcher {
                 match result {
                     Ok(events) => {
                         for event in events {
-                            let watch_event = categorize_path(&event.path);
+                            let watch_event = categorize_path(
+                                &event.path,
+                                &event_git_dir,
+                                &event_common_dir,
+                            );
                             // Send event to main loop. Intentionally ignore send errors -
                             // this happens during shutdown when the receiver is dropped,
                             // which is expected and harmless.
@@ -41,7 +55,7 @@ impl RepoWatcher {
         // Watch the working directory
         debouncer
             .watcher()
-            .watch(repo_path, RecursiveMode::Recursive)
+            .watch(&repo_path, RecursiveMode::Recursive)
             .with_context(|| {
                 format!(
                     "Failed to watch {}",
@@ -49,54 +63,64 @@ impl RepoWatcher {
                 )
             })?;
 
-        // Also watch .git directory for index changes
-        let git_dir = repo_path.join(".git");
-        if git_dir.exists() {
-            // Watch specific git files, not the whole .git (too noisy)
-            let index_path = git_dir.join("index");
-            if index_path.exists() {
-                if let Err(e) = debouncer
-                    .watcher()
-                    .watch(&index_path, RecursiveMode::NonRecursive)
-                {
-                    warn!("Failed to watch git index: {}", e);
-                }
-            }
+        // A normal repository's administrative data is already beneath the
+        // recursively watched working directory. Linked worktrees keep it in
+        // the primary repository, so those paths need explicit watches.
+        if git_dir.exists() && !git_dir.starts_with(&repo_path) {
+            debouncer
+                .watcher()
+                .watch(&git_dir, RecursiveMode::Recursive)
+                .with_context(|| {
+                    format!(
+                        "Failed to watch git directory {}",
+                        git_dir.display()
+                    )
+                })?;
+        }
 
-            let head_path = git_dir.join("HEAD");
-            if head_path.exists() {
-                if let Err(e) = debouncer
-                    .watcher()
-                    .watch(&head_path, RecursiveMode::NonRecursive)
-                {
-                    warn!("Failed to watch git HEAD: {}", e);
-                }
-            }
-
-            // Watch refs for branch changes
-            let refs_path = git_dir.join("refs");
-            if refs_path.exists() {
-                if let Err(e) = debouncer
-                    .watcher()
-                    .watch(&refs_path, RecursiveMode::Recursive)
-                {
-                    warn!("Failed to watch git refs: {}", e);
-                }
-            }
-
-            // Watch logs for reflog changes
-            let logs_path = git_dir.join("logs");
-            if logs_path.exists() {
-                if let Err(e) = debouncer
-                    .watcher()
-                    .watch(&logs_path, RecursiveMode::Recursive)
-                {
-                    warn!("Failed to watch git logs: {}", e);
-                }
-            }
+        if common_dir.exists() && common_dir != git_dir && !common_dir.starts_with(&repo_path) {
+            watch_optional(
+                &mut debouncer,
+                &common_dir,
+                RecursiveMode::NonRecursive,
+                "git common directory",
+            );
+            watch_optional(
+                &mut debouncer,
+                &common_dir.join("refs"),
+                RecursiveMode::Recursive,
+                "git refs",
+            );
+            watch_optional(
+                &mut debouncer,
+                &common_dir.join("logs"),
+                RecursiveMode::Recursive,
+                "git logs",
+            );
         }
 
         Ok(Self { debouncer })
+    }
+}
+
+fn normalize_path(path: &Path) -> PathBuf {
+    path.canonicalize()
+        .unwrap_or_else(|_| path.to_path_buf())
+}
+
+fn watch_optional(
+    debouncer: &mut Debouncer<notify::RecommendedWatcher>,
+    path: &Path,
+    mode: RecursiveMode,
+    description: &str,
+) {
+    if path.exists() {
+        if let Err(error) = debouncer.watcher().watch(path, mode) {
+            warn!(
+                "Failed to watch {description} at {}: {error}",
+                path.display()
+            );
+        }
     }
 }
 
@@ -115,14 +139,21 @@ pub enum WatchEvent {
 }
 
 /// Categorize a path into a watch event type
-fn categorize_path(path: &Path) -> WatchEvent {
-    let path_str = path.to_string_lossy();
-
-    if path_str.contains(".git/index") {
+fn categorize_path(path: &Path, git_dir: &Path, common_dir: &Path) -> WatchEvent {
+    if path == git_dir.join("index") || path == git_dir.join("index.lock") {
         WatchEvent::GitIndex
-    } else if path_str.contains(".git/HEAD") {
+    } else if path == git_dir.join("HEAD")
+        || path == git_dir.join("HEAD.lock")
+        || path.starts_with(git_dir.join("logs/HEAD"))
+    {
         WatchEvent::GitHead
-    } else if path_str.contains(".git/refs") {
+    } else if path.starts_with(git_dir.join("refs"))
+        || path.starts_with(common_dir.join("refs"))
+        || path.starts_with(git_dir.join("logs"))
+        || path.starts_with(common_dir.join("logs"))
+        || path == common_dir.join("packed-refs")
+        || path == common_dir.join("packed-refs.lock")
+    {
         WatchEvent::GitRefs
     } else {
         WatchEvent::WorkingDirectory(path.to_path_buf())
@@ -156,12 +187,17 @@ mod tests {
             dir
         }
 
+        fn new_watcher(repo_path: &Path, tx: Sender<WatchEvent>) -> Result<RepoWatcher> {
+            let git_dir = repo_path.join(".git");
+            RepoWatcher::new(repo_path, &git_dir, &git_dir, tx)
+        }
+
         #[test]
         fn new_initializes_with_valid_directory() {
             let dir = TempDir::new().expect("Failed to create temp dir");
             let (tx, _rx) = mpsc::channel();
 
-            let result = RepoWatcher::new(dir.path(), tx);
+            let result = new_watcher(dir.path(), tx);
             assert!(result.is_ok());
         }
 
@@ -170,8 +206,35 @@ mod tests {
             let dir = create_git_repo();
             let (tx, _rx) = mpsc::channel();
 
-            let result = RepoWatcher::new(dir.path(), tx);
+            let result = new_watcher(dir.path(), tx);
             assert!(result.is_ok());
+        }
+
+        #[test]
+        fn watches_linked_worktree_git_directory() {
+            let worktree = TempDir::new().expect("create worktree directory");
+            let common = TempDir::new().expect("create common git directory");
+            let git_dir = common.path().join("worktrees/linked");
+            fs::create_dir_all(git_dir.join("logs")).expect("create worktree git directory");
+            fs::create_dir_all(common.path().join("refs")).expect("create common refs");
+            File::create(git_dir.join("index")).expect("create worktree index");
+            File::create(git_dir.join("HEAD")).expect("create worktree HEAD");
+            let (tx, rx) = mpsc::channel();
+
+            let _watcher = RepoWatcher::new(
+                worktree.path(),
+                &git_dir,
+                common.path(),
+                tx,
+            )
+            .expect("create linked worktree watcher");
+            thread::sleep(Duration::from_millis(200));
+            fs::write(git_dir.join("index"), b"DIRC").expect("update worktree index");
+
+            let event = rx
+                .recv_timeout(Duration::from_secs(3))
+                .expect("receive worktree index event");
+            assert!(matches!(event, WatchEvent::GitIndex));
         }
 
         #[test]
@@ -179,7 +242,7 @@ mod tests {
             let (tx, _rx) = mpsc::channel();
             let nonexistent = PathBuf::from("/nonexistent/path/that/should/not/exist");
 
-            let result = RepoWatcher::new(&nonexistent, tx);
+            let result = new_watcher(&nonexistent, tx);
             assert!(result.is_err());
         }
 
@@ -188,7 +251,7 @@ mod tests {
             let dir = TempDir::new().expect("Failed to create temp dir");
             let (tx, rx) = mpsc::channel();
 
-            let _watcher = RepoWatcher::new(dir.path(), tx).expect("Failed to create watcher");
+            let _watcher = new_watcher(dir.path(), tx).expect("Failed to create watcher");
 
             // Create a file after watcher is set up
             let file_path = dir.path().join("test.txt");
@@ -232,7 +295,7 @@ mod tests {
             let dir = create_git_repo();
             let (tx, rx) = mpsc::channel();
 
-            let _watcher = RepoWatcher::new(dir.path(), tx).expect("Failed to create watcher");
+            let _watcher = new_watcher(dir.path(), tx).expect("Failed to create watcher");
 
             // Modify the git index
             let index_path = dir.path().join(".git/index");
@@ -284,7 +347,7 @@ mod tests {
             let dir = create_git_repo();
             let (tx, rx) = mpsc::channel();
 
-            let _watcher = RepoWatcher::new(dir.path(), tx).expect("Failed to create watcher");
+            let _watcher = new_watcher(dir.path(), tx).expect("Failed to create watcher");
 
             // Modify HEAD
             let head_path = dir.path().join(".git/HEAD");
@@ -321,7 +384,7 @@ mod tests {
 
             let (tx, rx) = mpsc::channel();
 
-            let _watcher = RepoWatcher::new(dir.path(), tx).expect("Failed to create watcher");
+            let _watcher = new_watcher(dir.path(), tx).expect("Failed to create watcher");
 
             // Create a new branch ref
             thread::sleep(Duration::from_millis(150));
@@ -352,7 +415,7 @@ mod tests {
             let dir = TempDir::new().expect("Failed to create temp dir");
             let (tx, rx) = mpsc::channel();
 
-            let _watcher = RepoWatcher::new(dir.path(), tx).expect("Failed to create watcher");
+            let _watcher = new_watcher(dir.path(), tx).expect("Failed to create watcher");
 
             // Make rapid changes
             let file_path = dir.path().join("rapid.txt");
@@ -398,7 +461,7 @@ mod tests {
             let (tx, _rx) = mpsc::channel();
 
             // Should still initialize successfully (logs warning but doesn't fail)
-            let result = RepoWatcher::new(dir.path(), tx);
+            let result = new_watcher(dir.path(), tx);
             assert!(result.is_ok());
         }
 
@@ -414,7 +477,7 @@ mod tests {
             let (tx, _rx) = mpsc::channel();
 
             // Should still initialize successfully
-            let result = RepoWatcher::new(dir.path(), tx);
+            let result = new_watcher(dir.path(), tx);
             assert!(result.is_ok());
         }
 
@@ -431,7 +494,7 @@ mod tests {
             let (tx, _rx) = mpsc::channel();
 
             // Should still initialize successfully
-            let result = RepoWatcher::new(dir.path(), tx);
+            let result = new_watcher(dir.path(), tx);
             assert!(result.is_ok());
         }
 
@@ -442,7 +505,7 @@ mod tests {
 
             let (tx, rx) = mpsc::channel();
 
-            let _watcher = RepoWatcher::new(dir.path(), tx).expect("Failed to create watcher");
+            let _watcher = new_watcher(dir.path(), tx).expect("Failed to create watcher");
 
             // Create a file
             let file_path = dir.path().join("test.txt");
@@ -462,49 +525,53 @@ mod tests {
         }
     }
 
-    mod categorize_path {
+    mod categorize_path_tests {
         use super::*;
+
+        fn categorize(path: &Path) -> WatchEvent {
+            let git_dir = Path::new("/repo/.git");
+            categorize_path(path, git_dir, git_dir)
+        }
 
         #[test]
         fn detects_git_index() {
             let path = Path::new("/repo/.git/index");
-            let event = categorize_path(path);
+            let event = categorize(path);
             assert!(matches!(event, WatchEvent::GitIndex));
         }
 
         #[test]
         fn detects_git_index_lock() {
             let path = Path::new("/repo/.git/index.lock");
-            let event = categorize_path(path);
-            // index.lock contains "index" so it's still GitIndex
+            let event = categorize(path);
             assert!(matches!(event, WatchEvent::GitIndex));
         }
 
         #[test]
         fn detects_git_head() {
             let path = Path::new("/repo/.git/HEAD");
-            let event = categorize_path(path);
+            let event = categorize(path);
             assert!(matches!(event, WatchEvent::GitHead));
         }
 
         #[test]
         fn detects_git_refs() {
             let path = Path::new("/repo/.git/refs/heads/main");
-            let event = categorize_path(path);
+            let event = categorize(path);
             assert!(matches!(event, WatchEvent::GitRefs));
         }
 
         #[test]
         fn detects_git_refs_remotes() {
             let path = Path::new("/repo/.git/refs/remotes/origin/main");
-            let event = categorize_path(path);
+            let event = categorize(path);
             assert!(matches!(event, WatchEvent::GitRefs));
         }
 
         #[test]
         fn detects_working_directory_file() {
             let path = Path::new("/repo/src/main.rs");
-            let event = categorize_path(path);
+            let event = categorize(path);
             assert!(matches!(
                 event,
                 WatchEvent::WorkingDirectory(_)
@@ -518,8 +585,48 @@ mod tests {
         #[test]
         fn detects_working_directory_nested() {
             let path = Path::new("/repo/src/git/mod.rs");
-            let event = categorize_path(path);
+            let event = categorize(path);
             // "git" in path is not ".git", so it's working directory
+            assert!(matches!(
+                event,
+                WatchEvent::WorkingDirectory(_)
+            ));
+        }
+
+        #[test]
+        fn detects_linked_worktree_index_and_head() {
+            let git_dir = Path::new("/repo/.git/worktrees/linked");
+            let common_dir = Path::new("/repo/.git");
+
+            assert!(matches!(
+                categorize_path(
+                    &git_dir.join("index"),
+                    git_dir,
+                    common_dir
+                ),
+                WatchEvent::GitIndex
+            ));
+            assert!(matches!(
+                categorize_path(
+                    &git_dir.join("HEAD"),
+                    git_dir,
+                    common_dir
+                ),
+                WatchEvent::GitHead
+            ));
+            assert!(matches!(
+                categorize_path(
+                    &common_dir.join("refs/heads/main"),
+                    git_dir,
+                    common_dir,
+                ),
+                WatchEvent::GitRefs
+            ));
+        }
+
+        #[test]
+        fn does_not_misclassify_similar_working_paths() {
+            let event = categorize(Path::new("/repo/.git/index-backup"));
             assert!(matches!(
                 event,
                 WatchEvent::WorkingDirectory(_)

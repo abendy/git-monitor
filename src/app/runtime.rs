@@ -31,8 +31,15 @@ impl App {
             }
         });
 
-        // Create the watcher
-        let watcher = RepoWatcher::new(&self.repo_path, watch_tx)?;
+        // Create the watcher using Git's resolved paths so linked worktrees
+        // monitor their external index, HEAD, refs, and reflogs.
+        let common_dir = self.repo.common_dir();
+        let watcher = RepoWatcher::new(
+            &self.repo_path,
+            self.repo.git_dir(),
+            &common_dir,
+            watch_tx,
+        )?;
         self.watcher = Some(watcher);
 
         Ok(())

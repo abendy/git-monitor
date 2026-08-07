@@ -19,11 +19,6 @@ that boundary.
 4. `docs/adr/` for decisions that still constrain the code.
 5. `.agents/README.md` for focused Rust, test, dependency, package, and security guidance.
 
-When present, `.project/tasks/index.md` is the active local backlog for review and migration to
-Linear. Validate linked task statuses against the code before closing or importing them; some task
-details are stale. `docs/ROADMAP.md` remains authoritative for sequencing. Promote durable product
-decisions to tracked docs or an ADR.
-
 ## Required Checks
 
 The repository selects stable Rust through `rust-toolchain.toml` and declares Rust 1.97 as its

@@ -77,6 +77,18 @@ git-monitor --path /path/to/repo
 - Git repository
 - Terminal with 256-color support
 
+## Development Health
+
+Source checkouts include a readiness check for the host toolchain, locked dependencies, and debug
+build:
+
+```bash
+./doctor.sh
+
+# Run the same formatting, lint, test, and release-build gates used before publishing
+./doctor.sh --full
+```
+
 ## Documentation
 
 - [Contributing](CONTRIBUTING.md) - Development setup and guidelines

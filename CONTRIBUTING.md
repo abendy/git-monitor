@@ -6,6 +6,7 @@
 
 - **Rust** 1.97+ (install via [rustup](https://rustup.rs/); the repository selects stable Rust)
 - **Git** 2.x+
+- Native build tools (`xcode-select --install` on macOS or the equivalent C toolchain on Linux)
 - Terminal with 256-color support
 
 ### Clone and Build
@@ -14,12 +15,16 @@
 git clone https://github.com/abendy/git-monitor
 cd git-monitor
 
-# Debug build
-cargo build
+# Verify the toolchain, locked dependency graph, and debug build
+./doctor.sh
 
-# Release build (optimized)
-cargo build --release
+# Run all local quality gates, including the release build
+./doctor.sh --full
 ```
+
+The doctor is a shell entrypoint so it can report a missing Rust or Cargo installation. Once the
+toolchain is available, all project checks it runs are Cargo-native commands and remain usable
+directly.
 
 ### Run
 

@@ -19,8 +19,10 @@ that boundary.
 4. `docs/adr/` for decisions that still constrain the code.
 5. `.agents/README.md` for focused Rust, test, dependency, package, and security guidance.
 
-`.project/` is a local planning archive. It contains useful history and abandoned ideas, but it is
-not authoritative. Promote durable decisions to tracked docs or an ADR.
+When present, `.project/tasks/index.md` is the active local backlog for review and migration to
+Linear. Validate linked task statuses against the code before closing or importing them; some task
+details are stale. `docs/ROADMAP.md` remains authoritative for sequencing. Promote durable product
+decisions to tracked docs or an ADR.
 
 ## Required Checks
 

@@ -100,5 +100,7 @@ a full forge client.
 - User-authored dynamic layouts.
 - A full issue tracker, log viewer, or replacement for provider web UIs.
 
-The historical files under `.project/tasks/` remain useful design input, but their status labels and
-implementation claims may be stale. Promote work here when it becomes a committed product priority.
+When present, `.project/tasks/index.md` is the active local review queue for migration to Linear.
+Its linked task files preserve useful detail, but their status labels and implementation claims may
+be stale. Validate them against the code, and use this roadmap to decide sequencing; do not close a
+task merely because part of its design has landed.

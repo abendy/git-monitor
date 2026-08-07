@@ -1,4 +1,5 @@
 //! Integration tests for App initialization and state management.
+#![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
 use std::path::PathBuf;
 
@@ -12,10 +13,23 @@ fn create_test_repo() -> TempDir {
 
     // Create initial commit so we have a valid HEAD
     let sig = git2::Signature::now("Test", "test@example.com").expect("signature");
-    let tree_id = repo.index().expect("index").write_tree().expect("write tree");
-    let tree = repo.find_tree(tree_id).expect("find tree");
-    repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
-        .expect("commit");
+    let tree_id = repo
+        .index()
+        .expect("index")
+        .write_tree()
+        .expect("write tree");
+    let tree = repo
+        .find_tree(tree_id)
+        .expect("find tree");
+    repo.commit(
+        Some("HEAD"),
+        &sig,
+        &sig,
+        "Initial commit",
+        &tree,
+        &[],
+    )
+    .expect("commit");
 
     dir
 }
@@ -145,7 +159,11 @@ mod app_git_status {
         let dir = create_test_repo();
 
         // Create an untracked file
-        std::fs::write(dir.path().join("untracked.txt"), "content").expect("write file");
+        std::fs::write(
+            dir.path().join("untracked.txt"),
+            "content",
+        )
+        .expect("write file");
 
         let app = App::new(dir.path().to_path_buf()).expect("create app");
 
@@ -167,15 +185,30 @@ mod app_git_status {
 
         let repo = git2::Repository::open(dir.path()).expect("open repo");
         let mut index = repo.index().expect("index");
-        index.add_path(std::path::Path::new("file.txt")).expect("add");
+        index
+            .add_path(std::path::Path::new("file.txt"))
+            .expect("add");
         index.write().expect("write index");
 
         let tree_id = index.write_tree().expect("write tree");
-        let tree = repo.find_tree(tree_id).expect("find tree");
-        let parent = repo.head().expect("head").peel_to_commit().expect("commit");
-        let sig = git2::Signature::now("Test", "test@example.com").expect("sig");
-        repo.commit(Some("HEAD"), &sig, &sig, "Add file", &tree, &[&parent])
+        let tree = repo
+            .find_tree(tree_id)
+            .expect("find tree");
+        let parent = repo
+            .head()
+            .expect("head")
+            .peel_to_commit()
             .expect("commit");
+        let sig = git2::Signature::now("Test", "test@example.com").expect("sig");
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "Add file",
+            &tree,
+            &[&parent],
+        )
+        .expect("commit");
 
         // Modify the file
         std::fs::write(&file_path, "modified").expect("modify file");

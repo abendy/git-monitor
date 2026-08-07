@@ -138,7 +138,10 @@ mod tests {
         assert!(stack.is_active());
         assert_eq!(stack.depth(), 1);
         assert!(stack.current().is_some());
-        assert_eq!(stack.current().expect("menu").title(), "Menu 1");
+        assert_eq!(
+            stack.current().expect("menu").title(),
+            "Menu 1"
+        );
     }
 
     #[test]
@@ -150,7 +153,10 @@ mod tests {
         stack.push(Box::new(TestMenu::new("Menu 3")));
 
         assert_eq!(stack.depth(), 3);
-        assert_eq!(stack.current().expect("menu").title(), "Menu 3");
+        assert_eq!(
+            stack.current().expect("menu").title(),
+            "Menu 3"
+        );
     }
 
     #[test]
@@ -165,7 +171,10 @@ mod tests {
         assert!(popped.is_some());
         assert_eq!(popped.expect("menu").title(), "Menu 2");
         assert_eq!(stack.depth(), 1);
-        assert_eq!(stack.current().expect("menu").title(), "Menu 1");
+        assert_eq!(
+            stack.current().expect("menu").title(),
+            "Menu 1"
+        );
     }
 
     #[test]
@@ -201,7 +210,13 @@ mod tests {
             menu.set_selected(2);
         }
 
-        assert_eq!(stack.current().expect("menu").selected(), 2);
+        assert_eq!(
+            stack
+                .current()
+                .expect("menu")
+                .selected(),
+            2
+        );
     }
 
     #[test]

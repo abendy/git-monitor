@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use notify::RecursiveMode;
-use notify_debouncer_mini::{new_debouncer, DebouncedEvent, DebouncedEventKind, Debouncer};
+use notify_debouncer_mini::{new_debouncer, DebouncedEvent, Debouncer};
 use tracing::warn;
 
 /// File system watcher for git repository changes
@@ -22,9 +22,9 @@ impl RepoWatcher {
         let mut debouncer = new_debouncer(
             Duration::from_millis(100),
             move |result: Result<Vec<DebouncedEvent>, notify::Error>| {
-                if let Ok(events) = result {
-                    for event in events {
-                        if event.kind == DebouncedEventKind::Any {
+                match result {
+                    Ok(events) => {
+                        for event in events {
                             let watch_event = categorize_path(&event.path);
                             // Send event to main loop. Intentionally ignore send errors -
                             // this happens during shutdown when the receiver is dropped,
@@ -32,6 +32,7 @@ impl RepoWatcher {
                             let _ = event_tx.send(watch_event);
                         }
                     }
+                    Err(error) => warn!("File watcher error: {error}"),
                 }
             },
         )
@@ -222,8 +223,7 @@ mod tests {
             });
             assert!(
                 has_test_file_event,
-                "Should receive WorkingDirectory event for test.txt, got: {:?}",
-                events
+                "Should receive WorkingDirectory event for test.txt, got: {events:?}"
             );
         }
 
@@ -275,8 +275,7 @@ mod tests {
             });
             assert!(
                 has_git_event,
-                "Should receive event related to git index, got: {:?}",
-                events
+                "Should receive event related to git index, got: {events:?}"
             );
         }
 

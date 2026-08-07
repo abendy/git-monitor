@@ -273,7 +273,9 @@ mod tests {
         let repo = Repository::init(dir.path()).expect("Failed to init repo");
 
         // Configure git user for commits
-        let mut config = repo.config().expect("Failed to get config");
+        let mut config = repo
+            .config()
+            .expect("Failed to get config");
         config
             .set_str("user.name", "Test User")
             .expect("Failed to set user.name");
@@ -286,17 +288,34 @@ mod tests {
         let file_path = dir.path().join("initial.txt");
         fs::write(&file_path, "initial content\n").expect("Failed to write file");
 
-        let mut index = repo.index().expect("Failed to get index");
+        let mut index = repo
+            .index()
+            .expect("Failed to get index");
         index
             .add_path(Path::new("initial.txt"))
             .expect("Failed to add file");
-        index.write().expect("Failed to write index");
+        index
+            .write()
+            .expect("Failed to write index");
 
-        let tree_id = index.write_tree().expect("Failed to write tree");
-        let tree = repo.find_tree(tree_id).expect("Failed to find tree");
-        let sig = repo.signature().expect("Failed to get signature");
-        repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
-            .expect("Failed to commit");
+        let tree_id = index
+            .write_tree()
+            .expect("Failed to write tree");
+        let tree = repo
+            .find_tree(tree_id)
+            .expect("Failed to find tree");
+        let sig = repo
+            .signature()
+            .expect("Failed to get signature");
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "Initial commit",
+            &tree,
+            &[],
+        )
+        .expect("Failed to commit");
 
         drop(tree);
         drop(repo);
@@ -312,7 +331,9 @@ mod tests {
         fn clean_repo_has_no_file_changes() {
             let (_dir, repo) = create_test_repo();
 
-            let status = repo.status().expect("Failed to get status");
+            let status = repo
+                .status()
+                .expect("Failed to get status");
 
             assert!(status.files.is_empty());
         }
@@ -322,15 +343,29 @@ mod tests {
             let (dir, repo) = create_test_repo();
 
             // Create untracked file
-            fs::write(dir.path().join("untracked.txt"), "new file\n")
-                .expect("Failed to write file");
+            fs::write(
+                dir.path().join("untracked.txt"),
+                "new file\n",
+            )
+            .expect("Failed to write file");
 
-            let status = repo.status().expect("Failed to get status");
+            let status = repo
+                .status()
+                .expect("Failed to get status");
 
             assert_eq!(status.files.len(), 1);
-            assert_eq!(status.files[0].path, PathBuf::from("untracked.txt"));
-            assert_eq!(status.files[0].working, FileState::Untracked);
-            assert_eq!(status.files[0].staged, FileState::Unmodified);
+            assert_eq!(
+                status.files[0].path,
+                PathBuf::from("untracked.txt")
+            );
+            assert_eq!(
+                status.files[0].working,
+                FileState::Untracked
+            );
+            assert_eq!(
+                status.files[0].staged,
+                FileState::Unmodified
+            );
         }
 
         #[test]
@@ -338,15 +373,29 @@ mod tests {
             let (dir, repo) = create_test_repo();
 
             // Modify tracked file
-            fs::write(dir.path().join("initial.txt"), "modified content\n")
-                .expect("Failed to write file");
+            fs::write(
+                dir.path().join("initial.txt"),
+                "modified content\n",
+            )
+            .expect("Failed to write file");
 
-            let status = repo.status().expect("Failed to get status");
+            let status = repo
+                .status()
+                .expect("Failed to get status");
 
             assert_eq!(status.files.len(), 1);
-            assert_eq!(status.files[0].path, PathBuf::from("initial.txt"));
-            assert_eq!(status.files[0].working, FileState::Modified);
-            assert_eq!(status.files[0].staged, FileState::Unmodified);
+            assert_eq!(
+                status.files[0].path,
+                PathBuf::from("initial.txt")
+            );
+            assert_eq!(
+                status.files[0].working,
+                FileState::Modified
+            );
+            assert_eq!(
+                status.files[0].staged,
+                FileState::Unmodified
+            );
         }
 
         #[test]
@@ -354,16 +403,27 @@ mod tests {
             let (dir, repo) = create_test_repo();
 
             // Create and stage a new file
-            fs::write(dir.path().join("staged.txt"), "staged content\n")
-                .expect("Failed to write file");
+            fs::write(
+                dir.path().join("staged.txt"),
+                "staged content\n",
+            )
+            .expect("Failed to write file");
             repo.stage(Path::new("staged.txt"))
                 .expect("Failed to stage");
 
-            let status = repo.status().expect("Failed to get status");
+            let status = repo
+                .status()
+                .expect("Failed to get status");
 
             assert_eq!(status.files.len(), 1);
-            assert_eq!(status.files[0].path, PathBuf::from("staged.txt"));
-            assert_eq!(status.files[0].working, FileState::Unmodified);
+            assert_eq!(
+                status.files[0].path,
+                PathBuf::from("staged.txt")
+            );
+            assert_eq!(
+                status.files[0].working,
+                FileState::Unmodified
+            );
             assert_eq!(status.files[0].staged, FileState::Added);
         }
 
@@ -372,17 +432,31 @@ mod tests {
             let (dir, repo) = create_test_repo();
 
             // Modify and stage tracked file
-            fs::write(dir.path().join("initial.txt"), "modified content\n")
-                .expect("Failed to write file");
+            fs::write(
+                dir.path().join("initial.txt"),
+                "modified content\n",
+            )
+            .expect("Failed to write file");
             repo.stage(Path::new("initial.txt"))
                 .expect("Failed to stage");
 
-            let status = repo.status().expect("Failed to get status");
+            let status = repo
+                .status()
+                .expect("Failed to get status");
 
             assert_eq!(status.files.len(), 1);
-            assert_eq!(status.files[0].path, PathBuf::from("initial.txt"));
-            assert_eq!(status.files[0].working, FileState::Unmodified);
-            assert_eq!(status.files[0].staged, FileState::Modified);
+            assert_eq!(
+                status.files[0].path,
+                PathBuf::from("initial.txt")
+            );
+            assert_eq!(
+                status.files[0].working,
+                FileState::Unmodified
+            );
+            assert_eq!(
+                status.files[0].staged,
+                FileState::Modified
+            );
         }
 
         #[test]
@@ -390,18 +464,32 @@ mod tests {
             let (dir, repo) = create_test_repo();
 
             // Modify and stage, then modify again
-            fs::write(dir.path().join("initial.txt"), "staged version\n")
-                .expect("Failed to write file");
+            fs::write(
+                dir.path().join("initial.txt"),
+                "staged version\n",
+            )
+            .expect("Failed to write file");
             repo.stage(Path::new("initial.txt"))
                 .expect("Failed to stage");
-            fs::write(dir.path().join("initial.txt"), "working version\n")
-                .expect("Failed to write file");
+            fs::write(
+                dir.path().join("initial.txt"),
+                "working version\n",
+            )
+            .expect("Failed to write file");
 
-            let status = repo.status().expect("Failed to get status");
+            let status = repo
+                .status()
+                .expect("Failed to get status");
 
             assert_eq!(status.files.len(), 1);
-            assert_eq!(status.files[0].working, FileState::Modified);
-            assert_eq!(status.files[0].staged, FileState::Modified);
+            assert_eq!(
+                status.files[0].working,
+                FileState::Modified
+            );
+            assert_eq!(
+                status.files[0].staged,
+                FileState::Modified
+            );
         }
 
         #[test]
@@ -411,11 +499,19 @@ mod tests {
             // Delete tracked file
             fs::remove_file(dir.path().join("initial.txt")).expect("Failed to delete file");
 
-            let status = repo.status().expect("Failed to get status");
+            let status = repo
+                .status()
+                .expect("Failed to get status");
 
             assert_eq!(status.files.len(), 1);
-            assert_eq!(status.files[0].path, PathBuf::from("initial.txt"));
-            assert_eq!(status.files[0].working, FileState::Deleted);
+            assert_eq!(
+                status.files[0].path,
+                PathBuf::from("initial.txt")
+            );
+            assert_eq!(
+                status.files[0].working,
+                FileState::Deleted
+            );
         }
 
         #[test]
@@ -427,12 +523,23 @@ mod tests {
             fs::write(dir.path().join("alpha.txt"), "a\n").expect("Failed to write");
             fs::write(dir.path().join("middle.txt"), "m\n").expect("Failed to write");
 
-            let status = repo.status().expect("Failed to get status");
+            let status = repo
+                .status()
+                .expect("Failed to get status");
 
             assert_eq!(status.files.len(), 3);
-            assert_eq!(status.files[0].path, PathBuf::from("alpha.txt"));
-            assert_eq!(status.files[1].path, PathBuf::from("middle.txt"));
-            assert_eq!(status.files[2].path, PathBuf::from("zebra.txt"));
+            assert_eq!(
+                status.files[0].path,
+                PathBuf::from("alpha.txt")
+            );
+            assert_eq!(
+                status.files[1].path,
+                PathBuf::from("middle.txt")
+            );
+            assert_eq!(
+                status.files[2].path,
+                PathBuf::from("zebra.txt")
+            );
         }
 
         #[test]
@@ -446,7 +553,9 @@ mod tests {
             )
             .expect("Failed to write file");
 
-            let status = repo.status().expect("Failed to get status");
+            let status = repo
+                .status()
+                .expect("Failed to get status");
 
             assert_eq!(status.files.len(), 1);
             // Original had 1 line, new has 3 lines = 3 insertions, 1 deletion
@@ -467,7 +576,9 @@ mod tests {
             repo.stage(Path::new("initial.txt"))
                 .expect("Failed to stage");
 
-            let status = repo.status().expect("Failed to get status");
+            let status = repo
+                .status()
+                .expect("Failed to get status");
 
             assert_eq!(status.files.len(), 1);
             // Original had 1 line, new has 2 lines = 2 insertions, 1 deletion
@@ -486,11 +597,15 @@ mod tests {
         fn returns_branch_name() {
             let (_dir, repo) = create_test_repo();
 
-            let status = repo.status().expect("Failed to get status");
+            let status = repo
+                .status()
+                .expect("Failed to get status");
 
             // Default branch after init is usually "master" or "main"
             assert!(status.branch.is_some());
-            let branch = status.branch.expect("should have branch");
+            let branch = status
+                .branch
+                .expect("should have branch");
             assert!(branch == "master" || branch == "main");
         }
 
@@ -501,8 +616,12 @@ mod tests {
             // Detach HEAD by checking out a commit directly
             {
                 let git_repo = Repository::open(dir.path()).expect("Failed to open");
-                let head = git_repo.head().expect("Failed to get HEAD");
-                let commit = head.peel_to_commit().expect("Failed to get commit");
+                let head = git_repo
+                    .head()
+                    .expect("Failed to get HEAD");
+                let commit = head
+                    .peel_to_commit()
+                    .expect("Failed to get commit");
                 git_repo
                     .set_head_detached(commit.id())
                     .expect("Failed to detach HEAD");
@@ -510,20 +629,28 @@ mod tests {
 
             // Re-open to get fresh state
             let repo = GitRepo::open(dir.path()).expect("Failed to open");
-            let status = repo.status().expect("Failed to get status");
+            let status = repo
+                .status()
+                .expect("Failed to get status");
 
             assert!(status.branch.is_some());
-            let branch = status.branch.expect("should have branch");
+            let branch = status
+                .branch
+                .expect("should have branch");
             // Should be a 7-char SHA, not a branch name
             assert_eq!(branch.len(), 7);
-            assert!(branch.chars().all(|c| c.is_ascii_hexdigit()));
+            assert!(branch
+                .chars()
+                .all(|c| c.is_ascii_hexdigit()));
         }
 
         #[test]
         fn no_upstream_by_default() {
             let (_dir, repo) = create_test_repo();
 
-            let status = repo.status().expect("Failed to get status");
+            let status = repo
+                .status()
+                .expect("Failed to get status");
 
             assert!(status.upstream.is_none());
             assert_eq!(status.ahead, 0);

@@ -332,7 +332,10 @@ mod tests {
         fn with_description_sets_description() {
             let item = MenuItem::new("Test").with_description("A description");
 
-            assert_eq!(item.description, Some("A description".to_string()));
+            assert_eq!(
+                item.description,
+                Some("A description".to_string())
+            );
         }
 
         #[test]
@@ -353,7 +356,10 @@ mod tests {
         fn with_style_sets_style() {
             let item = MenuItem::new("Test").with_style(ItemStyle::Disabled);
 
-            assert!(matches!(item.style, ItemStyle::Disabled));
+            assert!(matches!(
+                item.style,
+                ItemStyle::Disabled
+            ));
         }
 
         #[test]
@@ -362,7 +368,10 @@ mod tests {
 
             assert!(item.label.is_empty());
             assert!(!item.enabled);
-            assert!(matches!(item.style, ItemStyle::Separator));
+            assert!(matches!(
+                item.style,
+                ItemStyle::Separator
+            ));
         }
 
         #[test]
@@ -380,7 +389,10 @@ mod tests {
             let unchecked = MenuItem::checkbox("Option", false);
 
             assert!(checked.enabled);
-            assert!(matches!(checked.style, ItemStyle::Checkbox { checked: true }));
+            assert!(matches!(
+                checked.style,
+                ItemStyle::Checkbox { checked: true }
+            ));
             assert!(matches!(
                 unchecked.style,
                 ItemStyle::Checkbox { checked: false }
@@ -396,7 +408,10 @@ mod tests {
                 .with_style(ItemStyle::Normal);
 
             assert_eq!(item.label, "Action");
-            assert_eq!(item.description, Some("Does something".to_string()));
+            assert_eq!(
+                item.description,
+                Some("Does something".to_string())
+            );
             assert_eq!(item.key_hint, Some("a".to_string()));
             assert!(item.enabled);
         }

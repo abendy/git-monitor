@@ -353,11 +353,13 @@ mod tests {
 
         #[test]
         fn with_info_adds_info_line() {
-            let menu = ConfirmMenu::new("Confirm", "Message")
-                .with_info("Branch", "main");
+            let menu = ConfirmMenu::new("Confirm", "Message").with_info("Branch", "main");
 
             assert_eq!(menu.info.len(), 1);
-            assert_eq!(menu.info[0], ("Branch".to_string(), "main".to_string()));
+            assert_eq!(
+                menu.info[0],
+                ("Branch".to_string(), "main".to_string())
+            );
         }
 
         #[test]
@@ -404,8 +406,8 @@ mod tests {
 
         #[test]
         fn set_selected_ignores_out_of_bounds() {
-            let mut menu = ConfirmMenu::new("Confirm", "Message")
-                .with_checkbox(Checkbox::new("Opt", "opt"));
+            let mut menu =
+                ConfirmMenu::new("Confirm", "Message").with_checkbox(Checkbox::new("Opt", "opt"));
 
             menu.set_selected(10);
 

@@ -20,10 +20,12 @@ impl GitRepo {
                 debug!("No HEAD found for staged diff (empty repo?)");
             }
             let head_tree = head.and_then(|h| {
-                h.peel_to_tree().map_err(|e| {
-                    debug!("Failed to peel HEAD to tree: {}", e);
-                    e
-                }).ok()
+                h.peel_to_tree()
+                    .map_err(|e| {
+                        debug!("Failed to peel HEAD to tree: {}", e);
+                        e
+                    })
+                    .ok()
             });
             self.repo.diff_tree_to_index(
                 head_tree.as_ref(),
@@ -75,7 +77,9 @@ mod tests {
         let dir = TempDir::new().expect("Failed to create temp dir");
         let repo = Repository::init(dir.path()).expect("Failed to init repo");
 
-        let mut config = repo.config().expect("Failed to get config");
+        let mut config = repo
+            .config()
+            .expect("Failed to get config");
         config
             .set_str("user.name", "Test User")
             .expect("Failed to set user.name");
@@ -88,17 +92,34 @@ mod tests {
         let file_path = dir.path().join("file.txt");
         fs::write(&file_path, "line one\nline two\n").expect("Failed to write file");
 
-        let mut index = repo.index().expect("Failed to get index");
+        let mut index = repo
+            .index()
+            .expect("Failed to get index");
         index
             .add_path(Path::new("file.txt"))
             .expect("Failed to add file");
-        index.write().expect("Failed to write index");
+        index
+            .write()
+            .expect("Failed to write index");
 
-        let tree_id = index.write_tree().expect("Failed to write tree");
-        let tree = repo.find_tree(tree_id).expect("Failed to find tree");
-        let sig = repo.signature().expect("Failed to get signature");
-        repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
-            .expect("Failed to commit");
+        let tree_id = index
+            .write_tree()
+            .expect("Failed to write tree");
+        let tree = repo
+            .find_tree(tree_id)
+            .expect("Failed to find tree");
+        let sig = repo
+            .signature()
+            .expect("Failed to get signature");
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "Initial commit",
+            &tree,
+            &[],
+        )
+        .expect("Failed to commit");
 
         drop(tree);
         drop(repo);
@@ -115,8 +136,11 @@ mod tests {
             let (dir, repo) = create_test_repo();
 
             // Modify the file
-            fs::write(dir.path().join("file.txt"), "line one\nmodified line\n")
-                .expect("Failed to write");
+            fs::write(
+                dir.path().join("file.txt"),
+                "line one\nmodified line\n",
+            )
+            .expect("Failed to write");
 
             let diff = repo
                 .diff_file(Path::new("file.txt"), false)
@@ -131,9 +155,13 @@ mod tests {
             let (dir, repo) = create_test_repo();
 
             // Modify and stage the file
-            fs::write(dir.path().join("file.txt"), "line one\nstaged change\n")
-                .expect("Failed to write");
-            repo.stage(Path::new("file.txt")).expect("Failed to stage");
+            fs::write(
+                dir.path().join("file.txt"),
+                "line one\nstaged change\n",
+            )
+            .expect("Failed to write");
+            repo.stage(Path::new("file.txt"))
+                .expect("Failed to stage");
 
             let diff = repo
                 .diff_file(Path::new("file.txt"), true)
@@ -159,7 +187,11 @@ mod tests {
             let (dir, repo) = create_test_repo();
 
             // Create a new untracked file
-            fs::write(dir.path().join("new.txt"), "new content\n").expect("Failed to write");
+            fs::write(
+                dir.path().join("new.txt"),
+                "new content\n",
+            )
+            .expect("Failed to write");
 
             // For untracked files, diff_file won't show anything (it's not in index)
             let diff = repo
@@ -175,8 +207,13 @@ mod tests {
             let (dir, repo) = create_test_repo();
 
             // Create and stage a new file
-            fs::write(dir.path().join("new.txt"), "new content\n").expect("Failed to write");
-            repo.stage(Path::new("new.txt")).expect("Failed to stage");
+            fs::write(
+                dir.path().join("new.txt"),
+                "new content\n",
+            )
+            .expect("Failed to write");
+            repo.stage(Path::new("new.txt"))
+                .expect("Failed to stage");
 
             let diff = repo
                 .diff_file(Path::new("new.txt"), true)

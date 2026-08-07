@@ -1,4 +1,5 @@
 //! Integration tests for git workflow operations.
+#![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
 use std::path::Path;
 
@@ -13,10 +14,23 @@ fn create_test_repo() -> (TempDir, GitRepo) {
     {
         let repo = git2::Repository::init(dir.path()).expect("init repo");
         let sig = git2::Signature::now("Test", "test@example.com").expect("signature");
-        let tree_id = repo.index().expect("index").write_tree().expect("write tree");
-        let tree = repo.find_tree(tree_id).expect("find tree");
-        repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
-            .expect("commit");
+        let tree_id = repo
+            .index()
+            .expect("index")
+            .write_tree()
+            .expect("write tree");
+        let tree = repo
+            .find_tree(tree_id)
+            .expect("find tree");
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "Initial commit",
+            &tree,
+            &[],
+        )
+        .expect("commit");
     }
 
     let git_repo = GitRepo::open(dir.path()).expect("open GitRepo");
@@ -34,11 +48,15 @@ mod stage_unstage_workflow {
         std::fs::write(dir.path().join("new.txt"), "content").expect("write");
 
         // Stage it
-        repo.stage(Path::new("new.txt")).expect("stage");
+        repo.stage(Path::new("new.txt"))
+            .expect("stage");
 
         // Verify it's staged
         let status = repo.status().expect("status");
-        let file = status.files.iter().find(|f| f.path == Path::new("new.txt"));
+        let file = status
+            .files
+            .iter()
+            .find(|f| f.path == Path::new("new.txt"));
         assert!(file.is_some());
         assert_eq!(file.unwrap().staged, FileState::Added);
     }
@@ -49,17 +67,28 @@ mod stage_unstage_workflow {
 
         // Create and stage a file
         std::fs::write(dir.path().join("new.txt"), "content").expect("write");
-        repo.stage(Path::new("new.txt")).expect("stage");
+        repo.stage(Path::new("new.txt"))
+            .expect("stage");
 
         // Unstage it
-        repo.unstage(Path::new("new.txt")).expect("unstage");
+        repo.unstage(Path::new("new.txt"))
+            .expect("unstage");
 
         // Verify it's no longer staged
         let status = repo.status().expect("status");
-        let file = status.files.iter().find(|f| f.path == Path::new("new.txt"));
+        let file = status
+            .files
+            .iter()
+            .find(|f| f.path == Path::new("new.txt"));
         assert!(file.is_some());
-        assert_eq!(file.unwrap().staged, FileState::Unmodified);
-        assert_eq!(file.unwrap().working, FileState::Untracked);
+        assert_eq!(
+            file.unwrap().staged,
+            FileState::Unmodified
+        );
+        assert_eq!(
+            file.unwrap().working,
+            FileState::Untracked
+        );
     }
 
     #[test]
@@ -69,18 +98,32 @@ mod stage_unstage_workflow {
         // Create, stage, and commit a file
         let file_path = dir.path().join("file.txt");
         std::fs::write(&file_path, "initial").expect("write");
-        repo.stage(Path::new("file.txt")).expect("stage");
+        repo.stage(Path::new("file.txt"))
+            .expect("stage");
 
         // Commit it using git2 directly
         {
             let git_repo = git2::Repository::open(dir.path()).expect("open");
             let mut index = git_repo.index().expect("index");
             let tree_id = index.write_tree().expect("tree");
-            let tree = git_repo.find_tree(tree_id).expect("find tree");
-            let parent = git_repo.head().expect("head").peel_to_commit().expect("commit");
+            let tree = git_repo
+                .find_tree(tree_id)
+                .expect("find tree");
+            let parent = git_repo
+                .head()
+                .expect("head")
+                .peel_to_commit()
+                .expect("commit");
             let sig = git2::Signature::now("Test", "test@example.com").expect("sig");
             git_repo
-                .commit(Some("HEAD"), &sig, &sig, "Add file", &tree, &[&parent])
+                .commit(
+                    Some("HEAD"),
+                    &sig,
+                    &sig,
+                    "Add file",
+                    &tree,
+                    &[&parent],
+                )
                 .expect("commit");
         }
 
@@ -88,13 +131,20 @@ mod stage_unstage_workflow {
         std::fs::write(&file_path, "modified").expect("modify");
 
         // Stage the modification
-        repo.stage(Path::new("file.txt")).expect("stage");
+        repo.stage(Path::new("file.txt"))
+            .expect("stage");
 
         // Verify staged modification
         let status = repo.status().expect("status");
-        let file = status.files.iter().find(|f| f.path == Path::new("file.txt"));
+        let file = status
+            .files
+            .iter()
+            .find(|f| f.path == Path::new("file.txt"));
         assert!(file.is_some());
-        assert_eq!(file.unwrap().staged, FileState::Modified);
+        assert_eq!(
+            file.unwrap().staged,
+            FileState::Modified
+        );
     }
 }
 
@@ -112,14 +162,29 @@ mod diff_workflow {
         {
             let git_repo = git2::Repository::open(dir.path()).expect("open");
             let mut index = git_repo.index().expect("index");
-            index.add_path(Path::new("file.txt")).expect("add");
+            index
+                .add_path(Path::new("file.txt"))
+                .expect("add");
             index.write().expect("write");
             let tree_id = index.write_tree().expect("tree");
-            let tree = git_repo.find_tree(tree_id).expect("find tree");
-            let parent = git_repo.head().expect("head").peel_to_commit().expect("commit");
+            let tree = git_repo
+                .find_tree(tree_id)
+                .expect("find tree");
+            let parent = git_repo
+                .head()
+                .expect("head")
+                .peel_to_commit()
+                .expect("commit");
             let sig = git2::Signature::now("Test", "test@example.com").expect("sig");
             git_repo
-                .commit(Some("HEAD"), &sig, &sig, "Add file", &tree, &[&parent])
+                .commit(
+                    Some("HEAD"),
+                    &sig,
+                    &sig,
+                    "Add file",
+                    &tree,
+                    &[&parent],
+                )
                 .expect("commit");
         }
 
@@ -127,7 +192,9 @@ mod diff_workflow {
         std::fs::write(&file_path, "line1\nline2\nline3\n").expect("modify");
 
         // Get working diff using GitRepo method
-        let diff = repo.diff_file(Path::new("file.txt"), false).expect("diff");
+        let diff = repo
+            .diff_file(Path::new("file.txt"), false)
+            .expect("diff");
 
         assert!(diff.contains("+line3"));
     }
@@ -137,11 +204,18 @@ mod diff_workflow {
         let (dir, repo) = create_test_repo();
 
         // Create and stage a new file
-        std::fs::write(dir.path().join("new.txt"), "new content\n").expect("write");
-        repo.stage(Path::new("new.txt")).expect("stage");
+        std::fs::write(
+            dir.path().join("new.txt"),
+            "new content\n",
+        )
+        .expect("write");
+        repo.stage(Path::new("new.txt"))
+            .expect("stage");
 
         // Get staged diff using GitRepo method
-        let diff = repo.diff_file(Path::new("new.txt"), true).expect("diff");
+        let diff = repo
+            .diff_file(Path::new("new.txt"), true)
+            .expect("diff");
 
         assert!(diff.contains("+new content"));
     }
@@ -167,12 +241,19 @@ mod branch_workflow {
         // Create a new branch using git2
         {
             let git_repo = git2::Repository::open(dir.path()).expect("open");
-            let head = git_repo.head().expect("head").peel_to_commit().expect("commit");
-            git_repo.branch("feature", &head, false).expect("create branch");
+            let head = git_repo
+                .head()
+                .expect("head")
+                .peel_to_commit()
+                .expect("commit");
+            git_repo
+                .branch("feature", &head, false)
+                .expect("create branch");
         }
 
         // Checkout using GitRepo method
-        repo.checkout_branch("feature").expect("checkout");
+        repo.checkout_branch("feature")
+            .expect("checkout");
 
         // Verify we're on the new branch
         let branches = repo.list_branches().expect("branches");
@@ -201,7 +282,9 @@ mod history_workflow {
         let commits = repo.commit_log(0, 10).expect("log");
 
         assert!(!commits.is_empty());
-        assert!(commits.iter().any(|c| c.message.contains("Initial commit")));
+        assert!(commits
+            .iter()
+            .any(|c| c.message.contains("Initial commit")));
     }
 
     #[test]
@@ -214,9 +297,19 @@ mod history_workflow {
             let sig = git2::Signature::now("Test", "test@example.com").expect("sig");
 
             for i in 0..5 {
-                let tree_id = git_repo.index().expect("index").write_tree().expect("tree");
-                let tree = git_repo.find_tree(tree_id).expect("find tree");
-                let parent = git_repo.head().expect("head").peel_to_commit().expect("commit");
+                let tree_id = git_repo
+                    .index()
+                    .expect("index")
+                    .write_tree()
+                    .expect("tree");
+                let tree = git_repo
+                    .find_tree(tree_id)
+                    .expect("find tree");
+                let parent = git_repo
+                    .head()
+                    .expect("head")
+                    .peel_to_commit()
+                    .expect("commit");
                 git_repo
                     .commit(
                         Some("HEAD"),

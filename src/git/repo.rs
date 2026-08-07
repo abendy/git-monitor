@@ -82,7 +82,9 @@ mod tests {
         let repo = Repository::init(dir.path()).expect("Failed to init repo");
 
         // Configure git user for commits
-        let mut config = repo.config().expect("Failed to get config");
+        let mut config = repo
+            .config()
+            .expect("Failed to get config");
         config
             .set_str("user.name", "Test User")
             .expect("Failed to set user.name");
@@ -103,7 +105,9 @@ mod tests {
         let repo = Repository::init(dir.path()).expect("Failed to init repo");
 
         // Configure git user for commits
-        let mut config = repo.config().expect("Failed to get config");
+        let mut config = repo
+            .config()
+            .expect("Failed to get config");
         config
             .set_str("user.name", "Test User")
             .expect("Failed to set user.name");
@@ -116,17 +120,34 @@ mod tests {
         let file_path = dir.path().join("initial.txt");
         fs::write(&file_path, "initial content").expect("Failed to write file");
 
-        let mut index = repo.index().expect("Failed to get index");
+        let mut index = repo
+            .index()
+            .expect("Failed to get index");
         index
             .add_path(Path::new("initial.txt"))
             .expect("Failed to add file");
-        index.write().expect("Failed to write index");
+        index
+            .write()
+            .expect("Failed to write index");
 
-        let tree_id = index.write_tree().expect("Failed to write tree");
-        let tree = repo.find_tree(tree_id).expect("Failed to find tree");
-        let sig = repo.signature().expect("Failed to get signature");
-        repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
-            .expect("Failed to commit");
+        let tree_id = index
+            .write_tree()
+            .expect("Failed to write tree");
+        let tree = repo
+            .find_tree(tree_id)
+            .expect("Failed to find tree");
+        let sig = repo
+            .signature()
+            .expect("Failed to get signature");
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "Initial commit",
+            &tree,
+            &[],
+        )
+        .expect("Failed to commit");
 
         drop(tree);
         drop(repo);
@@ -155,7 +176,9 @@ mod tests {
             assert!(result.is_err());
 
             let err = result.err().expect("should be error");
-            assert!(err.to_string().contains("No git repository found"));
+            assert!(err
+                .to_string()
+                .contains("No git repository found"));
         }
 
         #[test]
@@ -181,7 +204,10 @@ mod tests {
 
             assert!(workdir.is_some());
             assert_eq!(
-                workdir.expect("workdir should exist").canonicalize().ok(),
+                workdir
+                    .expect("workdir should exist")
+                    .canonicalize()
+                    .ok(),
                 dir.path().canonicalize().ok()
             );
         }
@@ -204,7 +230,9 @@ mod tests {
 
             // Verify it's staged by checking the index
             let git_repo = Repository::open(dir.path()).expect("Failed to open");
-            let index = git_repo.index().expect("Failed to get index");
+            let index = git_repo
+                .index()
+                .expect("Failed to get index");
             let entry = index.get_path(Path::new("test.txt"), 0);
             assert!(entry.is_some());
         }
@@ -246,8 +274,12 @@ mod tests {
 
             // Verify it's staged
             let git_repo = Repository::open(dir.path()).expect("Failed to open");
-            let index = git_repo.index().expect("Failed to get index");
-            assert!(index.get_path(Path::new("new.txt"), 0).is_some());
+            let index = git_repo
+                .index()
+                .expect("Failed to get index");
+            assert!(index
+                .get_path(Path::new("new.txt"), 0)
+                .is_some());
             drop(index);
             drop(git_repo);
 
@@ -257,8 +289,12 @@ mod tests {
 
             // Verify it's no longer staged
             let git_repo = Repository::open(dir.path()).expect("Failed to open");
-            let index = git_repo.index().expect("Failed to get index");
-            assert!(index.get_path(Path::new("new.txt"), 0).is_none());
+            let index = git_repo
+                .index()
+                .expect("Failed to get index");
+            assert!(index
+                .get_path(Path::new("new.txt"), 0)
+                .is_none());
         }
 
         #[test]

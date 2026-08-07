@@ -158,7 +158,10 @@ impl App {
             .repo
             .commit_detail(sha)
             .map_err(|e| {
-                warn!("Failed to get commit detail for {}: {}", sha, e);
+                warn!(
+                    "Failed to get commit detail for {}: {}",
+                    sha, e
+                );
                 e
             })
             .ok();

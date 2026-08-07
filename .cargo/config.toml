@@ -14,6 +14,7 @@ c = "check"
 b = "build"
 br = "build --release"
 t = "test"
+test-all = "test --all-targets --all-features"
 
 # Linting
 lint = "clippy --all-targets --all-features -- -D warnings"
@@ -21,6 +22,3 @@ lint-fix = "clippy --all-targets --all-features --fix --allow-dirty -- -D warnin
 
 # Formatting
 fmt-check = "fmt --all -- --check"
-
-# Full CI check
-ci = ["fmt-check", "lint", "test"]

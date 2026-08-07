@@ -206,7 +206,6 @@ pub struct BranchInfo {
     pub is_remote: bool,
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

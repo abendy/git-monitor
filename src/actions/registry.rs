@@ -301,7 +301,8 @@ impl ActionRegistry {
         for alias in aliases {
             let contexts = Self::infer_alias_context(alias);
             if !contexts.is_empty() {
-                self.actions.push(Action::from_alias(alias, contexts));
+                self.actions
+                    .push(Action::from_alias(alias, contexts));
             }
         }
     }
@@ -341,8 +342,8 @@ impl ActionRegistry {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::types::ActionType;
+    use super::*;
 
     mod action_registry {
         use super::*;
@@ -359,7 +360,10 @@ mod tests {
             let default_registry = ActionRegistry::default();
             let new_registry = ActionRegistry::new();
 
-            assert_eq!(default_registry.actions().len(), new_registry.actions().len());
+            assert_eq!(
+                default_registry.actions().len(),
+                new_registry.actions().len()
+            );
         }
 
         #[test]
@@ -374,8 +378,12 @@ mod tests {
             // All returned actions should be for this context or global
             for action in &actions {
                 assert!(
-                    action.contexts.contains(&Context::StagedFiles)
-                        || action.contexts.contains(&Context::Global)
+                    action
+                        .contexts
+                        .contains(&Context::StagedFiles)
+                        || action
+                            .contexts
+                            .contains(&Context::Global)
                 );
             }
         }
@@ -400,11 +408,13 @@ mod tests {
 
             // With no ahead commits, push should not be available
             let state_not_ahead = AppState::default();
-            let actions_not_ahead =
-                registry.actions_for_context(Context::Global, &state_not_ahead);
-            let has_push_not_ahead = actions_not_ahead
-                .iter()
-                .any(|a| matches!(a.action_type, ActionType::App(AppAction::Push)));
+            let actions_not_ahead = registry.actions_for_context(Context::Global, &state_not_ahead);
+            let has_push_not_ahead = actions_not_ahead.iter().any(|a| {
+                matches!(
+                    a.action_type,
+                    ActionType::App(AppAction::Push)
+                )
+            });
             assert!(!has_push_not_ahead);
 
             // With ahead commits, push should be available
@@ -413,9 +423,12 @@ mod tests {
                 ..Default::default()
             };
             let actions_ahead = registry.actions_for_context(Context::Global, &state_ahead);
-            let has_push_ahead = actions_ahead
-                .iter()
-                .any(|a| matches!(a.action_type, ActionType::App(AppAction::Push)));
+            let has_push_ahead = actions_ahead.iter().any(|a| {
+                matches!(
+                    a.action_type,
+                    ActionType::App(AppAction::Push)
+                )
+            });
             assert!(has_push_ahead);
         }
 
@@ -441,8 +454,14 @@ mod tests {
 
             // Hint actions should not include global-only actions
             for action in hints {
-                assert!(!action.contexts.contains(&Context::Global)
-                    || action.contexts.contains(&Context::StagedFiles));
+                assert!(
+                    !action
+                        .contexts
+                        .contains(&Context::Global)
+                        || action
+                            .contexts
+                            .contains(&Context::StagedFiles)
+                );
             }
         }
 
@@ -457,7 +476,10 @@ mod tests {
             }];
             registry.add_alias_actions(&aliases);
 
-            assert_eq!(registry.actions().len(), initial_count + 1);
+            assert_eq!(
+                registry.actions().len(),
+                initial_count + 1
+            );
         }
     }
 
@@ -615,7 +637,10 @@ mod tests {
 
                 let contexts = ActionRegistry::infer_alias_context(&alias);
 
-                assert!(contexts.contains(&Context::Global), "Failed for: {cmd}");
+                assert!(
+                    contexts.contains(&Context::Global),
+                    "Failed for: {cmd}"
+                );
             }
         }
 

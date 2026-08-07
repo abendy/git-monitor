@@ -4,14 +4,14 @@
 
 ### Prerequisites
 
-- **Rust** 1.70+ (install via [rustup](https://rustup.rs/) or Homebrew)
+- **Rust** 1.97+ (install via [rustup](https://rustup.rs/); the repository selects stable Rust)
 - **Git** 2.x+
 - Terminal with 256-color support
 
 ### Clone and Build
 
 ```bash
-git clone https://github.com/yourusername/git-monitor
+git clone https://github.com/abendy/git-monitor
 cd git-monitor
 
 # Debug build
@@ -39,8 +39,8 @@ cargo run -- --tick-rate 100
 ### Testing
 
 ```bash
-# Run all tests
-cargo test
+# Run all targets with the locked dependency graph
+cargo test --all-targets --all-features --locked
 
 # Run tests with output
 cargo test -- --nocapture
@@ -51,11 +51,11 @@ cargo test -- --nocapture
 The project uses strict lints configured in `Cargo.toml`:
 
 ```bash
-# Format code (nightly via rust-toolchain.toml)
-cargo fmt
+# Check formatting
+cargo fmt --all -- --check
 
-# Run clippy (pedantic + nursery lints enabled)
-cargo clippy
+# Run clippy across every target (pedantic + nursery lints enabled)
+cargo clippy --all-targets --all-features -- -D warnings
 ```
 
 Key lint rules:
@@ -68,10 +68,7 @@ Key lint rules:
 ### Code Style
 
 - **Max line width**: 100 characters
-- **Imports**: Grouped by std/external/crate, module granularity
 - **Error handling**: Use `?` operator with `anyhow::Context`, avoid `.unwrap()`
-
-See [`.claude/rust-style.md`](.claude/rust-style.md) for detailed guidelines.
 
 ## Architecture
 
@@ -85,8 +82,6 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 <type>(<scope>): <description>
 
 [optional body]
-
-Task: .project/tasks/YYYY-MM-DD-description.md
 ```
 
 **Types**: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`
@@ -100,14 +95,6 @@ docs: update keybindings reference
 refactor(render): split body into submodules
 ```
 
-## Task Tracking
-
-Active work is tracked in `.project/tasks/`:
-
-1. Create task file: `.project/tasks/YYYY-MM-DD-brief-description.md`
-2. Update checklist as you progress
-3. Mark completed when done
-
 ## Pull Requests
 
 1. Create a feature branch from `develop`
@@ -120,5 +107,4 @@ Active work is tracked in `.project/tasks/`:
 
 - **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System design, module structure
 - **[KEYBINDINGS.md](docs/KEYBINDINGS.md)** - Complete keybinding reference
-- **[AI_INTERNALS.md](.project/reference/AI_INTERNALS.md)** - Implementation patterns
 - **[ADRs](docs/adr/)** - Architecture Decision Records

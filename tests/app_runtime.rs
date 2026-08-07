@@ -1,4 +1,5 @@
 //! Integration tests for App runtime methods.
+#![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
 use std::sync::mpsc;
 

@@ -160,7 +160,10 @@ mod tests {
                 file_path: "src/main.rs".to_string(),
             };
 
-            assert_eq!(cmd.description(), "git show abc1234 -- src/main.rs");
+            assert_eq!(
+                cmd.description(),
+                "git show abc1234 -- src/main.rs"
+            );
         }
 
         #[test]
@@ -170,7 +173,10 @@ mod tests {
                 file_path: "src/lib.rs".to_string(),
             };
 
-            assert_eq!(cmd.description(), "git difftool abc1234 -- src/lib.rs");
+            assert_eq!(
+                cmd.description(),
+                "git difftool abc1234 -- src/lib.rs"
+            );
         }
 
         #[test]
@@ -180,7 +186,10 @@ mod tests {
                 staged: false,
             };
 
-            assert_eq!(cmd.description(), "git diff -- src/main.rs");
+            assert_eq!(
+                cmd.description(),
+                "git diff -- src/main.rs"
+            );
         }
 
         #[test]
@@ -190,7 +199,10 @@ mod tests {
                 staged: true,
             };
 
-            assert_eq!(cmd.description(), "git diff --staged -- src/main.rs");
+            assert_eq!(
+                cmd.description(),
+                "git diff --staged -- src/main.rs"
+            );
         }
 
         #[test]
@@ -200,7 +212,10 @@ mod tests {
                 staged: false,
             };
 
-            assert_eq!(cmd.description(), "git difftool -- src/app.rs");
+            assert_eq!(
+                cmd.description(),
+                "git difftool -- src/app.rs"
+            );
         }
 
         #[test]
@@ -210,7 +225,10 @@ mod tests {
                 staged: true,
             };
 
-            assert_eq!(cmd.description(), "git difftool --staged -- src/app.rs");
+            assert_eq!(
+                cmd.description(),
+                "git difftool --staged -- src/app.rs"
+            );
         }
 
         #[test]
@@ -219,7 +237,10 @@ mod tests {
                 onto: "HEAD~3".to_string(),
             };
 
-            assert_eq!(cmd.description(), "git rebase -i HEAD~3");
+            assert_eq!(
+                cmd.description(),
+                "git rebase -i HEAD~3"
+            );
         }
 
         #[test]
@@ -228,7 +249,10 @@ mod tests {
                 onto: "abc1234".to_string(),
             };
 
-            assert_eq!(cmd.description(), "git rebase -i abc1234");
+            assert_eq!(
+                cmd.description(),
+                "git rebase -i abc1234"
+            );
         }
 
         #[test]
@@ -238,7 +262,10 @@ mod tests {
                 path: "/path/to/file.rs".to_string(),
             };
 
-            assert_eq!(cmd.description(), "vim /path/to/file.rs");
+            assert_eq!(
+                cmd.description(),
+                "vim /path/to/file.rs"
+            );
         }
 
         #[test]
@@ -248,7 +275,10 @@ mod tests {
                 path: "/path/to/file.rs".to_string(),
             };
 
-            assert_eq!(cmd.description(), "code --wait /path/to/file.rs");
+            assert_eq!(
+                cmd.description(),
+                "code --wait /path/to/file.rs"
+            );
         }
     }
 
@@ -275,11 +305,17 @@ mod tests {
 
         #[test]
         fn editor_with_multiple_args() {
-            let cmd = build_editor_command("emacs -nw --no-splash", "project/main.rs");
+            let cmd = build_editor_command(
+                "emacs -nw --no-splash",
+                "project/main.rs",
+            );
 
             assert_eq!(cmd.get_program(), "emacs");
             let args: Vec<_> = cmd.get_args().collect();
-            assert_eq!(args, vec!["-nw", "--no-splash", "project/main.rs"]);
+            assert_eq!(
+                args,
+                vec!["-nw", "--no-splash", "project/main.rs"]
+            );
         }
 
         #[test]
@@ -306,7 +342,10 @@ mod tests {
 
             assert_eq!(cmd.get_program(), "git");
             let args: Vec<_> = cmd.get_args().collect();
-            assert_eq!(args, vec!["--paginate", "show", "abc1234", "--", "src/main.rs"]);
+            assert_eq!(
+                args,
+                vec!["--paginate", "show", "abc1234", "--", "src/main.rs"]
+            );
         }
 
         #[test]
@@ -322,7 +361,13 @@ mod tests {
             let args: Vec<_> = cmd.get_args().collect();
             assert_eq!(
                 args,
-                vec!["difftool", "--no-prompt", "abc1234~1..abc1234", "--", "src/lib.rs"]
+                vec![
+                    "difftool",
+                    "--no-prompt",
+                    "abc1234~1..abc1234",
+                    "--",
+                    "src/lib.rs"
+                ]
             );
         }
 
@@ -337,7 +382,10 @@ mod tests {
 
             assert_eq!(cmd.get_program(), "git");
             let args: Vec<_> = cmd.get_args().collect();
-            assert_eq!(args, vec!["--paginate", "diff", "--", "src/app.rs"]);
+            assert_eq!(
+                args,
+                vec!["--paginate", "diff", "--", "src/app.rs"]
+            );
         }
 
         #[test]
@@ -351,7 +399,10 @@ mod tests {
 
             assert_eq!(cmd.get_program(), "git");
             let args: Vec<_> = cmd.get_args().collect();
-            assert_eq!(args, vec!["--paginate", "diff", "--staged", "--", "src/app.rs"]);
+            assert_eq!(
+                args,
+                vec!["--paginate", "diff", "--staged", "--", "src/app.rs"]
+            );
         }
 
         #[test]
@@ -365,7 +416,10 @@ mod tests {
 
             assert_eq!(cmd.get_program(), "git");
             let args: Vec<_> = cmd.get_args().collect();
-            assert_eq!(args, vec!["difftool", "--no-prompt", "--", "README.md"]);
+            assert_eq!(
+                args,
+                vec!["difftool", "--no-prompt", "--", "README.md"]
+            );
         }
 
         #[test]
@@ -379,7 +433,10 @@ mod tests {
 
             assert_eq!(cmd.get_program(), "git");
             let args: Vec<_> = cmd.get_args().collect();
-            assert_eq!(args, vec!["difftool", "--no-prompt", "--staged", "--", "Cargo.toml"]);
+            assert_eq!(
+                args,
+                vec!["difftool", "--no-prompt", "--staged", "--", "Cargo.toml"]
+            );
         }
 
         #[test]
@@ -419,7 +476,7 @@ mod tests {
                 commit_sha: "abc".to_string(),
                 file_path: "test".to_string(),
             };
-            let debug = format!("{:?}", cmd);
+            let debug = format!("{cmd:?}");
             assert!(debug.contains("PagerDiff"));
         }
 

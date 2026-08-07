@@ -141,7 +141,10 @@ impl FileListSection {
                 format!("{} ", action.key),
                 Style::default().fg(Color::Cyan),
             ));
-            spans.push(Span::styled(action.label.clone(), italic_gray));
+            spans.push(Span::styled(
+                action.label.clone(),
+                italic_gray,
+            ));
         }
 
         Line::from(spans)
@@ -184,7 +187,10 @@ impl Section for FileListSection {
 
         // Section header
         lines.push(Line::from(Span::styled(
-            format!("  {arrow} {} ({file_count})", self.config.name),
+            format!(
+                "  {arrow} {} ({file_count})",
+                self.config.name
+            ),
             Style::default()
                 .fg(self.config.header_color)
                 .add_modifier(Modifier::BOLD),
@@ -202,8 +208,9 @@ impl Section for FileListSection {
         };
 
         for (i, file) in self.data.files.iter().enumerate() {
-            let selected =
-                state.local_selection == Some(i) && state.is_focused && !self.data.command_mode_active;
+            let selected = state.local_selection == Some(i)
+                && state.is_focused
+                && !self.data.command_mode_active;
 
             let path = file.path.to_string_lossy();
             let entry = match self.config.field_selector {
@@ -221,7 +228,9 @@ impl Section for FileListSection {
                 },
             };
 
-            lines.push(render_file_entry(&entry, &style, selected));
+            lines.push(render_file_entry(
+                &entry, &style, selected,
+            ));
         }
 
         lines
@@ -240,12 +249,14 @@ impl Section for FileListSection {
         }
 
         match key.code {
-            KeyCode::Char(c) if self.config.stage_keys.contains(&c) => {
-                Some(SectionAction::AppAction(AppAction::ToggleStage))
-            }
+            KeyCode::Char(c) if self.config.stage_keys.contains(&c) => Some(
+                SectionAction::AppAction(AppAction::ToggleStage),
+            ),
             KeyCode::Char('d') => {
                 // Show inline diff
-                Some(SectionAction::AppAction(AppAction::ShowDiff))
+                Some(SectionAction::AppAction(
+                    AppAction::ShowDiff,
+                ))
             }
             _ => None,
         }

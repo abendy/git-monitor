@@ -187,7 +187,10 @@ mod tests {
         fn with_description_sets_description() {
             let item = SelectItem::new("Test", 1).with_description("A description");
 
-            assert_eq!(item.description, Some("A description".to_string()));
+            assert_eq!(
+                item.description,
+                Some("A description".to_string())
+            );
         }
 
         #[test]
@@ -207,7 +210,10 @@ mod tests {
             assert_eq!(item.label, "Action");
             assert_eq!(item.value, "value");
             assert_eq!(item.key, Some("a".to_string()));
-            assert_eq!(item.description, Some("Does something".to_string()));
+            assert_eq!(
+                item.description,
+                Some("Does something".to_string())
+            );
             assert!(item.enabled);
         }
     }
@@ -231,10 +237,7 @@ mod tests {
 
         #[test]
         fn selected_value_returns_current_value() {
-            let items = vec![
-                SelectItem::new("One", 1),
-                SelectItem::new("Two", 2),
-            ];
+            let items = vec![SelectItem::new("One", 1), SelectItem::new("Two", 2)];
             let menu = SelectMenu::new("Test", items);
 
             assert_eq!(menu.selected_value(), Some(&1));
@@ -242,10 +245,7 @@ mod tests {
 
         #[test]
         fn set_selected_updates_selection() {
-            let items = vec![
-                SelectItem::new("One", 1),
-                SelectItem::new("Two", 2),
-            ];
+            let items = vec![SelectItem::new("One", 1), SelectItem::new("Two", 2)];
             let mut menu = SelectMenu::new("Test", items);
 
             menu.set_selected(1);
@@ -281,17 +281,21 @@ mod tests {
 
         #[test]
         fn items_includes_key_and_description() {
-            let items = vec![
-                SelectItem::new("Item", 1)
-                    .with_key("i")
-                    .with_description("An item"),
-            ];
+            let items = vec![SelectItem::new("Item", 1)
+                .with_key("i")
+                .with_description("An item")];
             let menu = SelectMenu::new("Test", items);
 
             let menu_items = menu.items();
 
-            assert_eq!(menu_items[0].key_hint, Some("i".to_string()));
-            assert_eq!(menu_items[0].description, Some("An item".to_string()));
+            assert_eq!(
+                menu_items[0].key_hint,
+                Some("i".to_string())
+            );
+            assert_eq!(
+                menu_items[0].description,
+                Some("An item".to_string())
+            );
         }
 
         #[test]
@@ -336,10 +340,7 @@ mod tests {
 
         #[test]
         fn handle_key_down_navigates() {
-            let items = vec![
-                SelectItem::new("One", 1),
-                SelectItem::new("Two", 2),
-            ];
+            let items = vec![SelectItem::new("One", 1), SelectItem::new("Two", 2)];
             let mut menu = SelectMenu::new("Test", items);
 
             menu.handle_key(KeyEvent::from(KeyCode::Down));
@@ -349,10 +350,7 @@ mod tests {
 
         #[test]
         fn handle_key_j_navigates_down() {
-            let items = vec![
-                SelectItem::new("One", 1),
-                SelectItem::new("Two", 2),
-            ];
+            let items = vec![SelectItem::new("One", 1), SelectItem::new("Two", 2)];
             let mut menu = SelectMenu::new("Test", items);
 
             menu.handle_key(KeyEvent::from(KeyCode::Char('j')));
@@ -362,10 +360,7 @@ mod tests {
 
         #[test]
         fn handle_key_up_navigates() {
-            let items = vec![
-                SelectItem::new("One", 1),
-                SelectItem::new("Two", 2),
-            ];
+            let items = vec![SelectItem::new("One", 1), SelectItem::new("Two", 2)];
             let mut menu = SelectMenu::new("Test", items);
             menu.set_selected(1);
 
@@ -376,10 +371,7 @@ mod tests {
 
         #[test]
         fn handle_key_k_navigates_up() {
-            let items = vec![
-                SelectItem::new("One", 1),
-                SelectItem::new("Two", 2),
-            ];
+            let items = vec![SelectItem::new("One", 1), SelectItem::new("Two", 2)];
             let mut menu = SelectMenu::new("Test", items);
             menu.set_selected(1);
 

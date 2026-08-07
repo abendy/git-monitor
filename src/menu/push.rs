@@ -379,7 +379,10 @@ mod tests {
 
             let result = menu.handle_key(KeyEvent::from(KeyCode::Char('y')));
 
-            assert!(matches!(result, MenuResult::Execute(MenuAction::Command(_))));
+            assert!(matches!(
+                result,
+                MenuResult::Execute(MenuAction::Command(_))
+            ));
         }
 
         #[test]
@@ -389,7 +392,10 @@ mod tests {
 
             let result = menu.handle_key(KeyEvent::from(KeyCode::Enter));
 
-            assert!(matches!(result, MenuResult::Execute(MenuAction::Command(_))));
+            assert!(matches!(
+                result,
+                MenuResult::Execute(MenuAction::Command(_))
+            ));
         }
 
         #[test]
@@ -477,7 +483,7 @@ mod tests {
             let menu = PushConfirmMenu::new(
                 "main".to_string(),
                 "origin".to_string(),
-                true,  // has_upstream
+                true, // has_upstream
                 0,
                 false, // no force
             );
@@ -499,7 +505,10 @@ mod tests {
 
             let cmd = menu.build_command();
 
-            assert_eq!(cmd.display_name, "git push -u origin feature");
+            assert_eq!(
+                cmd.display_name,
+                "git push -u origin feature"
+            );
         }
 
         #[test]
@@ -514,7 +523,10 @@ mod tests {
 
             let cmd = menu.build_command();
 
-            assert_eq!(cmd.display_name, "git push --force-with-lease origin");
+            assert_eq!(
+                cmd.display_name,
+                "git push --force-with-lease origin"
+            );
         }
     }
 }

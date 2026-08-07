@@ -201,7 +201,7 @@ impl Menu for ActionMenu {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::actions::{Action, ActionType, AppAction, Context};
+    use crate::actions::{Action, ActionCondition, ActionType, AppAction, Context};
     use crate::config::Alias;
     use crate::input::KeyBinding;
     use crossterm::event::KeyCode;
@@ -221,7 +221,7 @@ mod tests {
             action_type: ActionType::App(action),
             contexts: vec![Context::WorkingFiles],
             priority: 10,
-            condition: Default::default(),
+            condition: ActionCondition::default(),
         }
     }
 
@@ -233,7 +233,7 @@ mod tests {
             action_type: ActionType::Cli(cmd.to_string()),
             contexts: vec![Context::WorkingFiles],
             priority: 20,
-            condition: Default::default(),
+            condition: ActionCondition::default(),
         }
     }
 

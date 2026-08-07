@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use git2::Repository;
@@ -21,6 +21,40 @@ impl GitRepo {
     /// Get the repository root path
     pub fn workdir(&self) -> Option<&Path> {
         self.repo.workdir()
+    }
+
+    /// Get the repository's administrative directory.
+    ///
+    /// For a linked worktree this is the worktree-specific directory under
+    /// `.git/worktrees`, not the `.git` pointer file in the working directory.
+    pub fn git_dir(&self) -> &Path {
+        self.repo.path()
+    }
+
+    /// Get the directory containing repository-wide refs and logs.
+    ///
+    /// Normal repositories use the same path as [`Self::git_dir`]. Linked
+    /// worktrees resolve the `commondir` link written by Git.
+    pub fn common_dir(&self) -> PathBuf {
+        let git_dir = self.git_dir();
+        let Ok(link) = std::fs::read_to_string(git_dir.join("commondir")) else {
+            return git_dir.to_path_buf();
+        };
+        let link = link.trim();
+        if link.is_empty() {
+            return git_dir.to_path_buf();
+        }
+
+        let link = Path::new(link);
+        let common_dir = if link.is_absolute() {
+            link.to_path_buf()
+        } else {
+            git_dir.join(link)
+        };
+
+        common_dir
+            .canonicalize()
+            .unwrap_or(common_dir)
     }
 
     /// Stage a file
@@ -209,6 +243,57 @@ mod tests {
                     .canonicalize()
                     .ok(),
                 dir.path().canonicalize().ok()
+            );
+        }
+
+        #[test]
+        fn normal_repo_uses_git_dir_as_common_dir() {
+            let (dir, repo) = create_test_repo();
+
+            assert_eq!(
+                repo.git_dir().canonicalize().ok(),
+                dir.path()
+                    .join(".git")
+                    .canonicalize()
+                    .ok()
+            );
+            assert_eq!(
+                repo.common_dir().canonicalize().ok(),
+                repo.git_dir().canonicalize().ok()
+            );
+        }
+
+        #[test]
+        fn linked_worktree_resolves_separate_git_and_common_dirs() {
+            let (dir, _git_repo) = create_test_repo_with_commit();
+            let repo = Repository::open(dir.path()).expect("open repository");
+            let commit = repo
+                .head()
+                .expect("read HEAD")
+                .peel_to_commit()
+                .expect("resolve HEAD commit");
+            let branch = repo
+                .branch("linked", &commit, false)
+                .expect("create worktree branch");
+            let reference = branch.into_reference();
+            let worktree_parent = TempDir::new().expect("create worktree parent");
+            let worktree_path = worktree_parent.path().join("linked");
+            let mut options = git2::WorktreeAddOptions::new();
+            options.reference(Some(&reference));
+            repo.worktree("linked", &worktree_path, Some(&options))
+                .expect("create linked worktree");
+
+            let linked = GitRepo::open(&worktree_path).expect("open linked worktree");
+
+            assert!(linked
+                .git_dir()
+                .ends_with("worktrees/linked"));
+            assert_eq!(
+                linked.common_dir().canonicalize().ok(),
+                dir.path()
+                    .join(".git")
+                    .canonicalize()
+                    .ok()
             );
         }
     }

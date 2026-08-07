@@ -7,7 +7,7 @@ A real-time TUI for monitoring and interacting with git repositories.
 
 ## Features
 
-- **File watching** - auto-refresh via notify
+- **File watching** - auto-refresh via notify, including linked worktrees
 - **Unified view** - staged, working, history, branches
 - **Action registry** - context detection and conditions
 - **Menu system** - composable stack navigation for nested dialogs

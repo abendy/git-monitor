@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-08-07
+
+### Changed
+
+- Building requires Rust 1.97 or newer
+- Release builds bundle OpenSSL, so binaries don't depend on a local Homebrew install
+
+### Fixed
+
+- File watching works in linked worktrees
+- Dependencies updated to resolve RustSec advisories
+
 ## [0.9.0] - 2026-01-18
 
 ### Added

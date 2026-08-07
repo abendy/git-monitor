@@ -179,7 +179,10 @@ mod tests {
             CommandType::from_message("unknown operation"),
             CommandType::Other
         );
-        assert_eq!(CommandType::from_message(""), CommandType::Other);
+        assert_eq!(
+            CommandType::from_message(""),
+            CommandType::Other
+        );
     }
 
     #[test]

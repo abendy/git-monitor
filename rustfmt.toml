@@ -11,19 +11,7 @@ chain_width = 40
 fn_call_width = 40
 struct_lit_width = 18
 
-# Imports
-imports_granularity = "Module"
-group_imports = "StdExternalCrate"
-reorder_imports = true
-
-# Comments
-wrap_comments = true
-comment_width = 100
-normalize_comments = true
-
 # Misc
-format_code_in_doc_comments = true
-format_macro_matchers = true
-format_strings = true
+reorder_imports = true
 use_field_init_shorthand = true
 use_try_shorthand = true

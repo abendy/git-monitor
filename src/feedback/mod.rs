@@ -190,11 +190,12 @@ impl FeedbackManager {
     /// The footer continues to show a brief error, but the user can
     /// see full details in the popup.
     pub fn show_error_details(&mut self, title: &str, message: &str, context: Vec<String>) {
-        self.popup.open(PopupContent::ErrorDetails {
-            title: title.to_string(),
-            message: message.to_string(),
-            context,
-        });
+        self.popup
+            .open(PopupContent::ErrorDetails {
+                title: title.to_string(),
+                message: message.to_string(),
+                context,
+            });
     }
 
     /// Expand current error to popup (if one exists)
@@ -203,11 +204,12 @@ impl FeedbackManager {
     /// Returns true if there was an error to expand.
     pub fn expand_error(&mut self) -> bool {
         if let Some(ref error) = self.error {
-            self.popup.open(PopupContent::ErrorDetails {
-                title: "Error".to_string(),
-                message: error.clone(),
-                context: vec![],
-            });
+            self.popup
+                .open(PopupContent::ErrorDetails {
+                    title: "Error".to_string(),
+                    message: error.clone(),
+                    context: vec![],
+                });
             true
         } else {
             false
@@ -272,7 +274,10 @@ mod tests {
             let from_new = FeedbackManager::new();
             let from_default = FeedbackManager::default();
 
-            assert_eq!(from_new.command_success, from_default.command_success);
+            assert_eq!(
+                from_new.command_success,
+                from_default.command_success
+            );
             assert!(from_new.command_output.is_none());
             assert!(from_default.command_output.is_none());
         }
@@ -310,7 +315,10 @@ mod tests {
                 FeedbackPolicy::Default,
             );
 
-            assert_eq!(manager.error, Some("Something failed".to_string()));
+            assert_eq!(
+                manager.error,
+                Some("Something failed".to_string())
+            );
         }
 
         #[test]
@@ -378,7 +386,10 @@ mod tests {
         fn inline_only_does_not_open_popup() {
             let mut manager = FeedbackManager::new();
             // Even with long output
-            let result = make_result(true, "line1\nline2\nline3\nline4\nline5\nline6\nline7");
+            let result = make_result(
+                true,
+                "line1\nline2\nline3\nline4\nline5\nline6\nline7",
+            );
 
             manager.show(
                 Feedback::CommandOutput {
@@ -577,7 +588,11 @@ mod tests {
             manager.expand_output();
 
             assert!(manager.popup.is_open());
-            if let PopupContent::CommandOutput { command, output, success } = &manager.popup.content
+            if let PopupContent::CommandOutput {
+                command,
+                output,
+                success,
+            } = &manager.popup.content
             {
                 assert_eq!(command, "git status");
                 assert_eq!(output, "stored output");

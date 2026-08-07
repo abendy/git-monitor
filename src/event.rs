@@ -55,29 +55,17 @@ impl EventHandler {
 
                 // Poll for events
                 if event::poll(timeout).unwrap_or(false) {
-                    match event::read() {
-                        Ok(CrosstermEvent::Key(key)) => {
-                            if event_tx.send(Event::Key(key)).is_err() {
-                                break;
-                            }
-                        }
-                        Ok(CrosstermEvent::Mouse(mouse)) => {
-                            if event_tx
-                                .send(Event::Mouse(mouse))
-                                .is_err()
-                            {
-                                break;
-                            }
-                        }
+                    let terminal_event = match event::read() {
+                        Ok(CrosstermEvent::Key(key)) => Some(Event::Key(key)),
+                        Ok(CrosstermEvent::Mouse(mouse)) => Some(Event::Mouse(mouse)),
                         Ok(CrosstermEvent::Resize(width, height)) => {
-                            if event_tx
-                                .send(Event::Resize(width, height))
-                                .is_err()
-                            {
-                                break;
-                            }
+                            Some(Event::Resize(width, height))
                         }
-                        _ => {}
+                        _ => None,
+                    };
+
+                    if terminal_event.is_some_and(|event| event_tx.send(event).is_err()) {
+                        break;
                     }
                 }
 

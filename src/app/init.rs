@@ -32,10 +32,12 @@ impl App {
             warn!("Failed to load git config: {e}");
             GitConfig::default()
         });
-        let branches = repo.list_branches().unwrap_or_else(|e| {
-            warn!("Failed to list branches: {e}");
-            Vec::new()
-        });
+        let branches = repo
+            .list_branches()
+            .unwrap_or_else(|e| {
+                warn!("Failed to list branches: {e}");
+                Vec::new()
+            });
 
         // Initialize action registry with aliases
         let mut action_registry = ActionRegistry::new();

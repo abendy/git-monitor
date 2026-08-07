@@ -209,7 +209,10 @@ mod tests {
             let request = CommandRequest::git(args);
 
             assert_eq!(request.program, "git");
-            assert_eq!(request.args, vec!["log", "--oneline", "-n", "10"]);
+            assert_eq!(
+                request.args,
+                vec!["log", "--oneline", "-n", "10"]
+            );
         }
 
         #[test]
@@ -256,7 +259,10 @@ mod tests {
         fn with_source_sets_source() {
             let request = CommandRequest::git(["status"]).with_source(CommandSource::ActionMenu);
 
-            assert_eq!(request.source, CommandSource::ActionMenu);
+            assert_eq!(
+                request.source,
+                CommandSource::ActionMenu
+            );
         }
 
         #[test]
@@ -264,7 +270,10 @@ mod tests {
             let request =
                 CommandRequest::git(["status"]).with_feedback(FeedbackPolicy::AlwaysPopup);
 
-            assert_eq!(request.feedback, FeedbackPolicy::AlwaysPopup);
+            assert_eq!(
+                request.feedback,
+                FeedbackPolicy::AlwaysPopup
+            );
         }
 
         #[test]
@@ -290,13 +299,15 @@ mod tests {
 
         #[test]
         fn git_alias_creates_alias_command() {
-            let request =
-                CommandRequest::git_alias("st", "status -sb", Path::new("/repo"));
+            let request = CommandRequest::git_alias("st", "status -sb", Path::new("/repo"));
 
             assert_eq!(request.program, "git");
             assert_eq!(request.args, vec!["status", "-sb"]);
             assert_eq!(request.display_name, "git st");
-            assert_eq!(request.cwd, Some(PathBuf::from("/repo")));
+            assert_eq!(
+                request.cwd,
+                Some(PathBuf::from("/repo"))
+            );
         }
 
         #[test]
@@ -307,7 +318,10 @@ mod tests {
                 Path::new("/repo"),
             );
 
-            assert_eq!(request.args, vec!["log", "--oneline", "--graph", "--all"]);
+            assert_eq!(
+                request.args,
+                vec!["log", "--oneline", "--graph", "--all"]
+            );
             assert_eq!(request.display_name, "git lg");
         }
 
@@ -320,8 +334,14 @@ mod tests {
                 .with_display_name("Push to origin");
 
             assert_eq!(request.program, "git");
-            assert_eq!(request.source, CommandSource::ActionMenu);
-            assert_eq!(request.feedback, FeedbackPolicy::AlwaysPopup);
+            assert_eq!(
+                request.source,
+                CommandSource::ActionMenu
+            );
+            assert_eq!(
+                request.feedback,
+                FeedbackPolicy::AlwaysPopup
+            );
             assert!(request.refresh_after);
             assert_eq!(request.display_name, "Push to origin");
         }

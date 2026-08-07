@@ -2,10 +2,10 @@
 name = "git-monitor"
 version = "0.8.0"
 edition = "2021"
-authors = ["Your Name <you@example.com>"]
+rust-version = "1.97"
 description = "Real-time TUI for monitoring git repository activity"
 license = "MIT"
-repository = "https://github.com/yourusername/git-monitor"
+repository = "https://github.com/abendy/git-monitor"
 keywords = ["git", "tui", "terminal", "monitor"]
 categories = ["command-line-utilities", "development-tools"]
 
@@ -14,17 +14,15 @@ categories = ["command-line-utilities", "development-tools"]
 ratatui = "0.28"
 crossterm = "0.28"
 
-# Git operations
-git2 = "0.19"
+# Git operations (vendored OpenSSL keeps release binaries portable)
+git2 = { version = "0.19", features = ["vendored-openssl"] }
 
-# Async runtime & events
-tokio = { version = "1", features = ["full"] }
+# File system events
 notify = "6.1"
 notify-debouncer-mini = "0.4"
 
 # Error handling
 anyhow = "1.0"
-thiserror = "1.0"
 
 # Clipboard
 arboard = "3"

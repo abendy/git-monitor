@@ -13,7 +13,10 @@ impl GitRepo {
             .repo
             .head()
             .map_err(|e| {
-                debug!("Failed to get HEAD for branch comparison: {} (detached HEAD?)", e);
+                debug!(
+                    "Failed to get HEAD for branch comparison: {} (detached HEAD?)",
+                    e
+                );
                 e
             })
             .ok()
@@ -116,7 +119,9 @@ mod tests {
         let dir = TempDir::new().expect("Failed to create temp dir");
         let repo = Repository::init(dir.path()).expect("Failed to init repo");
 
-        let mut config = repo.config().expect("Failed to get config");
+        let mut config = repo
+            .config()
+            .expect("Failed to get config");
         config
             .set_str("user.name", "Test User")
             .expect("Failed to set user.name");
@@ -129,17 +134,34 @@ mod tests {
         let file_path = dir.path().join("initial.txt");
         fs::write(&file_path, "initial content\n").expect("Failed to write file");
 
-        let mut index = repo.index().expect("Failed to get index");
+        let mut index = repo
+            .index()
+            .expect("Failed to get index");
         index
             .add_path(Path::new("initial.txt"))
             .expect("Failed to add file");
-        index.write().expect("Failed to write index");
+        index
+            .write()
+            .expect("Failed to write index");
 
-        let tree_id = index.write_tree().expect("Failed to write tree");
-        let tree = repo.find_tree(tree_id).expect("Failed to find tree");
-        let sig = repo.signature().expect("Failed to get signature");
-        repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
-            .expect("Failed to commit");
+        let tree_id = index
+            .write_tree()
+            .expect("Failed to write tree");
+        let tree = repo
+            .find_tree(tree_id)
+            .expect("Failed to find tree");
+        let sig = repo
+            .signature()
+            .expect("Failed to get signature");
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "Initial commit",
+            &tree,
+            &[],
+        )
+        .expect("Failed to commit");
 
         drop(tree);
         drop(repo);
@@ -152,7 +174,9 @@ mod tests {
     fn create_branch(dir: &TempDir, branch_name: &str) {
         let repo = Repository::open(dir.path()).expect("Failed to open");
         let head = repo.head().expect("Failed to get HEAD");
-        let commit = head.peel_to_commit().expect("Failed to get commit");
+        let commit = head
+            .peel_to_commit()
+            .expect("Failed to get commit");
         repo.branch(branch_name, &commit, false)
             .expect("Failed to create branch");
     }
@@ -164,7 +188,9 @@ mod tests {
         fn returns_single_branch_for_new_repo() {
             let (_dir, repo) = create_test_repo();
 
-            let branches = repo.list_branches().expect("Failed to list branches");
+            let branches = repo
+                .list_branches()
+                .expect("Failed to list branches");
 
             assert_eq!(branches.len(), 1);
             // Default branch is either master or main
@@ -180,7 +206,9 @@ mod tests {
             create_branch(&dir, "feature-a");
             create_branch(&dir, "feature-b");
 
-            let branches = repo.list_branches().expect("Failed to list branches");
+            let branches = repo
+                .list_branches()
+                .expect("Failed to list branches");
 
             assert_eq!(branches.len(), 3);
         }
@@ -191,9 +219,14 @@ mod tests {
 
             create_branch(&dir, "other");
 
-            let branches = repo.list_branches().expect("Failed to list branches");
+            let branches = repo
+                .list_branches()
+                .expect("Failed to list branches");
 
-            let current_count = branches.iter().filter(|b| b.is_current).count();
+            let current_count = branches
+                .iter()
+                .filter(|b| b.is_current)
+                .count();
             assert_eq!(current_count, 1);
         }
 
@@ -205,7 +238,9 @@ mod tests {
             create_branch(&dir, "aaa-branch");
             create_branch(&dir, "bbb-branch");
 
-            let branches = repo.list_branches().expect("Failed to list branches");
+            let branches = repo
+                .list_branches()
+                .expect("Failed to list branches");
 
             // Current branch should be first regardless of name
             assert!(branches[0].is_current);
@@ -219,14 +254,19 @@ mod tests {
             create_branch(&dir, "alpha");
             create_branch(&dir, "beta");
 
-            let branches = repo.list_branches().expect("Failed to list branches");
+            let branches = repo
+                .list_branches()
+                .expect("Failed to list branches");
 
             // Skip first (current branch), check remaining are alphabetical
-            let non_current: Vec<_> =
-                branches.iter().skip(1).map(|b| b.name.as_str()).collect();
+            let non_current: Vec<_> = branches
+                .iter()
+                .skip(1)
+                .map(|b| b.name.as_str())
+                .collect();
 
             let mut sorted = non_current.clone();
-            sorted.sort();
+            sorted.sort_unstable();
             assert_eq!(non_current, sorted);
         }
     }
@@ -245,7 +285,9 @@ mod tests {
 
             // Verify HEAD now points to feature
             let git_repo = Repository::open(dir.path()).expect("Failed to open");
-            let head = git_repo.head().expect("Failed to get HEAD");
+            let head = git_repo
+                .head()
+                .expect("Failed to get HEAD");
             assert_eq!(head.shorthand(), Some("feature"));
         }
 
@@ -256,7 +298,7 @@ mod tests {
             let result = repo.checkout_branch("nonexistent");
 
             assert!(result.is_err());
-            let err = result.err().expect("should be error");
+            let err = result.expect_err("should be error");
             assert!(err.to_string().contains("not found"));
         }
 
@@ -267,14 +309,19 @@ mod tests {
             create_branch(&dir, "feature");
 
             // Create uncommitted changes
-            fs::write(dir.path().join("initial.txt"), "modified\n")
-                .expect("Failed to write");
+            fs::write(
+                dir.path().join("initial.txt"),
+                "modified\n",
+            )
+            .expect("Failed to write");
 
             let result = repo.checkout_branch("feature");
 
             assert!(result.is_err());
-            let err = result.err().expect("should be error");
-            assert!(err.to_string().contains("uncommitted changes"));
+            let err = result.expect_err("should be error");
+            assert!(err
+                .to_string()
+                .contains("uncommitted changes"));
         }
 
         #[test]
@@ -284,15 +331,21 @@ mod tests {
             create_branch(&dir, "feature");
 
             // Create and stage a new file
-            fs::write(dir.path().join("new.txt"), "new content\n")
-                .expect("Failed to write");
-            repo.stage(Path::new("new.txt")).expect("Failed to stage");
+            fs::write(
+                dir.path().join("new.txt"),
+                "new content\n",
+            )
+            .expect("Failed to write");
+            repo.stage(Path::new("new.txt"))
+                .expect("Failed to stage");
 
             let result = repo.checkout_branch("feature");
 
             assert!(result.is_err());
-            let err = result.err().expect("should be error");
-            assert!(err.to_string().contains("uncommitted changes"));
+            let err = result.expect_err("should be error");
+            assert!(err
+                .to_string()
+                .contains("uncommitted changes"));
         }
     }
 }

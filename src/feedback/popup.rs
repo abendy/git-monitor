@@ -248,7 +248,7 @@ mod tests {
         fn command_output_title() {
             let content = PopupContent::CommandOutput {
                 command: "git status".to_string(),
-                output: "".to_string(),
+                output: String::new(),
                 success: true,
             };
 
@@ -259,7 +259,7 @@ mod tests {
         fn diff_title() {
             let content = PopupContent::Diff {
                 path: "src/main.rs".to_string(),
-                content: "".to_string(),
+                content: String::new(),
                 is_staged: false,
             };
 
@@ -281,7 +281,7 @@ mod tests {
         fn is_success_true_for_successful_command() {
             let content = PopupContent::CommandOutput {
                 command: "test".to_string(),
-                output: "".to_string(),
+                output: String::new(),
                 success: true,
             };
 
@@ -292,7 +292,7 @@ mod tests {
         fn is_success_false_for_failed_command() {
             let content = PopupContent::CommandOutput {
                 command: "test".to_string(),
-                output: "".to_string(),
+                output: String::new(),
                 success: false,
             };
 
@@ -302,8 +302,8 @@ mod tests {
         #[test]
         fn is_success_true_for_non_command() {
             let content = PopupContent::Diff {
-                path: "".to_string(),
-                content: "".to_string(),
+                path: String::new(),
+                content: String::new(),
                 is_staged: false,
             };
 
@@ -336,8 +336,10 @@ mod tests {
 
         #[test]
         fn open_resets_scroll() {
-            let mut state = PopupState::default();
-            state.scroll_offset = 10;
+            let mut state = PopupState {
+                scroll_offset: 10,
+                ..PopupState::default()
+            };
 
             state.open(PopupContent::CommandOutput {
                 command: "test".to_string(),
@@ -395,8 +397,10 @@ mod tests {
 
         #[test]
         fn scroll_up_decreases_offset() {
-            let mut state = PopupState::default();
-            state.scroll_offset = 5;
+            let mut state = PopupState {
+                scroll_offset: 5,
+                ..PopupState::default()
+            };
 
             state.scroll_up(2);
 
@@ -405,8 +409,10 @@ mod tests {
 
         #[test]
         fn scroll_up_stops_at_zero() {
-            let mut state = PopupState::default();
-            state.scroll_offset = 2;
+            let mut state = PopupState {
+                scroll_offset: 2,
+                ..PopupState::default()
+            };
 
             state.scroll_up(100);
 
@@ -415,8 +421,10 @@ mod tests {
 
         #[test]
         fn scroll_to_top_resets_offset() {
-            let mut state = PopupState::default();
-            state.scroll_offset = 10;
+            let mut state = PopupState {
+                scroll_offset: 10,
+                ..PopupState::default()
+            };
 
             state.scroll_to_top();
 

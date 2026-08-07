@@ -1,4 +1,5 @@
 //! Integration tests for command execution.
+#![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
 use std::path::Path;
 
@@ -13,10 +14,23 @@ fn create_test_repo() -> TempDir {
     {
         let repo = git2::Repository::init(dir.path()).expect("init repo");
         let sig = git2::Signature::now("Test", "test@example.com").expect("signature");
-        let tree_id = repo.index().expect("index").write_tree().expect("write tree");
-        let tree = repo.find_tree(tree_id).expect("find tree");
-        repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
-            .expect("commit");
+        let tree_id = repo
+            .index()
+            .expect("index")
+            .write_tree()
+            .expect("write tree");
+        let tree = repo
+            .find_tree(tree_id)
+            .expect("find tree");
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "Initial commit",
+            &tree,
+            &[],
+        )
+        .expect("commit");
     }
 
     dir
@@ -96,7 +110,9 @@ mod executor_basic {
 
         assert!(!result.success);
         assert!(result.exit_code.is_none());
-        assert!(result.stderr.contains("Failed to execute"));
+        assert!(result
+            .stderr
+            .contains("Failed to execute"));
     }
 }
 
@@ -152,14 +168,29 @@ mod executor_git_operations {
         {
             let repo = git2::Repository::open(dir.path()).expect("open");
             let mut index = repo.index().expect("index");
-            index.add_path(Path::new("test.txt")).expect("add");
+            index
+                .add_path(Path::new("test.txt"))
+                .expect("add");
             index.write().expect("write");
             let tree_id = index.write_tree().expect("tree");
-            let tree = repo.find_tree(tree_id).expect("find tree");
-            let parent = repo.head().expect("head").peel_to_commit().expect("commit");
-            let sig = git2::Signature::now("Test", "test@example.com").expect("sig");
-            repo.commit(Some("HEAD"), &sig, &sig, "Add test file", &tree, &[&parent])
+            let tree = repo
+                .find_tree(tree_id)
+                .expect("find tree");
+            let parent = repo
+                .head()
+                .expect("head")
+                .peel_to_commit()
                 .expect("commit");
+            let sig = git2::Signature::now("Test", "test@example.com").expect("sig");
+            repo.commit(
+                Some("HEAD"),
+                &sig,
+                &sig,
+                "Add test file",
+                &tree,
+                &[&parent],
+            )
+            .expect("commit");
         }
 
         // Modify the file
@@ -190,7 +221,9 @@ mod executor_git_operations {
         let status_request = CommandRequest::git(["status", "--porcelain"]);
         let status_result = executor.execute(&status_request);
 
-        assert!(status_result.stdout.contains("A  new.txt"));
+        assert!(status_result
+            .stdout
+            .contains("A  new.txt"));
     }
 
     #[test]
@@ -213,7 +246,9 @@ mod executor_git_operations {
         let status_request = CommandRequest::git(["status", "--porcelain"]);
         let status_result = executor.execute(&status_request);
 
-        assert!(status_result.stdout.contains("?? new.txt"));
+        assert!(status_result
+            .stdout
+            .contains("?? new.txt"));
     }
 }
 
@@ -261,7 +296,9 @@ mod custom_working_directory {
         let executor = CommandExecutor::new(dir.path());
 
         // But request specifies subdir
-        let request = CommandRequest::from_input("pwd").unwrap().with_cwd(subdir.clone());
+        let request = CommandRequest::from_input("pwd")
+            .unwrap()
+            .with_cwd(subdir);
         let result = executor.execute(&request);
 
         assert!(result.success);

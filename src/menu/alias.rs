@@ -206,12 +206,10 @@ mod tests {
         vec![
             AliasSection {
                 name: "checkout".to_string(),
-                aliases: vec![
-                    Alias {
-                        name: "co".to_string(),
-                        command: "checkout".to_string(),
-                    },
-                ],
+                aliases: vec![Alias {
+                    name: "co".to_string(),
+                    command: "checkout".to_string(),
+                }],
             },
             AliasSection {
                 name: "branch".to_string(),
@@ -250,9 +248,15 @@ mod tests {
 
             assert_eq!(items.len(), 2);
             assert_eq!(items[0].label, "checkout");
-            assert_eq!(items[0].description, Some("1 aliases".to_string()));
+            assert_eq!(
+                items[0].description,
+                Some("1 aliases".to_string())
+            );
             assert_eq!(items[1].label, "branch");
-            assert_eq!(items[1].description, Some("2 aliases".to_string()));
+            assert_eq!(
+                items[1].description,
+                Some("2 aliases".to_string())
+            );
         }
 
         #[test]
@@ -365,9 +369,18 @@ mod tests {
 
             assert_eq!(items.len(), 3);
             assert_eq!(items[0].label, "co");
-            assert_eq!(items[0].key_hint, Some("co".to_string()));
-            assert_eq!(items[0].description, Some("checkout".to_string()));
-            assert_eq!(items[2].description, Some("status -sb".to_string()));
+            assert_eq!(
+                items[0].key_hint,
+                Some("co".to_string())
+            );
+            assert_eq!(
+                items[0].description,
+                Some("checkout".to_string())
+            );
+            assert_eq!(
+                items[2].description,
+                Some("status -sb".to_string())
+            );
         }
 
         #[test]
@@ -451,7 +464,10 @@ mod tests {
 
             let result = menu.handle_key(KeyEvent::from(KeyCode::Enter));
 
-            assert!(matches!(result, MenuResult::Execute(MenuAction::Command(_))));
+            assert!(matches!(
+                result,
+                MenuResult::Execute(MenuAction::Command(_))
+            ));
         }
 
         #[test]

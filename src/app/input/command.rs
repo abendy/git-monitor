@@ -12,7 +12,11 @@ impl App {
             KeyCode::Esc => {
                 self.exit_command_mode();
             }
-            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            KeyCode::Char('c')
+                if key
+                    .modifiers
+                    .contains(KeyModifiers::CONTROL) =>
+            {
                 self.exit_command_mode();
             }
 

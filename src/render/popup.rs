@@ -136,7 +136,9 @@ fn build_error_lines(message: &str, context: &[String]) -> Vec<Line<'static>> {
     for line in message.lines() {
         lines.push(Line::from(Span::styled(
             format!(" {line}"),
-            Style::default().fg(Color::Red).bg(Color::Reset),
+            Style::default()
+                .fg(Color::Red)
+                .bg(Color::Reset),
         )));
     }
 
@@ -148,7 +150,9 @@ fn build_error_lines(message: &str, context: &[String]) -> Vec<Line<'static>> {
         for line in context {
             lines.push(Line::from(Span::styled(
                 format!(" {line}"),
-                Style::default().fg(Color::DarkGray).bg(Color::Reset),
+                Style::default()
+                    .fg(Color::DarkGray)
+                    .bg(Color::Reset),
             )));
         }
     }

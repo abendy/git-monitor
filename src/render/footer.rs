@@ -54,7 +54,10 @@ pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
         ))
     } else if let Some(ref error) = app.feedback.error {
         Line::from(vec![
-            Span::styled(error.as_str(), Style::default().fg(Color::Red)),
+            Span::styled(
+                error.as_str(),
+                Style::default().fg(Color::Red),
+            ),
             Span::raw("  "),
             Span::styled(
                 " e ",
@@ -62,7 +65,10 @@ pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
                     .bg(Color::DarkGray)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::styled(" details", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                " details",
+                Style::default().fg(Color::DarkGray),
+            ),
         ])
     } else {
         // Universal hints: nav top/btm m menu | : cmd  w files  h history  b branches | help quit

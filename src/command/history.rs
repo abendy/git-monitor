@@ -2,7 +2,7 @@
 
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use tracing::debug;
 
@@ -19,6 +19,8 @@ pub struct CommandHistory {
     commands: Vec<String>,
     /// Current navigation index (None = not navigating)
     nav_index: Option<usize>,
+    /// Persistence path. None keeps the history in memory only.
+    path: Option<PathBuf>,
 }
 
 impl Default for CommandHistory {
@@ -31,9 +33,18 @@ impl CommandHistory {
     /// Create a new history, loading from disk
     #[must_use]
     pub fn new() -> Self {
+        Self::with_path(history_file_path())
+    }
+
+    fn with_path(path: Option<PathBuf>) -> Self {
+        let commands = path
+            .as_deref()
+            .map_or_else(Vec::new, load_from_disk);
+
         Self {
-            commands: load_from_disk(),
+            commands,
             nav_index: None,
+            path,
         }
     }
 
@@ -56,8 +67,10 @@ impl CommandHistory {
             self.commands.remove(0);
         }
 
-        // Save to disk
-        save_to_disk(&self.commands);
+        // Save to disk when persistence is configured.
+        if let Some(path) = self.path.as_deref() {
+            save_to_disk(path, &self.commands);
+        }
     }
 
     /// Get all commands (oldest first)
@@ -119,12 +132,8 @@ fn history_file_path() -> Option<PathBuf> {
 }
 
 /// Load history from disk
-fn load_from_disk() -> Vec<String> {
-    let Some(path) = history_file_path() else {
-        return Vec::new();
-    };
-
-    let Ok(file) = File::open(&path) else {
+fn load_from_disk(path: &Path) -> Vec<String> {
+    let Ok(file) = File::open(path) else {
         return Vec::new();
     };
 
@@ -136,14 +145,12 @@ fn load_from_disk() -> Vec<String> {
 }
 
 /// Save history to disk
-fn save_to_disk(history: &[String]) {
-    let Some(path) = history_file_path() else {
-        debug!("Cannot save command history: no home directory");
-        return;
-    };
-
-    let Ok(mut file) = File::create(&path) else {
-        debug!("Cannot save command history: failed to create {}", path.display());
+fn save_to_disk(path: &Path, history: &[String]) {
+    let Ok(mut file) = File::create(path) else {
+        debug!(
+            "Cannot save command history: failed to create {}",
+            path.display()
+        );
         return;
     };
 
@@ -164,6 +171,7 @@ mod tests {
         let mut history = CommandHistory {
             commands: vec!["git status".to_string()],
             nav_index: None,
+            path: None,
         };
 
         history.add("git status");
@@ -182,6 +190,7 @@ mod tests {
                 "git diff".to_string(),
             ],
             nav_index: None,
+            path: None,
         };
 
         assert_eq!(
@@ -210,5 +219,21 @@ mod tests {
             Some("git diff")
         );
         assert_eq!(history.navigate_newer(), None); // Past end
+    }
+
+    #[test]
+    fn persists_to_configured_path() {
+        let dir = tempfile::tempdir().expect("create temp directory");
+        let path = dir.path().join("history");
+        let mut history = CommandHistory::with_path(Some(path.clone()));
+
+        history.add("git status");
+        history.add("git log");
+
+        let restored = CommandHistory::with_path(Some(path));
+        assert_eq!(
+            restored.commands(),
+            ["git status", "git log"]
+        );
     }
 }

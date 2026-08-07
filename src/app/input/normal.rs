@@ -22,7 +22,9 @@ impl App {
         if self.selected == Some(0) {
             if let KeyCode::Char(c) = key.code {
                 if !matches!(c, 'q' | '?' | ':' | 'o')
-                    && !key.modifiers.contains(KeyModifiers::CONTROL)
+                    && !key
+                        .modifiers
+                        .contains(KeyModifiers::CONTROL)
                 {
                     self.enter_command_mode();
                     self.command_input.push(c);
@@ -37,7 +39,11 @@ impl App {
             KeyCode::Char('q') | KeyCode::Esc => {
                 self.running = false;
             }
-            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            KeyCode::Char('c')
+                if key
+                    .modifiers
+                    .contains(KeyModifiers::CONTROL) =>
+            {
                 self.running = false;
             }
 
@@ -121,9 +127,10 @@ impl App {
             // Diff (inline popup)
             KeyCode::Char('d') => {
                 // Check if we're on a file in an expanded commit
-                if let (Some(sha), Some(file_idx)) =
-                    (self.expanded_commit.clone(), self.expanded_file_idx)
-                {
+                if let (Some(sha), Some(file_idx)) = (
+                    self.expanded_commit.clone(),
+                    self.expanded_file_idx,
+                ) {
                     let file_path = self
                         .expanded_detail
                         .as_ref()
@@ -147,9 +154,10 @@ impl App {
                         file_path: path.to_string_lossy().to_string(),
                         staged: is_staged,
                     });
-                } else if let (Some(sha), Some(file_idx)) =
-                    (self.expanded_commit.clone(), self.expanded_file_idx)
-                {
+                } else if let (Some(sha), Some(file_idx)) = (
+                    self.expanded_commit.clone(),
+                    self.expanded_file_idx,
+                ) {
                     // Commit file difftool
                     let file_path = self
                         .expanded_detail
@@ -208,7 +216,12 @@ impl App {
                 }
             }
             KeyCode::Char('k') | KeyCode::Up => {
-                if self.selected == Some(0) && !self.command_history.commands().is_empty() {
+                if self.selected == Some(0)
+                    && !self
+                        .command_history
+                        .commands()
+                        .is_empty()
+                {
                     // On command section - enter command mode and show history
                     self.enter_command_mode();
                     self.history_prev();
@@ -257,8 +270,7 @@ impl App {
                     if let Some(detail) = &self.expanded_detail {
                         if self.expanded_commit.as_ref() == Some(&sha) {
                             if self.copy_to_clipboard(&detail.full_sha) {
-                                self.feedback.error =
-                                    Some(format!("Copied: {}", detail.full_sha));
+                                self.feedback.error = Some(format!("Copied: {}", detail.full_sha));
                             } else {
                                 self.feedback.error =
                                     Some("Failed to copy to clipboard".to_string());

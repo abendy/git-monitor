@@ -1,9 +1,11 @@
 //! Integration tests for App input handling.
+#![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tempfile::TempDir;
 
 use git_monitor::app::ViewMode;
+use git_monitor::menu::{PushConfirmMenu, SelectItem, SelectMenu};
 use git_monitor::App;
 
 /// Helper to create a test git repository
@@ -13,10 +15,23 @@ fn create_test_repo() -> TempDir {
 
     // Create initial commit so we have a valid HEAD
     let sig = git2::Signature::now("Test", "test@example.com").expect("signature");
-    let tree_id = repo.index().expect("index").write_tree().expect("write tree");
-    let tree = repo.find_tree(tree_id).expect("find tree");
-    repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
-        .expect("commit");
+    let tree_id = repo
+        .index()
+        .expect("index")
+        .write_tree()
+        .expect("write tree");
+    let tree = repo
+        .find_tree(tree_id)
+        .expect("find tree");
+    repo.commit(
+        Some("HEAD"),
+        &sig,
+        &sig,
+        "Initial commit",
+        &tree,
+        &[],
+    )
+    .expect("commit");
 
     dir
 }
@@ -32,15 +47,15 @@ fn create_repo_with_files() -> TempDir {
     dir
 }
 
-fn key(code: KeyCode) -> KeyEvent {
+const fn key(code: KeyCode) -> KeyEvent {
     KeyEvent::new(code, KeyModifiers::NONE)
 }
 
-fn key_char(c: char) -> KeyEvent {
+const fn key_char(c: char) -> KeyEvent {
     KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE)
 }
 
-fn ctrl_char(c: char) -> KeyEvent {
+const fn ctrl_char(c: char) -> KeyEvent {
     KeyEvent::new(KeyCode::Char(c), KeyModifiers::CONTROL)
 }
 
@@ -297,7 +312,11 @@ mod refresh_handling {
         let mut app = App::new(dir.path().to_path_buf()).expect("create app");
 
         // Create a file after app init
-        std::fs::write(dir.path().join("new_file.txt"), "content").expect("write file");
+        std::fs::write(
+            dir.path().join("new_file.txt"),
+            "content",
+        )
+        .expect("write file");
 
         // Initial status shouldn't have the file
         let initial_count = app.status.files.len();
@@ -345,7 +364,6 @@ mod menu_handling {
         let mut app = App::new(dir.path().to_path_buf()).expect("create app");
 
         // Manually push a menu to test menu key capture
-        use git_monitor::menu::PushConfirmMenu;
         let menu = PushConfirmMenu::new(
             "main".to_string(),
             "origin".to_string(),
@@ -366,7 +384,7 @@ mod menu_handling {
 
 mod menu_transitions {
     use super::*;
-    use git_monitor::menu::{ConfirmMenu, PushConfirmMenu, SelectMenu, SelectItem};
+    use git_monitor::menu::{ConfirmMenu, PushConfirmMenu, SelectItem, SelectMenu};
 
     #[test]
     fn menu_push_activates_stack() {
@@ -439,13 +457,23 @@ mod menu_transitions {
         app.menu_stack.push(Box::new(menu2));
 
         assert!(app.menu_stack.is_active());
-        assert_eq!(app.menu_stack.current().map(|m| m.title()), Some("Second"));
+        assert_eq!(
+            app.menu_stack
+                .current()
+                .map(git_monitor::menu::Menu::title),
+            Some("Second")
+        );
 
         // Pop top menu (Esc on SelectMenu returns Close, not CloseAll)
         app.handle_key(key(KeyCode::Esc));
 
         assert!(app.menu_stack.is_active());
-        assert_eq!(app.menu_stack.current().map(|m| m.title()), Some("First"));
+        assert_eq!(
+            app.menu_stack
+                .current()
+                .map(git_monitor::menu::Menu::title),
+            Some("First")
+        );
 
         // Pop remaining menu
         app.handle_key(key(KeyCode::Esc));
@@ -469,19 +497,39 @@ mod menu_transitions {
         app.menu_stack.push(Box::new(menu));
 
         // Initially at 0
-        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(0));
+        assert_eq!(
+            app.menu_stack
+                .current()
+                .map(git_monitor::menu::Menu::selected),
+            Some(0)
+        );
 
         // Move down with j
         app.handle_key(key_char('j'));
-        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(1));
+        assert_eq!(
+            app.menu_stack
+                .current()
+                .map(git_monitor::menu::Menu::selected),
+            Some(1)
+        );
 
         // Move down again
         app.handle_key(key_char('j'));
-        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(2));
+        assert_eq!(
+            app.menu_stack
+                .current()
+                .map(git_monitor::menu::Menu::selected),
+            Some(2)
+        );
 
         // Move up with k
         app.handle_key(key_char('k'));
-        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(1));
+        assert_eq!(
+            app.menu_stack
+                .current()
+                .map(git_monitor::menu::Menu::selected),
+            Some(1)
+        );
     }
 
     #[test]
@@ -499,10 +547,20 @@ mod menu_transitions {
         app.menu_stack.push(Box::new(menu));
 
         app.handle_key(key(KeyCode::Down));
-        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(1));
+        assert_eq!(
+            app.menu_stack
+                .current()
+                .map(git_monitor::menu::Menu::selected),
+            Some(1)
+        );
 
         app.handle_key(key(KeyCode::Up));
-        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(0));
+        assert_eq!(
+            app.menu_stack
+                .current()
+                .map(git_monitor::menu::Menu::selected),
+            Some(0)
+        );
     }
 
     #[test]
@@ -588,9 +646,7 @@ mod menu_transitions {
 
         let menu = SelectMenu::new(
             "Test".to_string(),
-            vec![
-                SelectItem::new("opt1", "Option 1"),
-            ],
+            vec![SelectItem::new("opt1", "Option 1")],
         );
         app.menu_stack.push(Box::new(menu));
 
@@ -618,12 +674,22 @@ mod menu_transitions {
         // Navigate to item 2
         app.handle_key(key_char('j'));
         app.handle_key(key_char('j'));
-        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(2));
+        assert_eq!(
+            app.menu_stack
+                .current()
+                .map(git_monitor::menu::Menu::selected),
+            Some(2)
+        );
 
         // State should be preserved after other keys that don't change selection
         // (This is just demonstrating the menu maintains state)
         app.handle_key(key_char('j')); // Try to go past end
-        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(2)); // Should stay at 2 (or wrap)
+        assert_eq!(
+            app.menu_stack
+                .current()
+                .map(git_monitor::menu::Menu::selected),
+            Some(2)
+        ); // Should stay at 2 (or wrap)
     }
 }
 
@@ -636,11 +702,13 @@ mod popup_handling {
         let mut app = App::new(dir.path().to_path_buf()).expect("create app");
 
         // Open a popup manually
-        app.feedback.popup.open(git_monitor::feedback::PopupContent::CommandOutput {
-            command: "test".to_string(),
-            output: "output\nwith\nlines".to_string(),
-            success: true,
-        });
+        app.feedback.popup.open(
+            git_monitor::feedback::PopupContent::CommandOutput {
+                command: "test".to_string(),
+                output: "output\nwith\nlines".to_string(),
+                success: true,
+            },
+        );
 
         // q should close popup, not quit app
         app.handle_key(key_char('q'));
@@ -654,11 +722,16 @@ mod popup_handling {
         let dir = create_test_repo();
         let mut app = App::new(dir.path().to_path_buf()).expect("create app");
 
-        app.feedback.popup.open(git_monitor::feedback::PopupContent::CommandOutput {
-            command: "test".to_string(),
-            output: (0..50).map(|i| format!("line {i}")).collect::<Vec<_>>().join("\n"),
-            success: true,
-        });
+        app.feedback.popup.open(
+            git_monitor::feedback::PopupContent::CommandOutput {
+                command: "test".to_string(),
+                output: (0..50)
+                    .map(|i| format!("line {i}"))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+                success: true,
+            },
+        );
         let initial_offset = app.feedback.popup.scroll_offset;
 
         app.handle_key(key_char('j'));
@@ -671,11 +744,16 @@ mod popup_handling {
         let dir = create_test_repo();
         let mut app = App::new(dir.path().to_path_buf()).expect("create app");
 
-        app.feedback.popup.open(git_monitor::feedback::PopupContent::CommandOutput {
-            command: "test".to_string(),
-            output: (0..50).map(|i| format!("line {i}")).collect::<Vec<_>>().join("\n"),
-            success: true,
-        });
+        app.feedback.popup.open(
+            git_monitor::feedback::PopupContent::CommandOutput {
+                command: "test".to_string(),
+                output: (0..50)
+                    .map(|i| format!("line {i}"))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+                success: true,
+            },
+        );
         // Scroll down first
         app.feedback.popup.scroll_down(5);
         let scrolled_offset = app.feedback.popup.scroll_offset;
@@ -745,14 +823,16 @@ mod history_pagination {
         let dir = create_test_repo();
         let app = App::new(dir.path().to_path_buf()).expect("create app");
 
-        assert_eq!(app.history_mode, git_monitor::app::HistoryMode::CommitLog);
+        assert_eq!(
+            app.history_mode,
+            git_monitor::app::HistoryMode::CommitLog
+        );
     }
 
     // Note: 'h' only toggles history mode when selection is on history header
     // This requires navigating to the exact history header position first,
     // which is dependent on file counts and section layout. Testing this
     // comprehensively would require more setup. Basic mode state is tested below.
-
 }
 
 mod selection_state {
@@ -851,22 +931,50 @@ mod expanded_commit_caching {
 
         // Create initial commit
         let sig = git2::Signature::now("Test", "test@example.com").expect("signature");
-        let tree_id = repo.index().expect("index").write_tree().expect("write tree");
-        let tree = repo.find_tree(tree_id).expect("find tree");
-        repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
-            .expect("commit");
+        let tree_id = repo
+            .index()
+            .expect("index")
+            .write_tree()
+            .expect("write tree");
+        let tree = repo
+            .find_tree(tree_id)
+            .expect("find tree");
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "Initial commit",
+            &tree,
+            &[],
+        )
+        .expect("commit");
 
         // Add a file and commit
         std::fs::write(dir.path().join("file.txt"), "content").expect("write file");
         let mut index = repo.index().expect("index");
-        index.add_path(std::path::Path::new("file.txt")).expect("add");
+        index
+            .add_path(std::path::Path::new("file.txt"))
+            .expect("add");
         index.write().expect("write index");
 
         let tree_id = index.write_tree().expect("write tree");
-        let tree = repo.find_tree(tree_id).expect("find tree");
-        let parent = repo.head().expect("head").peel_to_commit().expect("commit");
-        repo.commit(Some("HEAD"), &sig, &sig, "Add file", &tree, &[&parent])
+        let tree = repo
+            .find_tree(tree_id)
+            .expect("find tree");
+        let parent = repo
+            .head()
+            .expect("head")
+            .peel_to_commit()
             .expect("commit");
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "Add file",
+            &tree,
+            &[&parent],
+        )
+        .expect("commit");
 
         dir
     }
@@ -883,8 +991,12 @@ mod expanded_commit_caching {
         // Navigate to a commit (if there are any)
         if !app.activity.is_empty() {
             // Get the SHA of first commit
-            if let Some(sha) = app.activity.first().and_then(|c| c.sha.clone()) {
-                app.expanded_commit = Some(sha.clone());
+            if let Some(sha) = app
+                .activity
+                .first()
+                .and_then(|c| c.sha.clone())
+            {
+                app.expanded_commit = Some(sha);
                 // In actual use, toggling would load the detail
             }
         }
@@ -913,7 +1025,11 @@ mod refresh_operations {
         let initial_count = app.status.files.len();
 
         // Create a new file
-        std::fs::write(dir.path().join("new_after_init.txt"), "new content").expect("write");
+        std::fs::write(
+            dir.path().join("new_after_init.txt"),
+            "new content",
+        )
+        .expect("write");
 
         // Refresh
         app.handle_key(key_char('r'));
@@ -1051,11 +1167,13 @@ mod boundary_conditions {
         let dir = create_test_repo();
         let mut app = App::new(dir.path().to_path_buf()).expect("create app");
 
-        app.feedback.popup.open(git_monitor::feedback::PopupContent::CommandOutput {
-            command: "test".to_string(),
-            output: "line1\nline2\nline3".to_string(),
-            success: true,
-        });
+        app.feedback.popup.open(
+            git_monitor::feedback::PopupContent::CommandOutput {
+                command: "test".to_string(),
+                output: "line1\nline2\nline3".to_string(),
+                success: true,
+            },
+        );
         assert_eq!(app.feedback.popup.scroll_offset, 0);
 
         // Try to scroll up when already at top
@@ -1070,22 +1188,36 @@ mod boundary_conditions {
         let dir = create_test_repo();
         let mut app = App::new(dir.path().to_path_buf()).expect("create app");
 
-        use git_monitor::menu::{SelectMenu, SelectItem};
         let menu = SelectMenu::new(
             "Single Item".to_string(),
             vec![SelectItem::new("only", "Only Option")],
         );
         app.menu_stack.push(Box::new(menu));
 
-        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(0));
+        assert_eq!(
+            app.menu_stack
+                .current()
+                .map(git_monitor::menu::Menu::selected),
+            Some(0)
+        );
 
         // Try to navigate down with only one item
         app.handle_key(key_char('j'));
-        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(0));
+        assert_eq!(
+            app.menu_stack
+                .current()
+                .map(git_monitor::menu::Menu::selected),
+            Some(0)
+        );
 
         // Try to navigate up with only one item
         app.handle_key(key_char('k'));
-        assert_eq!(app.menu_stack.current().map(|m| m.selected()), Some(0));
+        assert_eq!(
+            app.menu_stack
+                .current()
+                .map(git_monitor::menu::Menu::selected),
+            Some(0)
+        );
     }
 
     #[test]

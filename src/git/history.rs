@@ -363,7 +363,9 @@ mod tests {
         let dir = TempDir::new().expect("Failed to create temp dir");
         let repo = Repository::init(dir.path()).expect("Failed to init repo");
 
-        let mut config = repo.config().expect("Failed to get config");
+        let mut config = repo
+            .config()
+            .expect("Failed to get config");
         config
             .set_str("user.name", "Test User")
             .expect("Failed to set user.name");
@@ -376,17 +378,34 @@ mod tests {
         let file_path = dir.path().join("file.txt");
         fs::write(&file_path, "initial\n").expect("Failed to write file");
 
-        let mut index = repo.index().expect("Failed to get index");
+        let mut index = repo
+            .index()
+            .expect("Failed to get index");
         index
             .add_path(Path::new("file.txt"))
             .expect("Failed to add file");
-        index.write().expect("Failed to write index");
+        index
+            .write()
+            .expect("Failed to write index");
 
-        let tree_id = index.write_tree().expect("Failed to write tree");
-        let tree = repo.find_tree(tree_id).expect("Failed to find tree");
-        let sig = repo.signature().expect("Failed to get signature");
-        repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
-            .expect("Failed to commit");
+        let tree_id = index
+            .write_tree()
+            .expect("Failed to write tree");
+        let tree = repo
+            .find_tree(tree_id)
+            .expect("Failed to find tree");
+        let sig = repo
+            .signature()
+            .expect("Failed to get signature");
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "Initial commit",
+            &tree,
+            &[],
+        )
+        .expect("Failed to commit");
 
         drop(tree);
         drop(repo);
@@ -402,22 +421,45 @@ mod tests {
         // Modify file
         let file_path = dir.path().join("file.txt");
         let content = fs::read_to_string(&file_path).unwrap_or_default();
-        fs::write(&file_path, format!("{content}{message}\n")).expect("Failed to write");
+        fs::write(
+            &file_path,
+            format!("{content}{message}\n"),
+        )
+        .expect("Failed to write");
 
-        let mut index = repo.index().expect("Failed to get index");
+        let mut index = repo
+            .index()
+            .expect("Failed to get index");
         index
             .add_path(Path::new("file.txt"))
             .expect("Failed to add");
-        index.write().expect("Failed to write index");
+        index
+            .write()
+            .expect("Failed to write index");
 
-        let tree_id = index.write_tree().expect("Failed to write tree");
-        let tree = repo.find_tree(tree_id).expect("Failed to find tree");
-        let sig = repo.signature().expect("Failed to get signature");
+        let tree_id = index
+            .write_tree()
+            .expect("Failed to write tree");
+        let tree = repo
+            .find_tree(tree_id)
+            .expect("Failed to find tree");
+        let sig = repo
+            .signature()
+            .expect("Failed to get signature");
         let head = repo.head().expect("Failed to get HEAD");
-        let parent = head.peel_to_commit().expect("Failed to get commit");
+        let parent = head
+            .peel_to_commit()
+            .expect("Failed to get commit");
 
-        repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &[&parent])
-            .expect("Failed to commit");
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            message,
+            &tree,
+            &[&parent],
+        )
+        .expect("Failed to commit");
     }
 
     mod reflog {
@@ -427,7 +469,9 @@ mod tests {
         fn returns_entries_for_repo_with_commits() {
             let (_dir, repo) = create_test_repo();
 
-            let entries = repo.reflog(0, 10).expect("Failed to get reflog");
+            let entries = repo
+                .reflog(0, 10)
+                .expect("Failed to get reflog");
 
             // At least one entry for initial commit
             assert!(!entries.is_empty());
@@ -437,11 +481,16 @@ mod tests {
         fn entries_have_sha() {
             let (_dir, repo) = create_test_repo();
 
-            let entries = repo.reflog(0, 10).expect("Failed to get reflog");
+            let entries = repo
+                .reflog(0, 10)
+                .expect("Failed to get reflog");
 
             for entry in &entries {
                 assert!(entry.sha.is_some());
-                let sha = entry.sha.as_ref().expect("sha should exist");
+                let sha = entry
+                    .sha
+                    .as_ref()
+                    .expect("sha should exist");
                 assert_eq!(sha.len(), 7);
             }
         }
@@ -455,7 +504,9 @@ mod tests {
             add_commit(&dir, "Third commit");
 
             let repo = GitRepo::open(dir.path()).expect("Failed to reopen");
-            let entries = repo.reflog(0, 2).expect("Failed to get reflog");
+            let entries = repo
+                .reflog(0, 2)
+                .expect("Failed to get reflog");
 
             assert!(entries.len() <= 2);
         }
@@ -469,10 +520,17 @@ mod tests {
 
             let repo = GitRepo::open(dir.path()).expect("Failed to reopen");
 
-            let all = repo.reflog(0, 100).expect("Failed to get all");
-            let skipped = repo.reflog(1, 100).expect("Failed to get skipped");
+            let all = repo
+                .reflog(0, 100)
+                .expect("Failed to get all");
+            let skipped = repo
+                .reflog(1, 100)
+                .expect("Failed to get skipped");
 
-            assert_eq!(skipped.len(), all.len().saturating_sub(1));
+            assert_eq!(
+                skipped.len(),
+                all.len().saturating_sub(1)
+            );
         }
     }
 
@@ -486,7 +544,9 @@ mod tests {
             add_commit(&dir, "Second commit");
 
             let repo = GitRepo::open(dir.path()).expect("Failed to reopen");
-            let total = repo.reflog_total().expect("Failed to get total");
+            let total = repo
+                .reflog_total()
+                .expect("Failed to get total");
 
             // At least 2 entries (initial + second commit)
             assert!(total >= 2);
@@ -500,7 +560,9 @@ mod tests {
         fn returns_commits() {
             let (_dir, repo) = create_test_repo();
 
-            let commits = repo.commit_log(0, 10).expect("Failed to get log");
+            let commits = repo
+                .commit_log(0, 10)
+                .expect("Failed to get log");
 
             assert_eq!(commits.len(), 1);
             assert_eq!(commits[0].message, "Initial commit");
@@ -514,12 +576,17 @@ mod tests {
             add_commit(&dir, "Third commit");
 
             let repo = GitRepo::open(dir.path()).expect("Failed to reopen");
-            let commits = repo.commit_log(0, 10).expect("Failed to get log");
+            let commits = repo
+                .commit_log(0, 10)
+                .expect("Failed to get log");
 
             assert_eq!(commits.len(), 3);
 
             // Verify all commits are present (order may vary with same timestamps)
-            let messages: Vec<_> = commits.iter().map(|c| c.message.as_str()).collect();
+            let messages: Vec<_> = commits
+                .iter()
+                .map(|c| c.message.as_str())
+                .collect();
             assert!(messages.contains(&"Initial commit"));
             assert!(messages.contains(&"Second commit"));
             assert!(messages.contains(&"Third commit"));
@@ -534,8 +601,12 @@ mod tests {
 
             let repo = GitRepo::open(dir.path()).expect("Failed to reopen");
 
-            let page1 = repo.commit_log(0, 2).expect("Failed to get page 1");
-            let page2 = repo.commit_log(2, 2).expect("Failed to get page 2");
+            let page1 = repo
+                .commit_log(0, 2)
+                .expect("Failed to get page 1");
+            let page2 = repo
+                .commit_log(2, 2)
+                .expect("Failed to get page 2");
 
             // Verify pagination limits work
             assert_eq!(page1.len(), 2);
@@ -556,12 +627,19 @@ mod tests {
         fn commits_have_sha() {
             let (_dir, repo) = create_test_repo();
 
-            let commits = repo.commit_log(0, 10).expect("Failed to get log");
+            let commits = repo
+                .commit_log(0, 10)
+                .expect("Failed to get log");
 
             assert!(commits[0].sha.is_some());
-            let sha = commits[0].sha.as_ref().expect("sha should exist");
+            let sha = commits[0]
+                .sha
+                .as_ref()
+                .expect("sha should exist");
             assert_eq!(sha.len(), 7);
-            assert!(sha.chars().all(|c| c.is_ascii_hexdigit()));
+            assert!(sha
+                .chars()
+                .all(|c| c.is_ascii_hexdigit()));
         }
     }
 
@@ -576,7 +654,9 @@ mod tests {
             add_commit(&dir, "Third commit");
 
             let repo = GitRepo::open(dir.path()).expect("Failed to reopen");
-            let total = repo.commit_log_total().expect("Failed to get total");
+            let total = repo
+                .commit_log_total()
+                .expect("Failed to get total");
 
             assert_eq!(total, 3);
         }
@@ -592,15 +672,21 @@ mod tests {
             // Create a branch
             {
                 let git_repo = Repository::open(dir.path()).expect("Failed to open");
-                let head = git_repo.head().expect("Failed to get HEAD");
-                let commit = head.peel_to_commit().expect("Failed to get commit");
+                let head = git_repo
+                    .head()
+                    .expect("Failed to get HEAD");
+                let commit = head
+                    .peel_to_commit()
+                    .expect("Failed to get commit");
                 git_repo
                     .branch("feature", &commit, false)
                     .expect("Failed to create branch");
             }
 
             // Get the default branch name
-            let branches = repo.list_branches().expect("Failed to list");
+            let branches = repo
+                .list_branches()
+                .expect("Failed to list");
             let default_branch = &branches[0].name;
 
             let commits = repo

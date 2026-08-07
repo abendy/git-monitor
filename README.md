@@ -63,7 +63,7 @@ A real-time TUI for monitoring and interacting with git repositories.
 
 ```bash
 # Install
-cargo install --path .
+cargo install --locked --path .
 
 # Run in current directory
 git-monitor
@@ -74,7 +74,7 @@ git-monitor --path /path/to/repo
 
 ## Requirements
 
-- Rust 1.70+
+- Rust 1.97+
 - Git repository
 - Terminal with 256-color support
 

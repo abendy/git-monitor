@@ -24,12 +24,20 @@ impl App {
             }
 
             // Page down
-            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            KeyCode::Char('d')
+                if key
+                    .modifiers
+                    .contains(KeyModifiers::CONTROL) =>
+            {
                 self.feedback.popup.page_down();
             }
 
             // Page up
-            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            KeyCode::Char('u')
+                if key
+                    .modifiers
+                    .contains(KeyModifiers::CONTROL) =>
+            {
                 self.feedback.popup.page_up();
             }
 

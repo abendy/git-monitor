@@ -10,5 +10,5 @@ mod types;
 
 pub use context::Context;
 pub use registry::ActionRegistry;
-pub use state::AppState;
+pub use state::{ActionCondition, AppState};
 pub use types::{Action, ActionType, AppAction};

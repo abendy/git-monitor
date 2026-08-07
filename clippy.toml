@@ -1,0 +1,4 @@
+# Test assertions may fail fast; production code remains governed by Cargo.toml.
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-unwrap-in-tests = true

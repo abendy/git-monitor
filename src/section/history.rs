@@ -3,7 +3,7 @@
 //! Displays commit history or reflog entries with contextual actions.
 
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::style::{Color, Modifier, Style, Stylize};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 
 use super::{Section, SectionAction, SectionId, SectionState};

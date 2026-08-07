@@ -20,7 +20,7 @@ impl GitRepo {
                 e
             })
             .ok()
-            .and_then(|h| h.shorthand().map(String::from));
+            .and_then(|h| h.shorthand().ok().map(String::from));
 
         // Iterate through local branches
         let branch_iter = self
@@ -288,7 +288,11 @@ mod tests {
             let head = git_repo
                 .head()
                 .expect("Failed to get HEAD");
-            assert_eq!(head.shorthand(), Some("feature"));
+            assert_eq!(
+                head.shorthand()
+                    .expect("HEAD shorthand should be valid UTF-8"),
+                "feature"
+            );
         }
 
         #[test]

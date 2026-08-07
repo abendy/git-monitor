@@ -1,5 +1,8 @@
 # Git Monitor TUI - Architecture Document
 
+This document describes the implemented local Git TUI. Provider, agent, and `jj` work is tracked in
+[`ROADMAP.md`](ROADMAP.md) and should not be inferred from extension points described here.
+
 ## Overview
 
 A terminal-based user interface for monitoring git repository activity in real-time. The application watches file changes, tracks staging operations, and displays git command activity from the reflog or commit log.
@@ -39,7 +42,7 @@ A terminal-based user interface for monitoring git repository activity in real-t
 | `event` | `src/event.rs` | Event types and handler thread |
 | `watcher` | `src/watcher.rs` | File system watching with debouncing (notify) |
 | `config` | `src/config.rs` | Git config and alias parsing |
-| `actions` | `src/actions.rs` | Contextual action framework (see ADR-002) |
+| `actions` | `src/actions/` | Contextual action framework (see ADR-002) |
 | `command/` | `src/command/` | Unified command execution framework (see ADR-003) |
 | `feedback/` | `src/feedback/` | Feedback system for output display (see ADR-004) |
 | `input/` | `src/input/` | Declarative keybindings (`Keymap`, `KeyBinding`) |
@@ -95,7 +98,7 @@ The `EventHandler` spawns a background thread that:
 - Sends periodic tick events (configurable rate)
 - Exposes a sender for external events (file watcher)
 
-### 2. Git Operations (`src/git.rs`)
+### 2. Git Operations (`src/git/`)
 
 `GitRepo` wraps `git2::Repository` and provides:
 - `status()` - Get complete status snapshot (`GitStatus`)
@@ -144,7 +147,7 @@ pub struct Alias {
 }
 ```
 
-### 5. Application State (`src/app.rs`)
+### 5. Application State (`src/app/`)
 
 ```rust
 pub struct App {
@@ -407,7 +410,7 @@ pub enum PopupContent {
 }
 ```
 
-### 12. Contextual Actions (`src/actions.rs`)
+### 12. Contextual Actions (`src/actions/`)
 
 The action framework provides context-aware keybinding hints and a discoverable action menu:
 

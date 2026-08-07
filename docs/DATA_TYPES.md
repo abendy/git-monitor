@@ -284,7 +284,7 @@ pub struct Alias {
 
 Aliases are parsed from `~/.gitconfig`. Section headers are detected from comments like `# --- section ---`.
 
-## Action Types (`src/actions.rs`)
+## Action Types (`src/actions/`)
 
 ### Context
 

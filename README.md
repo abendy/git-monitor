@@ -20,15 +20,14 @@ A real-time TUI for monitoring and interacting with git repositories.
 - **Push confirmation** - menu with force and set-upstream options
 - **Commit expansion** - file-level navigation within commits
 
-## Planned
+## Direction
 
-- **Workflow engine** - multi-step sequences with data passing
-- **Error handling** - conflict resolution, abort/continue/skip
-- **Built-in workflows** - git-absorb, smart push, interactive stash, rebase
-- **Section platform** - sections as extension points
-- **External sections** - binary protocol with JSON output
-- **Remote data** - GitHub PRs, Issues, CI via external sections
-- **Custom keybindings** - user-defined via config
+- GitHub pull-request, review, and check state
+- Agent/worktree/branch/commit correlation
+- A `jj` read backend alongside Git
+- Need-to-know workflow summaries and explicit human gates such as merge
+
+See the [product roadmap](docs/ROADMAP.md) for sequencing and non-goals.
 
 ## Screenshot
 
@@ -82,6 +81,7 @@ git-monitor --path /path/to/repo
 
 - [Contributing](CONTRIBUTING.md) - Development setup and guidelines
 - [Architecture](docs/ARCHITECTURE.md) - System design
+- [Roadmap](docs/ROADMAP.md) - Product direction and delivery sequence
 - [Keybindings](docs/KEYBINDINGS.md) - Full keybinding reference
 - [ADRs](docs/adr/) - Architecture decisions
 

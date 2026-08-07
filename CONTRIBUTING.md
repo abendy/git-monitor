@@ -106,5 +106,6 @@ refactor(render): split body into submodules
 ## Documentation
 
 - **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System design, module structure
+- **[ROADMAP.md](docs/ROADMAP.md)** - Product direction and sequencing
 - **[KEYBINDINGS.md](docs/KEYBINDINGS.md)** - Complete keybinding reference
 - **[ADRs](docs/adr/)** - Architecture Decision Records

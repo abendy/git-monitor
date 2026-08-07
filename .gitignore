@@ -14,9 +14,8 @@
 *~
 
 # LLM
-.claude/
-CLAUDE.md
-AGENTS.md
+.claude/*
+!.claude/*.md
 
 # OS
 .DS_Store

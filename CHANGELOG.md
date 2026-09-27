@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-27
+
+### Added
+
+- History remembers the cursor on each page: `]` then `[` returns to the same commit at the same
+  screen row; saved spots reset when history changes (LON-165)
+- `J` / `K` move within the current section and turn History pages at the edges; holding or
+  tapping them quickly speeds up (LON-165)
+- Section headers show their jump key (`w`, `h`, `b`) while the cursor is elsewhere (LON-166)
+
+### Changed
+
+- The footer always shows `m menu` and `? help` and leaves out keys shown elsewhere (LON-166)
+
+### Fixed
+
+- Letters on the command row act as keys instead of typing into the prompt; `:` or `Enter` opens
+  it (LON-158)
+
 ## [0.11.1] - 2026-09-27
 
 ### Fixed

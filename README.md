@@ -16,8 +16,8 @@ A real-time TUI for monitoring and interacting with git repositories.
 - **Alias integration** - gitconfig aliases surfaced as contextual actions
 - **Declarative keymap** - context-based lookup
 - **External tools** - pager and difftool integration
-- **Command palette** - run arbitrary git commands
-- **Push confirmation** - menu with force and set-upstream options
+- **Command prompt** - run any command from `:`
+- **Push confirmation** - optional `--force-with-lease`; sets upstream when missing
 - **Commit expansion** - file-level navigation within commits
 
 ## Direction
@@ -32,31 +32,36 @@ See the [product roadmap](docs/ROADMAP.md) for sequencing and non-goals.
 ## Screenshot
 
 ```text
-┌─ git-monitor ──────────────────────────────────────────────────┐
-│ ⎇ main ↑2 ↓0 │ my-project │ ● watching                        │
-├────────────────────────────────────────────────────────────────┤
-│ ▸ : command   a aliases                                        │
-│                                                                │
-│   ▾ Staged (1)                                                 │
-│     s unstage · d diff · P push                                │
-│   ▸ ● A src/new_file.rs                                        │
-│                                                                │
-│   ▸ Working (3)                                                │
-│     ○ M src/main.rs                                            │
-│     ○ M src/lib.rs                                             │
-│     ○ ? untracked.txt                                          │
-│                                                                │
-│   ▸ History (50+)                                              │
-│     ● 14:32 abc1234 Add new feature (HEAD -> main)             │
-│     ● 14:28 def5678 Fix bug in parser                          │
-│                                                                │
-│   ▸ Branches                                                   │
-│     ⎇ main (current)                                           │
-│     ⎇ feature/new-ui                                           │
-├────────────────────────────────────────────────────────────────┤
-│ j/k nav  m actions  : cmd  ? help  q quit                      │
-└────────────────────────────────────────────────────────────────┘
+┌ git-monitor ─────────────────────────────────────────────────────────────────────┐
+│ ⎇ develop ↑1 │ my-project │ ● watching                                           │
+└──────────────────────────────────────────────────────────────────────────────────┘
+┌ Repository ──────────────────────────────────────────────────────────────────────┐
+│  : command  a aliases                                                            │
+│                                                                                  │
+│                                                                                  │
+│  ▸ Staged (1)                                                                    │
+│  ● A src/new_file.rs  +12                                                        │
+│                                                                                  │
+│  ▸ Working (2)                                                                   │
+│  ○ M src/main.rs  +5/-2                                                          │
+│  ○ ? untracked.txt                                                               │
+│                                                                                  │
+│  ▾ History (3)                                                                   │
+│  h log/reflog · Space expand · [ prev page · ] next page · y copy short          │
+│  develop ↑1 → origin/develop  · P push  f fetch                                  │
+│▸    ├─ e29d83a 14 min ago  ● Keep commit messages visible (HEAD → develop)       │
+│     ├─ 9bfa421 2 hr ago  ● Include expanded-branch commits (origin/develop)      │
+│     └─ 234a04a 3 hr ago  ● Load repository data as one snapshot                  │
+│  [ prev · page ]  1/1 of 3 items                                                 │
+│                                                                                  │
+│  ▸ Branches (1)                                                                  │
+│  feature/new-ui                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+In normal mode the footer shows the same hints on every row:
+`j/k nav  g/G top/btm  m menu  e edit │ : cmd  w files  h history  b branches │ ? help  q quit`.
+`e edit` appears only when `$EDITOR` is set.
 
 ## Quick Start
 
@@ -75,7 +80,7 @@ git-monitor --path /path/to/repo
 
 - Rust 1.97+
 - Git repository
-- Terminal with 256-color support
+- Terminal with 16-color support
 
 ## Development Health
 
@@ -91,8 +96,6 @@ build:
 
 ## Documentation
 
-- [Contributing](CONTRIBUTING.md) - Development setup and guidelines
-- [Architecture](docs/ARCHITECTURE.md) - System design
 - [Roadmap](docs/ROADMAP.md) - Product direction and delivery sequence
 - [Keybindings](docs/KEYBINDINGS.md) - Full keybinding reference
 - [ADRs](docs/adr/) - Architecture decisions

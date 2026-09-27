@@ -1,243 +1,114 @@
 # Git Monitor - UI Design
 
+For keys, see [KEYBINDINGS.md](KEYBINDINGS.md).
+
 ## Layout
 
-### Main View (Unified Vertical List)
+The screen stacks three blocks:
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  git-monitor  │ ⎇ main ↑2 ↓0 │ repo-name │ ● watching             │  Header
-├─────────────────────────────────────────────────────────────────────┤
-│   : command   a aliases                                             │  Command
-├─────────────────────────────────────────────────────────────────────┤
-│ Staged (2)                                                          │  Staged
-│   A src/new_file.rs                                                 │  Section
-│   M src/config.rs                                                   │
-├─────────────────────────────────────────────────────────────────────┤
-│ Working Directory (4)                                               │  Working
-│   M src/main.rs                                                     │  Section
-│   M src/lib.rs                                                      │
-│   ? untracked.txt                                                   │
-│   D old_file.rs                                                     │
-├─────────────────────────────────────────────────────────────────────┤
-│ ▶ History (main) ─ 2 hr ago                                        │  History
-│ ▸ abc1234  Add feature X  (HEAD)                           2 hr ago│  (collapsible)
-│   └─ M src/app.rs                                          +45 -12 │  expanded files
-│   └─ A src/new.rs                                         +100     │
-│   def5678  Fix critical bug                                3 hr ago│
-│   ghi9012  Initial commit  (tag: v0.1.0)                  1 day ago│
-├─────────────────────────────────────────────────────────────────────┤
-│ ─ Branches ─────────────────────────────────────────────────────────│
-│   feature/new (5 ahead)                                             │  Branch list
-│   └─ jkl3456  WIP on feature                              1 day ago│  (expandable)
-│   bugfix/login (2 behind)                                           │
-├─────────────────────────────────────────────────────────────────────┤
-│ [:] cmd  [h] history  [b] branch  [g/G] top/bottom  [?] help       │  Footer
-└─────────────────────────────────────────────────────────────────────┘
-```
+- **Header**: 3 rows.
+- **Body**: the rest of the screen, at least 10 rows.
+- **Footer**: 3 rows.
 
-**Unified List Navigation**: Single selection index spans all sections:
-- Index 0: Command section
-- Index 1..N: Staged files
-- Index N+1..M: Working files
-- History header (non-selectable label)
-- History commits (expandable to show files)
-- Branch headers (non-selectable labels)
-- Branch commits (when branch expanded)
+A popup (diff, command output, or error details) replaces the body, and the footer switches to
+popup hints. The help overlay and menus draw on top of the whole screen.
 
-### Action Menu (Contextual)
+### Main View
 
-Pressing `m` opens the action menu showing available actions for the current context. The menu is rendered via `MenuStack` (see ADR-005):
-
-```
-┌───────────────────────────────────────────────────────────┐
-│                   Actions (Staged Files)                   │
-├───────────────────────────────────────────────────────────┤
-│  ▸ [s] stage/unstage                                      │
-│    [d] diff                                               │
-│    [P] push  (when ahead)                                 │
-│    [r] refresh                                            │
-│    [:] command                                            │
-│    [?] help                                               │
-│    [q] quit                                               │
-│                                                           │
-│           [Enter] execute  [j/k] navigate  [Esc] close    │
-└───────────────────────────────────────────────────────────┘
+```text
+┌ git-monitor ─────────────────────────────────────────────────────────────────────┐
+│ ⎇ develop ↑1 │ my-project │ ● watching                                           │
+└──────────────────────────────────────────────────────────────────────────────────┘
+┌ Repository ──────────────────────────────────────────────────────────────────────┐
+│  : command  a aliases                                                            │
+│                                                                                  │
+│                                                                                  │
+│  ▸ Staged (1)                                                                    │
+│  ● A src/new_file.rs  +12                                                        │
+│                                                                                  │
+│  ▸ Working (2)                                                                   │
+│  ○ M src/main.rs  +5/-2                                                          │
+│  ○ ? untracked.txt                                                               │
+│                                                                                  │
+│  ▾ History (3)                                                                   │
+│  h log/reflog · Space expand · [ prev page · ] next page · y copy short          │
+│  develop ↑1 → origin/develop  · P push  f fetch                                  │
+│▸    ├─ e29d83a 14 min ago  ● Keep commit messages visible (HEAD → develop)       │
+│     ├─ 9bfa421 2 hr ago  ● Include expanded-branch commits (origin/develop)      │
+│     └─ 234a04a 3 hr ago  ● Load repository data as one snapshot                  │
+│  [ prev · page ]  1/1 of 3 items                                                 │
+│                                                                                  │
+│  ▸ Branches (1)                                                                  │
+│  feature/new-ui                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Actions are context-sensitive (see ADR-002):
-- File contexts show stage/unstage, diff
-- History shows expand, copy SHA, pagination
-- Global actions (push, pull, fetch) appear based on conditions
+The body is one list with five sections: the command row, Staged, Working, History, and Branches.
+One cursor moves through all of them. These rows are selectable:
 
-All modal menus (action menu, alias browser, push confirmation) are managed via `MenuStack` which handles:
-- Nested menu navigation (push/pop)
-- Unified keyboard handling (j/k navigate, Enter select, Esc close)
-- Consistent rendering through `render_menu()` helper
+- the command row
+- each staged and working file
+- the History header and each history commit
+- each branch, and each commit of the expanded branch
 
-### Popup System (Full-Screen Overlays)
+The Staged, Working, and Branches headers are not selectable. Inside an expanded commit, `j` / `k`
+move through its files.
 
-Popups replace the body entirely when active:
+A blank line follows the command row, and another separates each section, so two blank lines sit
+below the command row.
 
-**Diff Popup** (pressing `d` or `Enter` on a file):
+Staged, Working, and Branches hide when empty. History always shows its header, even with no
+commits. The body has a "No changes or activity" fallback line, but History always counts its
+header, so the line never shows.
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│ Diff: src/main.rs                                                   │
-├─────────────────────────────────────────────────────────────────────┤
-│ @@ -10,6 +10,8 @@ fn main() {                                       │
-│      let config = Config::load();                                   │
-│      let app = App::new(config);                                    │
-│ +    app.setup_watcher();                                           │
-│ +    app.run();                                                     │
-│      println!("Starting...");                                       │
-│  }                                                                  │
-│                                                                     │
-│                    [j/k] scroll  [g/G] top/bottom  [q] close        │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-**Command Output Popup** (pressing `o` on command section after execution):
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│ Output: git status                                                  │
-├─────────────────────────────────────────────────────────────────────┤
-│ On branch main                                                      │
-│ Your branch is up to date with 'origin/main'.                      │
-│                                                                     │
-│ nothing to commit, working tree clean                               │
-│                                                                     │
-│                    [j/k] scroll  [g/G] top/bottom  [q] close        │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-Popups support vim-style navigation: `j/k` scroll, `Ctrl+d/u` half-page, `g/G` top/bottom.
-
-Diff uses full screen area. Lines are colored:
-- Green (`+`) for additions
-- Red (`-`) for deletions
-- Cyan (`@@`) for hunk headers
-- Yellow for diff/index headers
-
-### Alias Browser
-
-Displays when pressing `a` on command section (if aliases exist):
-
-**Section List**:
-```
-┌───────────────────────────────────────────────────────────┐
-│                      Alias Sections                        │
-├───────────────────────────────────────────────────────────┤
-│  ▸ fetch (5 aliases)                                      │
-│    commit (8 aliases)                                     │
-│    branch (4 aliases)                                     │
-│    other (12 aliases)                                     │
-│                                                           │
-│           [Enter] open section  [q/Esc] close             │
-└───────────────────────────────────────────────────────────┘
-```
-
-**Aliases within Section**:
-```
-┌───────────────────────────────────────────────────────────┐
-│                      fetch aliases                         │
-├───────────────────────────────────────────────────────────┤
-│  ▸ fa       fetch --all                                   │
-│    fp       fetch --prune                                 │
-│    fu       fetch upstream                                │
-│                                                           │
-│       [Enter] run alias  [Esc] back  [q] close            │
-└───────────────────────────────────────────────────────────┘
-```
-
-### Help Overlay
-
-Displays when pressing `?`:
-
-```
-┌───────────────────────────────────────────────────────────┐
-│                          Help                              │
-├───────────────────────────────────────────────────────────┤
-│                                                           │
-│  Navigation                                               │
-│  j / ↓              Move down                             │
-│  k / ↑              Move up                               │
-│  g                  Go to first                           │
-│  G                  Go to last                            │
-│                                                           │
-│  Actions                                                  │
-│  :                  Enter command mode                    │
-│  a                  Open alias browser (on command)       │
-│  s                  Stage/unstage file                    │
-│  d                  Show diff                             │
-│  h                  Jump to history / toggle mode         │
-│  y                  Copy SHA (on history item)            │
-│  o                  Open output popup (on command)        │
-│  r                  Refresh status                        │
-│                                                           │
-│  General                                                  │
-│  ?                  Toggle help                           │
-│  q / Esc            Quit                                  │
-│                                                           │
-│                  Press any key to close                   │
-└───────────────────────────────────────────────────────────┘
-```
-
-Help overlay uses 60% width and 70% height, centered.
+The body scrolls to keep the cursor in view. It keeps 5 rows of margin above and below the cursor,
+or a third of the visible rows on short terminals. It never scrolls past the last line.
 
 ## Components
 
-### Header Bar
+### Header
 
-```
- git-monitor  │ ⎇ main ↑2 ↓0 │ repo-name │ ● watching
-└─────┬──────┘   └──┬───┘└─┬─┘  └───┬────┘   └───┬────┘
-      │             │      │        │            │
-   app title     branch  ahead/    repo       status
-                       behind     name      indicator
+```text
+ ⎇ develop ↑1↓2 │ my-project │ ● watching
 ```
 
-**Elements**:
-- **Title**: "git-monitor" in cyan
-- **Branch**: Current branch with ⎇ icon (green)
-- **Ahead/Behind**: ↑N (green) and ↓N (red) if tracking upstream
-- **Repo Name**: Directory name from repo path
-- **Status**: "● watching" in green
+- The block title "git-monitor" sits on the top border in bold cyan. The border is dark gray.
+- `⎇` is cyan. The branch name is bold green, or "(no branch)" when there is none.
+- `↑N` (green) and `↓N` (red) show only when nonzero.
+- The repository folder name is white.
+- "● watching" is green.
 
-### Command Section
+### Command Row
 
-Always at the top of the list (index 0):
-```
-▸ : git status                    <- selected
-  ✓ (no output)                   <- last command result
-```
+| State | Looks like |
+|-------|------------|
+| Idle | `  : command  a aliases` |
+| Selected | `▸ : type command   a aliases` |
+| Typing | `▸ : git status_` |
 
-- Shows last executed command and its result
-- `✓` in green for success, `✗` in red for failure
-- Press `:` or `Enter` to enter command mode
-- Press `a` to browse aliases
-- Press `o` to view full output in popup
+- `:` is bold cyan when selected or typing. The `a` key is cyan. Other hint text is dark gray.
+- The cursor `_` is cyan.
+- After a command runs, up to 4 output lines show as `  > line`, white on success and red on
+  failure. Longer output ends with `    ... (N more lines) o to expand`.
+- Output hides while a menu is open.
+- The prompt runs any command.
 
-### File Sections (Staged + Working)
+### File Sections
 
-Vertical list below command section:
-```
-Staged (2)
-  ▸ A src/new_file.rs        <- selected (bold, with ▸ indicator)
-    M src/config.rs
-
-Working Directory (4)
-    M src/main.rs
-    M src/lib.rs
-    ? untracked.txt
-    D old_file.rs
+```text
+  ▾ Working (2)
+  s stage/unstage · d diff · Enter diff · Space pager · M difftool
+▸ ○ M src/main.rs  +5/-2
+  ○ ? untracked.txt
 ```
 
-**Selection Indicator**: `▸` prefix for selected item
-**Status Character**: Single character before path (M/A/D/R/?)
-
-### File Status Colors
+- The header reads `▾ Staged (N)` or `▾ Working (N)` while the cursor is in the section, and `▸`
+  otherwise. Staged is bold green. Working is bold yellow.
+- While the cursor is in the section, a hint line lists up to five actions. Keys are cyan. Labels
+  are dark gray italic.
+- Staged files start with a green `●`. Working files start with a yellow `○`.
+- The selected row gets a `▸` prefix and bold text.
+- Line counts show as `+N` (green) and `-N` (red).
 
 | Status | Character | Color |
 |--------|-----------|-------|
@@ -250,41 +121,71 @@ Working Directory (4)
 
 ### History Section
 
-Collapsible section showing commits on current branch. Press `h` to jump to history and toggle collapse state.
+The header reads `▾ History (N)` when expanded and `▸ History (N)` when collapsed. It reads
+"Reflog" in reflog mode. It is bold cyan, and N counts the entries on the current page. The header
+is selectable. History starts expanded.
 
-**Expanded (default)**:
-```
-▶ History (main) ─ 2 hr ago               [▶ focused indicator]
-▸ abc1234  Add feature X  (HEAD)                          2 hr ago
-  └─ M src/app.rs                                         +45 -12
-  └─ A src/new.rs                                        +100
-  def5678  Fix critical bug                               3 hr ago
-  ghi9012  Initial commit  (tag: v0.1.0)                 1 day ago
-```
+Expanding History collapses any expanded branch. Expanding a branch collapses History.
 
-**Collapsed**:
-```
-▷ History (main) ─ 2 hr ago               [▷ collapsed indicator]
-```
+Below an expanded header:
 
-**Commit Expansion**: Press Enter on a commit to expand/collapse file list:
-- Shows files changed with status character (M/A/D/R)
-- Shows diff stats (+insertions -deletions)
-- Navigate into files with j/k, press Space for external pager diff, M for difftool
+1. A hint line, shown only when the cursor is on a commit.
+2. The branch line: `  develop ↑1 → origin/develop  · P push  f fetch`. The branch name is cyan
+   and the upstream is dark gray. `P push` shows when ahead, `p pull` when behind, and `f fetch`
+   always.
+3. One line per commit.
+4. The page line: `  [ prev · page ]  1/4 of 180 items`, in dark gray. A page holds 50 local entries.
 
-**Reflog Mode** (toggle with `h` while in history):
-```
-▶ Reflog ─ 2 hr ago
-  14:32:01  ● commit: Add feature X
-  14:31:45  ⎇ checkout: moving from main to feature/new
-  14:30:22  ↓ pull: Fast-forward
+#### Commit Lines
+
+History and expanded branches share this format:
+
+```text
+     ├─ e29d83a 14 min ago  ● Keep commit messages visible (HEAD → develop +1)
+     └─ 234a04a 3 hr ago  ● Load repository data as one snapshot
 ```
 
-**Relative Times**: Timestamps shown as "2 hr ago", "3 days ago", etc.
+- The graph is dark gray. `├─` marks each commit and `└─` the last one.
+- Below 80 columns the graph sits 2 columns further left.
+- Upstream commits missing locally have no indent, a red `├—` graph, a red SHA, and a dark gray
+  message.
+- The SHA is yellow. The time is dark gray, in the form "just now", "14 min ago", "2 hr ago",
+  "3 days ago", "2 wk ago", "5 mo ago", or "1 yr ago".
+- The icon takes its type's color (see below). The message is white.
+- `fixup!`, `squash!`, and `amend!` prefixes are bold magenta. `WIP` and `wip:` prefixes are bold
+  yellow.
+- The selected commit is bold.
 
-**Special Commit Prefixes**: Commits with fixup!, squash!, amend!, etc. are highlighted in magenta. Commits with WIP prefix (or wip:, wip ) are highlighted in yellow.
+Refs follow the message in dark gray parentheses. `HEAD →` is bold cyan, the HEAD branch is bold
+green, other local branches are green, remote branches are red, and tags read `tag: name` in
+yellow. When all refs would leave the message under 20 columns, only the first ref stays and the
+rest fold into `+N`. Messages that still do not fit end in `...`.
 
-**Command Icons & Colors** (Reflog mode):
+In reflog mode each line carries the reflog message, such as `⎇ checkout: moving from main to
+feature`.
+
+#### Expanded Commits
+
+`Space` on a commit adds its details below it:
+
+```text
+    Author:    Ada Lovelace <ada@example.com>
+    Date:      2026-09-27 14:32:01 -0400
+    Commit:    e29d83a4b1c9f07d2e6a8b35c0f41d9e7a2b6c13
+
+    Keep commit messages visible in narrow panels
+
+    2 file(s) changed  +45 / -12
+  ▸ M src/app.rs  +40/-12
+    A src/new.rs  +5
+```
+
+- The author name is green and the email cyan. The date and full SHA are yellow.
+- A Committer line shows when it differs from the author. A magenta GPG line shows when the commit
+  has a signature status.
+- A hint line for commit files appears above the files while one is selected.
+
+#### Command Icons
 
 | Command | Icon | Color |
 |---------|------|-------|
@@ -294,185 +195,105 @@ Collapsible section showing commits on current branch. Press `h` to jump to hist
 | Rebase | ↺ | Yellow |
 | Pull | ↓ | Blue |
 | Push | ↑ | Blue |
+| Fetch | ⟳ | Blue |
 | Reset | ↩ | Red |
 | CherryPick | ❋ | Magenta |
 | Revert | ⊗ | Red |
+| Stash | □ | Yellow |
 | Branch | ⌥ | Cyan |
 | Clone | ⊕ | Green |
 | Init | ★ | Green |
 | Other | • | Dark Gray |
 
+Commit log entries always use the Commit icon. The reflog parser does not detect Push, Fetch, or
+Stash yet, so those entries show as Other.
+
 ### Branches Section
 
-Shows local branches other than the current branch. Branch names are non-selectable labels.
-
+```text
+  ▾ Branches (2)
+  Enter checkout · Space expand · e edit
+▸ bugfix/login
+     ├─ 3b011dc 2 days ago  ● Add parser (bugfix/login)
+     └─ f489741 3 days ago  ● Initial commit
+  feature/new-ui
 ```
-─ Branches ─────────────────────────────────────────────────────────
-  feature/new (5 ahead)                    [ahead/behind vs current]
-  └─ jkl3456  WIP on feature                              1 day ago
-  └─ mno7890  Add tests                                   2 days ago
-  bugfix/login (2 behind)
-```
 
-**Branch Expansion**: Press Enter on a branch commit to expand that branch's recent commits.
-
-**Branch Graph**: Tree connectors (`├─`, `└─`, `│`) visualize commit relationships.
-
-**Checkout**: Press `c` on a branch to check it out.
+- The header reads `▾ Branches (N)` while the cursor is in the section, and `▸` otherwise. It is
+  bold cyan and not selectable.
+- The list shows local branches other than the current one. Names are white, and bold when
+  selected.
+- An expanded branch lists its commits below it in the shared commit line format.
 
 ### Footer
 
-Contextual hints based on current selection:
+The footer shows one of these, in priority order:
 
-```
- [:] cmd  [h] history  [b] branch  [g/G] top/bottom  [m] actions  [?] help
-```
+1. **Command prompt**: `Enter execute  Esc cancel  Up/Down history`.
+2. **Toast**: a short message. Info is blue, success green, warning yellow, and error red.
+3. **Error**: the error message in red.
+4. **Hints**: `j/k nav  g/G top/btm  m menu  e edit │ : cmd  w files  h history  b branches │ ? help  q quit`.
 
-Keys shown with dark gray background, centered in footer area.
+The hints never change with the cursor. Context hints render inside the sections instead.
+`e edit` shows only when `$EDITOR` is set. The full hint line needs about 116 columns, and
+narrower terminals cut off its right end.
 
-**Context-sensitive hints** (dynamic based on cursor position):
-- On staged/working files: `[s] stage/unstage  [d] diff`
-- On history commits: `[Space] expand  [y] sha  [[/]] page`
-- On expanded commit files: `[Space] pager  [M] difftool`
-- On branches: `[c] copy sha  [Enter] checkout`
-- Global (when ahead): `[P] push`
-- Global (when behind): `[p] pull`
+Hints are centered. Keys sit on dark gray bold chips. The border is dark gray.
 
-Hints are rendered dynamically from the `ActionRegistry` (see ADR-002). Press `m` to see all available actions.
+While a popup is open, the footer reads `j/k scroll  g/G top/bottom  Ctrl+d/u page  q close`.
 
-When an error occurs, the footer shows the error message in red instead of keybindings.
+### Popups
 
-## Keybindings
+A popup fills the body area with a cyan border and a bold cyan title:
 
-### Global
+- ` Diff: path ` for file diffs. Untracked files show their content as added lines under
+  "(new file)".
+- ` Output: command ` for command output. Text is white on success and red on failure.
+- ` Error: title ` for error details. The message is red and the context dark gray.
 
-| Key | Action |
-|-----|--------|
-| `q` | Quit application |
-| `Esc` | Quit application (or close modal) |
-| `Ctrl+c` | Quit application |
-| `?` | Toggle help overlay |
-| `r` | Force refresh status |
+When content overflows, the bottom border shows the scroll position as `[N/M]` in dark gray.
 
-### Navigation
-
-| Key | Action |
-|-----|--------|
-| `j` / `↓` | Select next item |
-| `k` / `↑` | Select previous item |
-| `g` | Go to first item |
-| `G` | Go to last item |
-| `w` | Jump to working files |
-| `h` | Jump to history / toggle collapse / toggle reflog mode |
-| `b` | Jump to branches section |
-
-### Actions
-
-| Key | Action |
-|-----|--------|
-| `m` | Open context action menu |
-| `:` | Enter command mode |
-| `Enter` | Enter command mode (on command) / Expand commit (on history) / Show diff (on file) |
-| `a` | Open alias browser (on command section) |
-| `o` | Open output popup (on command section) |
-| `s` | Stage/Unstage selected file |
-| `d` | Show inline diff for selected file |
-| `Space` | Show diff in external pager (on file or expanded commit file) |
-| `M` | Show diff in external difftool (on file or expanded commit file) |
-| `y` | Copy short SHA to clipboard (on history item) |
-| `Y` | Copy full SHA to clipboard (on history item) |
-| `c` | Checkout (on branch) |
-| `R` | Interactive rebase onto selected commit (on history) |
-| `e` | Open file in editor (on working/staged/commit files) |
-| `P` | Push (available when ahead of remote) |
-| `p` | Pull (available when behind remote) |
-| `f` | Fetch from remote |
-| `[` | Previous history page |
-| `]` | Next history page |
-
-### Command Mode
-
-| Key | Action |
-|-----|--------|
-| Any character | Type command |
-| `Backspace` | Delete character |
-| `Enter` | Execute command |
-| `↑` | Previous history |
-| `↓` | Next history |
-| `Esc` / `Ctrl+c` | Cancel command mode |
-
-### Popup (Diff/Output)
-
-| Key | Action |
-|-----|--------|
-| `j` / `↓` | Scroll down |
-| `k` / `↑` | Scroll up |
-| `Ctrl+d` | Scroll half page down |
-| `Ctrl+u` | Scroll half page up |
-| `g` | Jump to top |
-| `G` | Jump to bottom |
-| `q` / `Esc` | Close popup |
-
-### Alias Browser
-
-| Key | Action |
-|-----|--------|
-| `j` / `↓` | Select next |
-| `k` / `↑` | Select previous |
-| `Enter` | Open section / Run alias |
-| `Esc` | Back / Close |
-| `q` | Close browser |
-
-### Help Overlay
-
-| Key | Action |
-|-----|--------|
-| Any key | Close help overlay |
-
-## Color Scheme
-
-### Element Colors
-
-| Element | Color |
-|---------|-------|
-| App title | Cyan |
-| Branch name | Green |
-| Ahead count | Green |
-| Behind count | Red |
-| Repo name | White |
-| Status indicator | Green |
-| Active panel border | Cyan |
-| Inactive panel border | Dark Gray |
-| Active panel title | Cyan (bold) |
-| Inactive panel title | White |
-| Selection | Bold (same color as status) |
-| Timestamp | Dark Gray |
-| Error message | Red |
-| Empty state text | Dark Gray (italic) |
-
-### Diff Colors
-
-| Line Type | Color |
+| Diff line | Color |
 |-----------|-------|
 | Addition (`+`) | Green |
 | Deletion (`-`) | Red |
 | Hunk header (`@@`) | Cyan |
 | File header (`diff`, `index`) | Yellow |
-| Context | White |
+| Other, including `+++` and `---` | White |
 
-## Layout Proportions
+### Help Overlay
 
-- **Header**: Fixed 3 lines
-- **Body**: Unified vertical list (fills remaining space)
-  - Command section: 2 lines
-  - Staged section: dynamic
-  - Working section: dynamic
-  - History section: dynamic
-- **Footer**: Fixed 3 lines
+`?` opens a centered box, 60% wide and 70% tall, with a cyan border and the title " Help ". It
+lists these groups: Navigation, Staged/Working Files, History, Commit Files, Branches,
+Command & Aliases, and General. It ends with "Press any key to close" in dark gray italic.
 
-## Empty States
+The action registry builds most lines, so `P` and `p` appear only when ahead or behind. The box
+does not scroll, so short terminals cut off the lower groups.
 
-When no items exist in a section:
-- Staged: "No staged changes" (dark gray, italic)
-- Working Directory: "No changes" (dark gray, italic)
-- History: "No activity yet" (dark gray, italic)
+### Menus
+
+Menus draw as centered overlays 50% wide with a cyan border. The menu stack manages them (see
+[ADR-005](adr/005-modular-menu-prompt-system.md)).
+
+- **Action menu** (`m`): titled " {Context} Actions ", such as " Working Files Actions ". Each
+  item shows its key. Alias items start with `⎇`. It ends with `j/k navigate  Enter execute  m/Esc
+  close`. See [ADR-002](adr/002-contextual-action-menu-framework.md).
+- **Alias browser** (`a`): an "Alias Sections" list, then the aliases in the chosen section.
+- **Push confirmation** (`P`): asks "Push {branch} to {remote}?", adding "and set upstream"
+  when the branch has none. It offers a force checkbox.
+
+## Colors
+
+The UI uses only the 16 named terminal colors.
+
+| Element | Color |
+|---------|-------|
+| Block titles | Bold cyan |
+| Header and footer borders | Dark gray |
+| Body, popup, help, and menu borders | Cyan |
+| Selection | `▸` prefix and bold text |
+| Hint keys | Cyan |
+| Hint labels | Dark gray italic |
+| SHA | Yellow |
+| Times and graph | Dark gray |
+| Errors | Red |

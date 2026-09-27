@@ -45,6 +45,8 @@ pub struct RepoSnapshot {
     pub history_pages: usize,
     /// History page actually loaded (the request, clamped)
     pub history_page: usize,
+    /// Commit HEAD points at, if any
+    pub head: Option<String>,
     /// Local and remote branches
     pub branches: Vec<BranchInfo>,
     /// Commits unique to the requested branch; empty if none was requested
@@ -87,12 +89,20 @@ impl GitRepo {
             _ => Vec::new(),
         };
 
+        let head = self
+            .repo
+            .head()
+            .ok()
+            .and_then(|head| head.target())
+            .map(|oid| oid.to_string());
+
         Ok(RepoSnapshot {
             status,
             history,
             history_total,
             history_pages,
             history_page,
+            head,
             branches,
             branch_commits,
         })

@@ -208,3 +208,62 @@ fn held_shift_j_speeds_up() {
         app.history_page
     );
 }
+
+#[test]
+fn shift_j_steps_off_the_command_row() {
+    let dir = repo_with_commits(3);
+    let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+    let mut terminal = Terminal::new(TestBackend::new(80, 30)).expect("terminal");
+
+    // A clean tree starts on the command row
+    assert_eq!(app.selected, Some(0));
+    press(&mut app, KeyCode::Char('J'), 1);
+
+    assert!(
+        app.command_input.is_empty(),
+        "J did not type into the prompt"
+    );
+    let (_, line) = cursor(&mut terminal, &mut app);
+    assert!(
+        !line.contains("command"),
+        "left the command row: {line}"
+    );
+}
+
+#[test]
+fn new_commits_forget_saved_page_spots() {
+    let dir = repo_with_commits(120);
+    let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+    let mut terminal = Terminal::new(TestBackend::new(80, 30)).expect("terminal");
+
+    press(&mut app, KeyCode::Char('h'), 1);
+    press(&mut app, KeyCode::Char('j'), PAGE - 6);
+    press(&mut app, KeyCode::Char(']'), 1);
+
+    // Someone commits: every page shifts by one
+    let repo = git2::Repository::open(dir.path()).expect("open repo");
+    let sig = git2::Signature::now("Test", "test@example.com").expect("signature");
+    let head = repo
+        .head()
+        .expect("head")
+        .peel_to_commit()
+        .expect("head commit");
+    let tree = head.tree().expect("tree");
+    repo.commit(
+        Some("HEAD"),
+        &sig,
+        &sig,
+        "New work",
+        &tree,
+        &[&head],
+    )
+    .expect("commit");
+    app.refresh_status();
+
+    press(&mut app, KeyCode::Char('['), 1);
+    let (_, line) = cursor(&mut terminal, &mut app);
+    assert!(
+        line.contains(&first_sha(&app)),
+        "fresh start on the first commit: {line}"
+    );
+}

@@ -72,6 +72,12 @@ impl App {
         };
         match self.repo.snapshot(&request) {
             Ok(snapshot) => {
+                // New, amended, or removed commits shift every page, so saved spots no longer fit
+                if snapshot.history_total != self.snapshot.history_total
+                    || snapshot.head != self.snapshot.head
+                {
+                    self.history_page_cursors.clear();
+                }
                 self.history_page = snapshot.history_page;
                 self.snapshot = snapshot;
                 // Forget an expanded branch that no longer exists

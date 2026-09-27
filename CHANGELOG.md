@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-27
+
+### Added
+
+- The header shows how fresh the data is (`● 12s ago (files)`), or `⚠ stale` with `e` for details
+  when a refresh fails; the last good data stays on screen (LON-132)
+- Stable repository and worktree identity, groundwork for GitHub and agent correlation (LON-133)
+
 ## [0.12.1] - 2026-09-27
 
 ### Changed

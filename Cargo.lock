@@ -756,7 +756,7 @@ dependencies = [
 
 [[package]]
 name = "git-monitor"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "anyhow",
  "arboard",

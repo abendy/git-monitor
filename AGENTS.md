@@ -49,6 +49,8 @@ debugging the watcher.
   can add or remove rows.
 - `GitRepo` is the local Git boundary. Use its worktree, git-dir, and common-dir paths; never assume
   `.git` is a directory.
+- Key anything per repository or worktree by `RepoId` / `WorktreeId` (`GitRepo::repo_id`,
+  `GitRepo::worktree_id`, ADR-008), never by ad-hoc path strings.
 - `CommandRequest` and `CommandExecutor` are the single command-execution path.
 - `MenuStack`, `FeedbackManager`, and `SectionRegistry` own modal UI, user-visible results, and
   list indexing. Extend them rather than adding parallel state.

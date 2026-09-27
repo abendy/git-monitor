@@ -112,6 +112,8 @@ pub struct App {
     section_hold: Option<SectionHold>,
     /// When Git data was last read, why, and whether the latest try failed
     freshness: crate::freshness::Freshness,
+    /// Stable identity of this worktree and its repository (ADR-008)
+    worktree_id: Option<crate::git::WorktreeId>,
     /// Cursor spot per history page, so paging back returns to it
     history_page_cursors: std::collections::HashMap<(HistoryMode, usize), PageCursor>,
     /// Which non-current branch is expanded (showing its commits)
@@ -148,6 +150,12 @@ impl App {
     #[must_use]
     pub const fn snapshot(&self) -> &RepoSnapshot {
         &self.snapshot
+    }
+
+    /// Stable identity of this worktree and its repository, if it could be resolved
+    #[must_use]
+    pub const fn worktree_id(&self) -> Option<&crate::git::WorktreeId> {
+        self.worktree_id.as_ref()
     }
 
     /// How fresh the Git data is

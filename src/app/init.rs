@@ -38,6 +38,12 @@ impl App {
             .collect();
         action_registry.add_alias_actions(&all_aliases);
 
+        // Identity is fixed for the life of the process; resolve it once
+        let worktree_id = repo
+            .worktree_id()
+            .map_err(|e| warn!("Failed to resolve repository identity: {e:#}"))
+            .ok();
+
         // Initialize command executor
         let executor = CommandExecutor::new(&repo_path);
         let keymap = Keymap::from_registry(&action_registry);
@@ -66,6 +72,7 @@ impl App {
             history_page_cursors: std::collections::HashMap::new(),
             section_hold: None,
             freshness: Freshness::default(),
+            worktree_id,
             expanded_branch: None,
             pending_external: None,
             action_registry,

@@ -219,3 +219,19 @@ mod app_git_status {
         assert!(!app.snapshot().status.files.is_empty());
     }
 }
+
+mod identity {
+    use super::*;
+
+    #[test]
+    fn app_resolves_the_worktree_identity_once_at_startup() {
+        let dir = create_test_repo();
+        let app = App::new(dir.path().to_path_buf()).expect("create app");
+
+        let expected = git_monitor::GitRepo::open(dir.path())
+            .expect("open repo")
+            .worktree_id()
+            .expect("resolve identity");
+        assert_eq!(app.worktree_id(), Some(&expected));
+    }
+}

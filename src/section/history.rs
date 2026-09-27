@@ -6,7 +6,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 
-use super::{Section, SectionAction, SectionId, SectionState};
+use super::{Section, SectionAction, SectionId, SectionLines, SectionState};
 use crate::actions::{ActionRegistry, ActionType, AppAction, AppState, Context};
 use crate::app::HistoryMode;
 use crate::git::{BranchInfo, CommitDetail, GitCommand, GitStatus};
@@ -254,8 +254,8 @@ impl Section for HistorySection {
         self.data.is_collapsed
     }
 
-    fn render(&self, state: &SectionState) -> Vec<Line<'static>> {
-        let mut lines = Vec::new();
+    fn render(&self, state: &SectionState) -> SectionLines {
+        let mut lines = SectionLines::default();
 
         // Skip if no activity and collapsed
         if self.data.activity.is_empty() && self.data.is_collapsed {
@@ -286,7 +286,10 @@ impl Section for HistorySection {
             ),
         ];
 
-        lines.push(Line::from(header_spans));
+        lines.push_marked(
+            Line::from(header_spans),
+            header_selected,
+        );
 
         // If collapsed, stop here
         if self.data.is_collapsed {
@@ -312,17 +315,20 @@ impl Section for HistorySection {
             // Local index for this commit is i + 1 (header is at 0)
             let selected = state.local_selection == Some(i + 1) && in_section;
             let is_last = i == activity_len - 1;
-            lines.push(render_commit_line(
-                cmd,
+            lines.push_marked(
+                render_commit_line(
+                    cmd,
+                    selected,
+                    is_last,
+                    state.render_width,
+                ),
                 selected,
-                is_last,
-                state.render_width,
-            ));
+            );
 
             // If this commit is expanded, render detail lines
             if self.data.expanded_commit.as_ref() == cmd.sha.as_ref() {
                 if let Some(ref detail) = self.data.expanded_detail {
-                    lines.extend(render_commit_detail(
+                    lines.append(render_commit_detail(
                         detail,
                         self.data.expanded_file_idx,
                         self.data.action_registry.as_ref(),

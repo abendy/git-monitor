@@ -198,6 +198,8 @@ pub struct App {
 Modal dialogs (action menu, alias browser, push confirmation) are managed by `MenuStack` instead of ViewMode variants.
 
 The UI uses a single unified scrollable list with sections: Command → Staged → Working → History → Branches.
+Each section reports which of its lines holds the cursor, and the body panel scrolls to keep that
+line in view with a few rows of context above and below it.
 
 ### 6. Menu System (`src/menu/`)
 
@@ -313,7 +315,7 @@ pub trait Section: Send + Sync {
     fn is_collapsed(&self) -> bool;
     fn refresh_policy(&self) -> RefreshPolicy;
     fn keybindings(&self) -> Vec<SectionKeybinding>;
-    fn render(&self, state: &SectionState) -> Vec<Line<'static>>;
+    fn render(&self, state: &SectionState) -> SectionLines; // Lines plus cursor row
     fn actions(&self, item_idx: usize) -> Vec<Action>;
     fn handle_key(&self, key: KeyEvent, item_idx: usize) -> Option<SectionAction>;
 }

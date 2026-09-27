@@ -175,6 +175,38 @@ pub struct SectionState {
     pub render_width: u16,
 }
 
+/// Lines rendered by a section, plus the row holding the cursor
+#[derive(Debug, Default)]
+pub struct SectionLines {
+    /// Lines to display
+    pub lines: Vec<Line<'static>>,
+    /// Index into `lines` of the cursor row, if the cursor is in this section
+    pub cursor: Option<usize>,
+}
+
+impl SectionLines {
+    /// Append a plain line
+    pub fn push(&mut self, line: Line<'static>) {
+        self.lines.push(line);
+    }
+
+    /// Append a line and record it as the cursor row when `is_cursor` is true
+    pub fn push_marked(&mut self, line: Line<'static>, is_cursor: bool) {
+        if is_cursor {
+            self.cursor = Some(self.lines.len());
+        }
+        self.lines.push(line);
+    }
+
+    /// Append another block of lines, keeping its cursor row if it has one
+    pub fn append(&mut self, other: Self) {
+        if let Some(cursor) = other.cursor {
+            self.cursor = Some(self.lines.len() + cursor);
+        }
+        self.lines.extend(other.lines);
+    }
+}
+
 /// A UI section that can be rendered and interacted with
 pub trait Section: Send + Sync {
     /// Unique identifier for this section
@@ -219,7 +251,7 @@ pub trait Section: Send + Sync {
     }
 
     /// Render this section to lines for display
-    fn render(&self, state: &SectionState) -> Vec<Line<'static>>;
+    fn render(&self, state: &SectionState) -> SectionLines;
 
     /// Get actions available for selected item
     fn actions(&self, item_idx: usize) -> Vec<Action>;

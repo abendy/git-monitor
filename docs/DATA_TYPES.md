@@ -896,7 +896,7 @@ pub trait Section: Send + Sync {
     fn is_collapsed(&self) -> bool;
     fn refresh_policy(&self) -> RefreshPolicy;      // When to refresh data
     fn keybindings(&self) -> Vec<SectionKeybinding>; // For external sections
-    fn render(&self, state: &SectionState) -> Vec<Line<'static>>;
+    fn render(&self, state: &SectionState) -> SectionLines; // Lines plus cursor row
     fn actions(&self, item_idx: usize) -> Vec<Action>;
     fn handle_key(&self, key: KeyEvent, item_idx: usize) -> Option<SectionAction>;
 }

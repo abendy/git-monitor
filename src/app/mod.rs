@@ -64,6 +64,8 @@ pub struct App {
     pub running: bool,
     /// Selected index in main list (None = nothing focused, Some(0) = command, etc.)
     pub selected: Option<usize>,
+    /// First visible row of the main panel, kept between frames for scrolling
+    pub body_scroll: usize,
     /// Show help overlay
     pub show_help: bool,
     /// Current view mode

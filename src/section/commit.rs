@@ -6,6 +6,7 @@ use ratatui::text::{Line, Span};
 use crate::actions::{ActionRegistry, ActionType, AppAction, AppState, Context};
 use crate::git::{format_relative_time, CommandType, CommitDetail, GitCommand, RefDecoration};
 use crate::render::file_list::{render_file_entry, FileEntryView, FileListStyle};
+use crate::section::SectionLines;
 
 #[allow(clippy::too_many_lines)] // Render functions are naturally verbose
 pub fn render_commit_line(
@@ -139,8 +140,8 @@ pub fn render_commit_detail(
     expanded_file_idx: Option<usize>,
     action_registry: Option<&ActionRegistry>,
     app_state: Option<&AppState>,
-) -> Vec<Line<'static>> {
-    let mut lines = Vec::new();
+) -> SectionLines {
+    let mut lines = SectionLines::default();
 
     lines.push(Line::raw(""));
 
@@ -263,11 +264,10 @@ pub fn render_commit_detail(
                 deletions: file.deletions,
             };
 
-            lines.push(render_file_entry(
-                &entry,
-                &file_style,
+            lines.push_marked(
+                render_file_entry(&entry, &file_style, is_file_selected),
                 is_file_selected,
-            ));
+            );
         }
     }
 

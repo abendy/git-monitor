@@ -6,7 +6,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 
-use super::{Section, SectionAction, SectionId, SectionState};
+use super::{Section, SectionAction, SectionId, SectionLines, SectionState};
 use crate::actions::{ActionRegistry, AppAction, AppState, Context};
 use crate::git::{BranchInfo, CommitDetail, GitCommand};
 use crate::section::{render_commit_detail, render_commit_line, render_context_hint};
@@ -124,8 +124,8 @@ impl Section for BranchesSection {
 
     #[allow(clippy::too_many_lines)] // Render methods are naturally verbose
     #[allow(clippy::option_if_let_else)] // if-let-else is clearer here
-    fn render(&self, state: &SectionState) -> Vec<Line<'static>> {
-        let mut lines = Vec::new();
+    fn render(&self, state: &SectionState) -> SectionLines {
+        let mut lines = SectionLines::default();
 
         let other_branches = self.other_branches();
         if other_branches.is_empty() {
@@ -204,10 +204,13 @@ impl Section for BranchesSection {
                 Style::default().fg(branch_color)
             };
 
-            lines.push(Line::from(vec![
-                Span::raw(prefix),
-                Span::styled(branch.name.clone(), branch_style),
-            ]));
+            lines.push_marked(
+                Line::from(vec![
+                    Span::raw(prefix),
+                    Span::styled(branch.name.clone(), branch_style),
+                ]),
+                header_selected,
+            );
 
             // If this branch is expanded, show its commits
             if is_expanded {
@@ -223,17 +226,20 @@ impl Section for BranchesSection {
                     let local_index = commit_start + i;
                     let selected = state.local_selection == Some(local_index) && in_section;
                     let is_last = i + 1 == commit_len;
-                    lines.push(render_commit_line(
-                        cmd,
+                    lines.push_marked(
+                        render_commit_line(
+                            cmd,
+                            selected,
+                            is_last,
+                            state.render_width,
+                        ),
                         selected,
-                        is_last,
-                        state.render_width,
-                    ));
+                    );
 
                     // If this commit is expanded, render detail lines
                     if self.data.expanded_commit.as_ref() == cmd.sha.as_ref() {
                         if let Some(ref detail) = self.data.expanded_detail {
-                            lines.extend(render_commit_detail(
+                            lines.append(render_commit_detail(
                                 detail,
                                 self.data.expanded_file_idx,
                                 self.data.action_registry.as_ref(),

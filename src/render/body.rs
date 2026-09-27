@@ -6,19 +6,25 @@
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListItem};
+use ratatui::widgets::{Block, Borders, List, ListItem, ListState};
 
 use crate::app::App;
-use crate::section::{Section, SectionId, SectionState};
+use crate::section::{Section, SectionId, SectionLines, SectionState};
 use crate::tui::Frame;
 
+/// Rows kept visible above and below the cursor before the panel scrolls
+const SCROLL_MARGIN: usize = 5;
+
 /// Render the main body panel
-pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
+pub fn render(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
     render_main_panel(frame, app, area);
 }
 
-/// Render the unified main panel by iterating through sections
-fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
+/// Render the unified main panel by iterating through sections.
+///
+/// The panel scrolls to keep the cursor row visible and remembers its offset
+/// in `app.body_scroll` so the view only moves when the cursor leaves it.
+fn render_main_panel(frame: &mut Frame<'_>, app: &mut App, area: Rect) {
     let item_counts = app.section_item_counts();
 
     // Build section states from registry (handles index calculations)
@@ -27,6 +33,7 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         .build_section_states(app.selected, &item_counts);
 
     let mut items: Vec<ListItem<'_>> = Vec::new();
+    let mut cursor_row = None;
     let mut has_content_above = false;
 
     // Iterate through sections and render each
@@ -52,10 +59,13 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         }
 
         // Render the section
-        let lines = render_section(app, section_id, &state);
-        if !lines.is_empty() {
+        let rendered = render_section(app, section_id, &state);
+        if let Some(cursor) = rendered.cursor {
+            cursor_row = Some(items.len() + cursor);
+        }
+        if !rendered.lines.is_empty() {
             has_content_above = true;
-            for line in lines {
+            for line in rendered.lines {
                 items.push(ListItem::new(line));
             }
         }
@@ -73,6 +83,13 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
         ))));
     }
 
+    // Keep rows of context around the cursor (at most a third of the view on
+    // short terminals), and pull the view back up when content shrinks so the
+    // panel never scrolls past its last line.
+    let visible_rows = usize::from(area.height.saturating_sub(2));
+    let margin = SCROLL_MARGIN.min(visible_rows / 3);
+    let max_offset = items.len().saturating_sub(visible_rows);
+
     let list = List::new(items).block(
         Block::default()
             .borders(Borders::ALL)
@@ -85,11 +102,20 @@ fn render_main_panel(frame: &mut Frame<'_>, app: &App, area: Rect) {
             ),
     );
 
-    frame.render_widget(list, area);
+    let mut list_state = ListState::default()
+        .with_offset(app.body_scroll.min(max_offset))
+        .with_selected(cursor_row);
+
+    frame.render_stateful_widget(
+        list.scroll_padding(margin),
+        area,
+        &mut list_state,
+    );
+    app.body_scroll = list_state.offset();
 }
 
 /// Render a section by dispatching to the appropriate section's render method
-fn render_section(app: &App, section_id: SectionId, state: &SectionState) -> Vec<Line<'static>> {
+fn render_section(app: &App, section_id: SectionId, state: &SectionState) -> SectionLines {
     match section_id {
         SectionId::Command => app.command_section.render(state),
         SectionId::Staged => app.staged_section.render(state),

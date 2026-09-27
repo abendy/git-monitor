@@ -61,6 +61,7 @@ impl App {
             watcher: None,
             running: true,
             selected: None,
+            body_scroll: 0,
             show_help: false,
             view_mode: ViewMode::default(),
             command_input: String::new(),

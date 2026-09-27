@@ -7,7 +7,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 
-use super::{Section, SectionAction, SectionId, SectionState};
+use super::{Section, SectionAction, SectionId, SectionLines, SectionState};
 use crate::actions::{Action, ActionRegistry, AppAction, AppState, Context};
 use crate::git::FileStatus;
 use crate::render::file_list::{render_file_entry, FileEntryView, FileListStyle};
@@ -174,8 +174,8 @@ impl Section for FileListSection {
         self.data.files.len()
     }
 
-    fn render(&self, state: &SectionState) -> Vec<Line<'static>> {
-        let mut lines = Vec::new();
+    fn render(&self, state: &SectionState) -> SectionLines {
+        let mut lines = SectionLines::default();
 
         if self.data.files.is_empty() {
             return lines;
@@ -228,9 +228,10 @@ impl Section for FileListSection {
                 },
             };
 
-            lines.push(render_file_entry(
-                &entry, &style, selected,
-            ));
+            lines.push_marked(
+                render_file_entry(&entry, &style, selected),
+                selected,
+            );
         }
 
         lines

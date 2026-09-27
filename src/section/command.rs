@@ -6,7 +6,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 
-use super::{Section, SectionAction, SectionId, SectionState};
+use super::{Section, SectionAction, SectionId, SectionLines, SectionState};
 use crate::actions::{Action, Context};
 use crate::feedback::CommandOutput;
 
@@ -174,14 +174,20 @@ impl Section for CommandSection {
         1
     }
 
-    fn render(&self, state: &SectionState) -> Vec<Line<'static>> {
-        let mut lines = Vec::new();
+    fn render(&self, state: &SectionState) -> SectionLines {
+        let mut lines = SectionLines::default();
 
         // Main command line
-        lines.push(self.render_command_line(state));
+        let selected = state.is_focused && state.local_selection == Some(0);
+        lines.push_marked(
+            self.render_command_line(state),
+            selected,
+        );
 
         // Output lines (non-selectable)
-        lines.extend(self.render_output_lines());
+        lines
+            .lines
+            .extend(self.render_output_lines());
 
         // Spacer after command section
         lines.push(Line::from(""));

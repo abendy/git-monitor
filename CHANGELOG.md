@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-09-27
+
+### Fixed
+
+- Commit messages stay visible in narrow panels: extra refs fold into `+N`, and the commit graph
+  moves left below 80 columns
+- Trimming a commit message with accented letters or emoji can no longer crash the app
+
 ## [0.10.0] - 2026-09-27
 
 ### Added

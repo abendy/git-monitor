@@ -9,6 +9,8 @@ pub enum ActionCondition {
     Always,
     /// Branch is ahead of remote (can push)
     BranchAhead,
+    /// Branch has commits to push, or has no upstream yet and can be published
+    CanPush,
     /// Branch is behind remote (should pull)
     BranchBehind,
     /// Branch has upstream configured
@@ -41,6 +43,7 @@ impl AppState {
         match condition {
             ActionCondition::Always => true,
             ActionCondition::BranchAhead => self.ahead > 0,
+            ActionCondition::CanPush => self.ahead > 0 || !self.has_upstream,
             ActionCondition::BranchBehind => self.behind > 0,
             ActionCondition::HasUpstream => self.has_upstream,
             ActionCondition::NoUpstream => !self.has_upstream,
@@ -102,6 +105,24 @@ mod tests {
             let state = AppState::default();
 
             assert!(!state.satisfies(ActionCondition::BranchAhead));
+        }
+
+        #[test]
+        fn can_push_when_ahead_or_without_upstream() {
+            let ahead = AppState {
+                ahead: 1,
+                has_upstream: true,
+                ..Default::default()
+            };
+            let unpublished = AppState::default();
+            let in_sync = AppState {
+                has_upstream: true,
+                ..Default::default()
+            };
+
+            assert!(ahead.satisfies(ActionCondition::CanPush));
+            assert!(unpublished.satisfies(ActionCondition::CanPush));
+            assert!(!in_sync.satisfies(ActionCondition::CanPush));
         }
 
         #[test]

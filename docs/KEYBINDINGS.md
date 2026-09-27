@@ -19,17 +19,17 @@ These work on every row unless a section below gives the key another meaning.
 | `m` | Action menu for the selected row |
 | `:` | Open the command prompt |
 | `a` | Alias browser (when aliases exist) |
-| `e` | Open the selected file in `$EDITOR`, or the repository when no file is selected; warns when `$EDITOR` is unset |
-| `P` | Push (opens a confirmation menu) |
-| `p` | Pull |
+| `e` | Open the selected file in `$EDITOR`, or the repository when no file is selected; warns when `$EDITOR` is unset. While an error shows, `e` opens its details instead |
+| `P` | Push (opens a confirmation menu). Works when ahead of upstream, or to publish a branch with no upstream |
+| `p` | Pull. Works when behind upstream (as of the last fetch) |
 | `f` | Fetch |
 | `r` | Refresh |
 | `?` | Help |
 | `q` / `Ctrl+c` | Quit |
 | `Esc` | Back out: close an open commit, else collapse an expanded branch. Never quits |
 
-`P` and `p` always run. Being ahead or behind only decides whether menus, help, and hints list
-them.
+When there is nothing to push or pull, `P` and `p` show a short note instead of running. Press
+`f` to fetch if the remote may have moved.
 
 ## Command Row
 

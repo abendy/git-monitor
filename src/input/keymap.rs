@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::actions::{ActionRegistry, ActionType, AppAction, Context};
+use crate::actions::{ActionCondition, ActionRegistry, ActionType, AppAction, Context};
 
 /// A key binding (key code + modifiers)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -101,8 +101,8 @@ impl From<KeyEvent> for KeyBinding {
     }
 }
 
-/// Keymap for a specific context
-type ContextMap = HashMap<KeyBinding, AppAction>;
+/// Keymap for a specific context: each binding's action and when it applies
+type ContextMap = HashMap<KeyBinding, (AppAction, ActionCondition)>;
 
 /// Declarative keymap that maps key bindings to actions
 #[derive(Debug, Clone, Default)]
@@ -130,7 +130,10 @@ impl Keymap {
 
     /// Add a global binding
     pub fn bind_global(&mut self, binding: KeyBinding, action: AppAction) {
-        self.global.insert(binding, action);
+        self.global.insert(
+            binding,
+            (action, ActionCondition::Always),
+        );
     }
 
     /// Add a contextual binding
@@ -138,18 +141,32 @@ impl Keymap {
         self.contextual
             .entry(context)
             .or_default()
-            .insert(binding, action);
+            .insert(
+                binding,
+                (action, ActionCondition::Always),
+            );
     }
 
     /// Look up an action for a key event in a given context
     #[must_use]
     pub fn lookup(&self, key: KeyEvent, context: Context) -> Option<AppAction> {
+        self.lookup_with_condition(key, context)
+            .map(|(action, _)| action)
+    }
+
+    /// Look up an action and the condition it needs before it may run
+    #[must_use]
+    pub fn lookup_with_condition(
+        &self,
+        key: KeyEvent,
+        context: Context,
+    ) -> Option<(AppAction, ActionCondition)> {
         let binding = KeyBinding::from(key);
 
         // Check contextual bindings first
         if let Some(ctx_map) = self.contextual.get(&context) {
-            if let Some(action) = ctx_map.get(&binding) {
-                return Some(*action);
+            if let Some(bound) = ctx_map.get(&binding) {
+                return Some(*bound);
             }
         }
 
@@ -170,18 +187,23 @@ impl Keymap {
                 continue;
             };
 
+            let bound = (app_action, action.condition);
             if action
                 .contexts
                 .contains(&Context::Global)
             {
-                keymap.bind_global(binding, app_action);
+                keymap.global.insert(binding, bound);
             }
 
             for context in &action.contexts {
                 if *context == Context::Global {
                     continue;
                 }
-                keymap.bind(*context, binding, app_action);
+                keymap
+                    .contextual
+                    .entry(*context)
+                    .or_default()
+                    .insert(binding, bound);
             }
         }
 

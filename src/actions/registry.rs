@@ -158,14 +158,14 @@ impl ActionRegistry {
         ));
 
         // --- Global actions (available everywhere) ---
-        // Push only shows when ahead of remote
+        // Push shows when ahead of remote, or when the branch isn't published yet
         actions.push(Action::app_when(
             KeyBinding::char('P'),
             "push",
             AppAction::Push,
             vec![Context::Global],
             50,
-            ActionCondition::BranchAhead,
+            ActionCondition::CanPush,
         ));
         // Pull only shows when behind remote
         actions.push(Action::app_when(
@@ -406,8 +406,11 @@ mod tests {
         fn actions_for_context_filters_by_condition() {
             let registry = ActionRegistry::new();
 
-            // With no ahead commits, push should not be available
-            let state_not_ahead = AppState::default();
+            // In sync with upstream, push should not be available
+            let state_not_ahead = AppState {
+                has_upstream: true,
+                ..Default::default()
+            };
             let actions_not_ahead = registry.actions_for_context(Context::Global, &state_not_ahead);
             let has_push_not_ahead = actions_not_ahead.iter().any(|a| {
                 matches!(

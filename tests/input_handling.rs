@@ -1390,3 +1390,118 @@ mod command_row_keys {
         assert_eq!(app.view_mode, ViewMode::Command);
     }
 }
+
+mod conditional_keys {
+    use super::*;
+
+    /// A clone that is in sync with its (local, bare) origin
+    fn synced_clone() -> (TempDir, TempDir) {
+        let origin = create_test_repo();
+        let bare = TempDir::new().expect("create bare dir");
+        git2::build::RepoBuilder::new()
+            .bare(true)
+            .clone(
+                origin
+                    .path()
+                    .to_str()
+                    .expect("utf-8 path"),
+                bare.path(),
+            )
+            .expect("clone bare");
+        let work = TempDir::new().expect("create work dir");
+        git2::build::RepoBuilder::new()
+            .clone(
+                bare.path()
+                    .to_str()
+                    .expect("utf-8 path"),
+                work.path(),
+            )
+            .expect("clone work");
+        (bare, work)
+    }
+
+    fn toast(app: &App) -> String {
+        app.feedback
+            .toast
+            .as_ref()
+            .map(|toast| toast.message.clone())
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn push_and_pull_say_so_when_there_is_nothing_to_do() {
+        let (_bare, work) = synced_clone();
+        let mut app = App::new(work.path().to_path_buf()).expect("create app");
+
+        app.handle_key(key_char('P'));
+        assert!(
+            !app.menu_stack.is_active(),
+            "no push dialog"
+        );
+        assert_eq!(toast(&app), "Nothing to push");
+
+        app.handle_key(key_char('p'));
+        assert!(
+            toast(&app).starts_with("Nothing to pull"),
+            "pull blocked: {}",
+            toast(&app)
+        );
+    }
+
+    #[test]
+    fn push_opens_once_there_is_a_commit_to_push() {
+        let (_bare, work) = synced_clone();
+        let repo = git2::Repository::open(work.path()).expect("open clone");
+        let sig = git2::Signature::now("Test", "test@example.com").expect("signature");
+        let head = repo
+            .head()
+            .expect("head")
+            .peel_to_commit()
+            .expect("head commit");
+        let tree = head.tree().expect("tree");
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "Local work",
+            &tree,
+            &[&head],
+        )
+        .expect("commit");
+        let mut app = App::new(work.path().to_path_buf()).expect("create app");
+
+        app.handle_key(key_char('P'));
+
+        assert!(
+            app.menu_stack.is_active(),
+            "push dialog opens"
+        );
+    }
+
+    #[test]
+    fn push_opens_for_an_unpublished_branch() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+
+        app.handle_key(key_char('P'));
+
+        assert!(
+            app.menu_stack.is_active(),
+            "push dialog offers to publish"
+        );
+    }
+
+    #[test]
+    fn e_opens_error_details_while_an_error_shows() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+        app.feedback.error = Some("Git error: something broke".to_string());
+
+        app.handle_key(key_char('e'));
+
+        assert!(
+            app.feedback.popup.is_open(),
+            "error details open"
+        );
+    }
+}

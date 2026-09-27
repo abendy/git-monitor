@@ -5,15 +5,31 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crate::actions::AppAction;
 use crate::app::{App, PAGE_SIZE};
 use crate::command::ExternalCommand;
+use crate::feedback::Toast;
 
 impl App {
     /// Handle keyboard input in normal mode
     #[allow(clippy::too_many_lines)] // Key dispatch is naturally verbose
     pub(in crate::app) fn handle_normal_key(&mut self, key: KeyEvent) {
+        // While an error shows, `e` opens its details, as the footer offers
+        if key.code == KeyCode::Char('e')
+            && key.modifiers.is_empty()
+            && self.feedback.expand_error()
+        {
+            return;
+        }
+
         // Try declarative keymap lookup first
         let context = self.current_context();
-        if let Some(action) = self.keymap.lookup(key, context) {
-            self.execute_app_action(action);
+        if let Some((action, condition)) = self
+            .keymap
+            .lookup_with_condition(key, context)
+        {
+            if self.app_state().satisfies(condition) {
+                self.execute_app_action(action);
+            } else {
+                self.feedback.toast = Some(Toast::info(unavailable_reason(action)));
+            }
             return;
         }
 
@@ -360,5 +376,14 @@ impl App {
     pub(in crate::app) fn handle_help_key(&mut self) {
         // Any key closes help
         self.show_help = false;
+    }
+}
+
+/// Short note for a key whose action doesn't apply right now
+const fn unavailable_reason(action: AppAction) -> &'static str {
+    match action {
+        AppAction::Push => "Nothing to push",
+        AppAction::Pull => "Nothing to pull. Press f to fetch first",
+        _ => "Not available here",
     }
 }

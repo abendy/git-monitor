@@ -194,22 +194,6 @@ fn shift_j_never_leaves_the_files_section() {
 }
 
 #[test]
-fn held_shift_j_speeds_up() {
-    let dir = repo_with_commits(120);
-    let mut app = App::new(dir.path().to_path_buf()).expect("create app");
-
-    // 40 quick repeats: 10 rows at 1, 10 at 2, 10 at 4, then 8 per repeat
-    press(&mut app, KeyCode::Char('h'), 1);
-    press(&mut app, KeyCode::Char('J'), 40);
-
-    assert!(
-        app.history_page >= 2,
-        "40 repeats covered more than two pages (page {})",
-        app.history_page
-    );
-}
-
-#[test]
 fn shift_j_steps_off_the_command_row() {
     let dir = repo_with_commits(3);
     let mut app = App::new(dir.path().to_path_buf()).expect("create app");

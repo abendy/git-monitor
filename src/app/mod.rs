@@ -38,12 +38,12 @@ pub(crate) enum PageLanding {
     Last,
 }
 
-/// A held `J`/`K`: direction, time of the last repeat, and repeats so far
+/// A held `J`/`K`: direction, when the hold began, and when the last repeat arrived
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct SectionHold {
     down: bool,
+    started: std::time::Instant,
     at: std::time::Instant,
-    streak: u32,
 }
 
 /// Cursor spot remembered for one history page

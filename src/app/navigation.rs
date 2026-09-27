@@ -190,17 +190,21 @@ impl App {
         self.selected = Some(0);
     }
 
-    /// Move within the current section for a held `J`/`K`, speeding up while the key repeats.
+    /// Move within the current section for a held `J`/`K`, speeding up the longer it is held.
     pub(super) fn held_section_move(&mut self, down: bool) {
-        let now = Instant::now();
-        let streak = hold_streak(self.section_hold, down, now);
+        self.held_section_move_at(down, Instant::now());
+    }
+
+    /// `held_section_move` with an explicit time, so tests can simulate a held key
+    pub(super) fn held_section_move_at(&mut self, down: bool, now: Instant) {
+        let started = hold_start(self.section_hold, down, now);
         self.section_hold = Some(SectionHold {
             down,
+            started,
             at: now,
-            streak,
         });
 
-        for _ in 0..hold_step(streak) {
+        for _ in 0..hold_step(now.saturating_duration_since(started)) {
             if !self.move_within_section(down) {
                 break;
             }
@@ -260,77 +264,168 @@ impl App {
     }
 }
 
-/// Key repeats closer together than this count as one held key
-const HOLD_GAP: Duration = Duration::from_millis(150);
+/// Repeats closer together than this count as one held key. Generous enough for
+/// key repeats that arrive unevenly over SSH and tmux.
+const HOLD_GAP: Duration = Duration::from_millis(300);
 
-/// How many repeats in a row a held `J`/`K` has sent
-pub(super) fn hold_streak(previous: Option<SectionHold>, down: bool, now: Instant) -> u32 {
+/// When the current hold began: carried over from the last repeat if it is the same
+/// direction and recent enough, otherwise now
+pub(super) fn hold_start(previous: Option<SectionHold>, down: bool, now: Instant) -> Instant {
     match previous {
         Some(hold) if hold.down == down && now.saturating_duration_since(hold.at) <= HOLD_GAP => {
-            hold.streak.saturating_add(1)
+            hold.started
         }
-        _ => 0,
+        _ => now,
     }
 }
 
-/// Rows to move for a repeat: 1 at first, then doubling every 10 repeats up to 8
-pub(super) const fn hold_step(streak: u32) -> usize {
-    match streak {
-        0..=9 => 1,
-        10..=19 => 2,
-        20..=29 => 4,
+/// Rows per repeat for how long the key has been held: 1, then 2, 4, and 8
+pub(super) const fn hold_step(held: Duration) -> usize {
+    match held.as_millis() {
+        0..400 => 1,
+        400..800 => 2,
+        800..1200 => 4,
         _ => 8,
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use tempfile::TempDir;
+
     use super::*;
 
-    const fn hold(down: bool, at: Instant, streak: u32) -> SectionHold {
-        SectionHold { down, at, streak }
+    const fn hold(down: bool, started: Instant, at: Instant) -> SectionHold {
+        SectionHold { down, started, at }
     }
 
     #[test]
-    fn quick_repeat_in_the_same_direction_extends_the_streak() {
+    fn quick_repeat_in_the_same_direction_keeps_the_hold() {
         let start = Instant::now();
-        let next = start + Duration::from_millis(30);
+        let last = start + Duration::from_millis(500);
+        let next = last + Duration::from_millis(250);
 
         assert_eq!(
-            hold_streak(Some(hold(true, start, 4)), true, next),
-            5
-        );
-    }
-
-    #[test]
-    fn pause_or_direction_change_restarts_the_streak() {
-        let start = Instant::now();
-
-        assert_eq!(
-            hold_streak(
-                Some(hold(true, start, 4)),
+            hold_start(
+                Some(hold(true, start, last)),
                 true,
-                start + Duration::from_millis(400)
+                next
             ),
-            0
+            start
         );
-        assert_eq!(
-            hold_streak(
-                Some(hold(true, start, 4)),
-                false,
-                start + Duration::from_millis(30)
-            ),
-            0
-        );
-        assert_eq!(hold_streak(None, true, start), 0);
     }
 
     #[test]
-    fn step_speeds_up_while_held() {
-        assert_eq!(hold_step(0), 1);
-        assert_eq!(hold_step(9), 1);
-        assert_eq!(hold_step(10), 2);
-        assert_eq!(hold_step(25), 4);
-        assert_eq!(hold_step(500), 8);
+    fn pause_or_direction_change_starts_a_new_hold() {
+        let start = Instant::now();
+        let last = start + Duration::from_millis(500);
+
+        let after_pause = last + Duration::from_millis(400);
+        assert_eq!(
+            hold_start(
+                Some(hold(true, start, last)),
+                true,
+                after_pause
+            ),
+            after_pause
+        );
+
+        let reversed = last + Duration::from_millis(50);
+        assert_eq!(
+            hold_start(
+                Some(hold(true, start, last)),
+                false,
+                reversed
+            ),
+            reversed
+        );
+        assert_eq!(hold_start(None, true, start), start);
+    }
+
+    #[test]
+    fn step_grows_with_hold_time() {
+        assert_eq!(hold_step(Duration::ZERO), 1);
+        assert_eq!(hold_step(Duration::from_millis(399)), 1);
+        assert_eq!(hold_step(Duration::from_millis(400)), 2);
+        assert_eq!(hold_step(Duration::from_millis(900)), 4);
+        assert_eq!(hold_step(Duration::from_secs(5)), 8);
+    }
+
+    /// Repo with `count` empty commits
+    fn repo_with_commits(count: usize) -> TempDir {
+        let dir = TempDir::new().expect("create temp dir");
+        let repo = git2::Repository::init(dir.path()).expect("init repo");
+        let sig = git2::Signature::now("Test", "test@example.com").expect("signature");
+        let tree_id = repo
+            .index()
+            .expect("index")
+            .write_tree()
+            .expect("write tree");
+        let tree = repo
+            .find_tree(tree_id)
+            .expect("find tree");
+        let mut parent: Option<git2::Oid> = None;
+        for i in 0..count {
+            let parent_commit = parent.map(|oid| {
+                repo.find_commit(oid)
+                    .expect("find parent")
+            });
+            let parents: Vec<&git2::Commit<'_>> = parent_commit.iter().collect();
+            parent = Some(
+                repo.commit(
+                    Some("HEAD"),
+                    &sig,
+                    &sig,
+                    &format!("Commit {i}"),
+                    &tree,
+                    &parents,
+                )
+                .expect("commit"),
+            );
+        }
+        dir
+    }
+
+    #[test]
+    fn held_key_speeds_up_even_with_uneven_repeats() {
+        let dir = repo_with_commits(120);
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+        app.jump_to_history();
+
+        // Two seconds of repeats arriving every 60-250 ms, like key repeat over SSH
+        let start = Instant::now();
+        let mut at = start;
+        for gap in [60_u64, 250, 90, 200, 60, 250]
+            .iter()
+            .cycle()
+            .take(14)
+        {
+            at += Duration::from_millis(*gap);
+            app.held_section_move_at(true, at);
+        }
+
+        assert!(
+            app.history_page >= 1,
+            "held key crossed into page 2 (page {})",
+            app.history_page
+        );
+    }
+
+    #[test]
+    fn separate_taps_move_one_row_each() {
+        let dir = repo_with_commits(120);
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+        app.jump_to_history();
+        let first = app.selected.expect("on a commit");
+
+        let start = Instant::now();
+        for tap in 0..5 {
+            app.held_section_move_at(
+                true,
+                start + Duration::from_millis(500 * tap),
+            );
+        }
+
+        assert_eq!(app.selected, Some(first + 5));
     }
 }

@@ -461,7 +461,7 @@ pub enum ViewMode {
 
 Modal dialogs (action menu, alias browser, push confirmation) are now managed by `MenuStack` instead of ViewMode variants.
 
-### History Mode (`src/app/mod.rs`)
+### History Mode (`src/git/snapshot.rs`, re-exported from `app`)
 
 ```rust
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -469,6 +469,46 @@ pub enum HistoryMode {
     Reflog,       // Show reflog (git actions)
     #[default]
     CommitLog,    // Show commit log
+}
+```
+
+### Repository Snapshot (`src/git/snapshot.rs`)
+
+Git data for one refresh, read in one pass by `GitRepo::snapshot` and swapped into `App` whole.
+It holds no cursor, expansion, or layout state (see ADR-006).
+
+```rust
+pub struct SnapshotRequest {
+    pub history_mode: HistoryMode,
+    pub history_page: usize,             // Clamped to the pages available
+    pub page_size: usize,
+    pub expanded_branch: Option<String>, // Branch whose commits to load
+}
+
+pub struct RepoSnapshot {
+    pub status: GitStatus,
+    pub history: Vec<GitCommand>,        // Entries on the loaded page
+    pub history_total: usize,
+    pub history_pages: usize,
+    pub history_page: usize,             // Page actually loaded
+    pub branches: Vec<BranchInfo>,
+    pub branch_commits: Vec<GitCommand>, // Empty unless a branch was requested and exists
+}
+```
+
+### Selection Key (`src/app/selection.rs`)
+
+Names the selected row so a refresh can find it again after rows move.
+
+```rust
+enum SelectionKey {
+    Command,
+    Staged(PathBuf),
+    Working(PathBuf),
+    HistoryHeader,
+    HistoryCommit(String),  // SHA
+    BranchHeader(String),   // Branch name
+    BranchCommit(String),   // SHA
 }
 ```
 
@@ -540,10 +580,8 @@ pub struct App {
     pub repo_path: PathBuf,
     /// Git repository handle
     repo: GitRepo,
-    /// Current git status
-    pub status: GitStatus,
-    /// Recent git activity
-    pub activity: Vec<GitCommand>,
+    /// Git data from the latest refresh (replaced whole; read via `snapshot()`)
+    snapshot: RepoSnapshot,
     /// Git config with aliases
     pub config: GitConfig,
     /// File watcher
@@ -570,20 +608,12 @@ pub struct App {
     pub expanded_detail: Option<CommitDetail>,
     /// Selected file index within expanded commit
     pub expanded_file_idx: Option<usize>,
-    /// List of local branches
-    pub branches: Vec<BranchInfo>,
     /// Whether the History section is collapsed
     pub history_collapsed: bool,
-    /// Current page offset for history pagination
+    /// Requested history page; synced to the page the snapshot loaded
     pub history_page: usize,
-    /// Total history items for current mode
-    pub history_total_items: usize,
-    /// Total pages for history pagination
-    pub history_total_pages: usize,
     /// Which non-current branch is expanded
     pub expanded_branch: Option<String>,
-    /// Cached commits for the expanded branch
-    pub expanded_branch_commits: Vec<GitCommand>,
     /// Pending external command (requires TUI suspension)
     pub pending_external: Option<ExternalCommand>,
     /// Action registry for contextual actions

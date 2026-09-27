@@ -53,7 +53,7 @@ A terminal-based user interface for monitoring git repository activity in real-t
 
 | Submodule | Purpose |
 |-----------|---------|
-| `mod.rs` | Core `App` struct definition and types (`ViewMode`, `HistoryMode`) |
+| `mod.rs` | Core `App` struct definition and `ViewMode` |
 | `init.rs` | App initialization and constructor |
 | `runtime.rs` | Event loop and tick handling |
 | `input.rs` | Input processing and key event delegation |
@@ -62,6 +62,7 @@ A terminal-based user interface for monitoring git repository activity in real-t
 | `actions.rs` | Action dispatch and execution |
 | `commands.rs` | Command execution and feedback |
 | `sections.rs` | Section state updates and sync |
+| `selection.rs` | Selection identity (`SelectionKey`) so refreshes keep the cursor on its item |
 | `history.rs` | History mode and pagination logic |
 | `branches.rs` | Branch expansion and checkout |
 
@@ -77,6 +78,7 @@ A terminal-based user interface for monitoring git repository activity in real-t
 | `commit.rs` | Commit detail retrieval |
 | `diff.rs` | Diff generation |
 | `history.rs` | Commit log and reflog operations |
+| `snapshot.rs` | `RepoSnapshot`, `SnapshotRequest`, and `HistoryMode`: one-pass read of the data the view shows |
 | `time.rs` | Relative time formatting |
 
 ## Component Design
@@ -106,6 +108,8 @@ The `EventHandler` spawns a background thread that:
 - `unstage(path)` - Unstage a file via reset
 - `diff_file(path, staged)` - Get diff for a file
 - `reflog(limit)` - Parse recent activity from HEAD reflog
+- `snapshot(request)` - Read status, the requested history page, branches, and the expanded
+  branch's commits in one pass (`RepoSnapshot`); fails whole rather than returning partial data
 
 ### 3. File Watcher (`src/watcher.rs`)
 
@@ -153,8 +157,7 @@ pub struct Alias {
 pub struct App {
     pub repo_path: PathBuf,
     repo: GitRepo,
-    pub status: GitStatus,
-    pub activity: Vec<GitCommand>,
+    snapshot: RepoSnapshot,           // Git data, replaced whole on refresh (ADR-006)
     pub config: GitConfig,
     watcher: Option<RepoWatcher>,
     pub running: bool,
@@ -177,11 +180,9 @@ pub struct App {
     pub expanded_detail: Option<CommitDetail>,
     pub expanded_file_idx: Option<usize>,
     // Branch browser
-    pub branches: Vec<BranchInfo>,
     pub history_collapsed: bool,
-    pub history_page: usize,              // Pagination offset
+    pub history_page: usize,              // Requested page; synced to the page loaded
     pub expanded_branch: Option<String>,
-    pub expanded_branch_commits: Vec<GitCommand>,
     // External command handling
     pub pending_external: Option<ExternalCommand>,
     // Contextual actions
@@ -190,6 +191,14 @@ pub struct App {
     pub menu_stack: MenuStack,
 }
 ```
+
+**Snapshot vs UI state** (ADR-006): Git data lives in `RepoSnapshot`, read through
+`app.snapshot()`. Every load goes through `App::load_snapshot`, which builds a `SnapshotRequest`
+from the view (history mode, page, expanded branch) and swaps the result in whole; on failure
+the previous snapshot stays and the error is shown. Cursor, expansion, page request, and popups
+stay on `App`. `refresh_status` records the selected item's `SelectionKey` (path, SHA, or branch
+name) before the swap and restores it after, so rows added or removed above the cursor do not
+move it. Commit detail is a UI cache keyed by SHA, outside the snapshot, since it never changes.
 
 **View Modes**: Simplified to 2 variants (see ADR-005):
 - `Normal` - Standard navigation

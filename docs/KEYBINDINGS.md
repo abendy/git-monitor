@@ -25,7 +25,8 @@ These work on every row unless a section below gives the key another meaning.
 | `f` | Fetch |
 | `r` | Refresh |
 | `?` | Help |
-| `q` / `Esc` / `Ctrl+c` | Quit |
+| `q` / `Ctrl+c` | Quit |
+| `Esc` | Back out: close an open commit, else collapse an expanded branch. Never quits |
 
 `P` and `p` always run. Being ahead or behind only decides whether menus, help, and hints list
 them.

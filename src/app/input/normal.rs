@@ -19,8 +19,13 @@ impl App {
 
         match key.code {
             // Quit
-            KeyCode::Char('q') | KeyCode::Esc => {
+            KeyCode::Char('q') => {
                 self.running = false;
+            }
+
+            // Back out one level; Esc never quits
+            KeyCode::Esc => {
+                self.back_out();
             }
             KeyCode::Char('c')
                 if key

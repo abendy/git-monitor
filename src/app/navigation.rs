@@ -1,5 +1,6 @@
 use std::time::{Duration, Instant};
 
+use super::selection::SelectionKey;
 use super::{App, PageLanding, SectionHold};
 use crate::section::SectionId;
 
@@ -188,6 +189,33 @@ impl App {
         }
 
         self.selected = Some(0);
+    }
+
+    /// Back out one level (`Esc`): close an open commit, else collapse an expanded branch.
+    ///
+    /// The cursor stays on the same item when it is still listed, otherwise it moves to
+    /// the collapsed branch's name.
+    pub(super) fn back_out(&mut self) {
+        if self.expanded_commit.is_some() {
+            self.close_expanded_commit();
+            return;
+        }
+
+        let Some(branch) = self.expanded_branch.clone() else {
+            return;
+        };
+        let selection = self.selection_key();
+        self.collapse_branch();
+        self.update_sections();
+
+        let index = selection
+            .as_ref()
+            .and_then(|key| self.index_for_key(key))
+            .or_else(|| self.index_for_key(&SelectionKey::BranchHeader(branch)));
+        match index {
+            Some(index) => self.selected = Some(index),
+            None => self.clamp_selection(),
+        }
     }
 
     /// Move within the current section for a held `J`/`K`, speeding up the longer it is held.

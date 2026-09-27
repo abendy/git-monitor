@@ -73,13 +73,60 @@ mod quit_handling {
     }
 
     #[test]
-    fn esc_quits_application() {
+    fn esc_does_not_quit() {
         let dir = create_test_repo();
         let mut app = App::new(dir.path().to_path_buf()).expect("create app");
 
         app.handle_key(key(KeyCode::Esc));
 
-        assert!(!app.running);
+        assert!(app.running, "Esc never quits");
+    }
+
+    #[test]
+    fn esc_closes_an_open_commit() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+        app.handle_key(key_char('h'));
+        app.handle_key(key_char(' '));
+        assert!(
+            app.expanded_commit.is_some(),
+            "commit opened"
+        );
+
+        app.handle_key(key(KeyCode::Esc));
+
+        assert!(
+            app.expanded_commit.is_none(),
+            "commit closed"
+        );
+        assert!(app.running, "still running");
+    }
+
+    #[test]
+    fn esc_collapses_an_expanded_branch() {
+        let dir = create_test_repo();
+        let repo = git2::Repository::open(dir.path()).expect("open repo");
+        let head = repo
+            .head()
+            .expect("head")
+            .peel_to_commit()
+            .expect("head commit");
+        repo.branch("feature", &head, false)
+            .expect("create branch");
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+        app.handle_key(key_char('b'));
+        assert!(
+            app.expanded_branch.is_some(),
+            "branch expanded"
+        );
+
+        app.handle_key(key(KeyCode::Esc));
+
+        assert!(
+            app.expanded_branch.is_none(),
+            "branch collapsed"
+        );
+        assert!(app.running, "still running");
     }
 
     #[test]
@@ -1249,9 +1296,10 @@ mod boundary_conditions {
         app.handle_key(key(KeyCode::Esc));
         assert!(!app.show_help);
 
-        // Second Esc quits (normal behavior)
+        // Further Esc presses back out but never quit
         app.handle_key(key(KeyCode::Esc));
-        assert!(!app.running);
+        app.handle_key(key(KeyCode::Esc));
+        assert!(app.running);
     }
 }
 

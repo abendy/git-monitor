@@ -152,3 +152,62 @@ fn cursor_stays_on_file_when_another_file_sorts_above_it() {
         "cursor moved after refresh"
     );
 }
+
+#[test]
+fn expanded_branch_commits_update_on_refresh() {
+    let dir = create_repo_with_commits(2);
+    let repo = git2::Repository::open(dir.path()).expect("open repo");
+    let sig = git2::Signature::now("Test", "test@example.com").expect("signature");
+    let head = repo
+        .head()
+        .expect("head")
+        .peel_to_commit()
+        .expect("head commit");
+    repo.branch("feature", &head, false)
+        .expect("create branch");
+    let tree = head.tree().expect("tree");
+    let add_feature_commit = |message: &str| {
+        let tip = repo
+            .find_branch("feature", git2::BranchType::Local)
+            .expect("find branch")
+            .get()
+            .peel_to_commit()
+            .expect("branch tip");
+        repo.commit(
+            Some("refs/heads/feature"),
+            &sig,
+            &sig,
+            message,
+            &tree,
+            &[&tip],
+        )
+        .expect("commit on feature");
+    };
+    add_feature_commit("Feature one");
+
+    let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+    let mut terminal = terminal();
+    app.handle_key(KeyEvent::new(
+        KeyCode::Char('b'),
+        KeyModifiers::NONE,
+    ));
+    press_down(&mut app, 1);
+    assert!(
+        cursor_line(&mut terminal, &mut app).contains("Feature one"),
+        "cursor on the feature branch's commit"
+    );
+    let before = app.snapshot().branch_commits.len();
+
+    add_feature_commit("Feature two");
+    app.refresh_status();
+
+    assert_eq!(
+        app.snapshot().branch_commits.len(),
+        before + 1,
+        "new branch commit loaded"
+    );
+    assert!(
+        cursor_line(&mut terminal, &mut app).contains("Feature one"),
+        "cursor still on the same commit"
+    );
+}

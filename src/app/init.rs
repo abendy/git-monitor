@@ -63,7 +63,6 @@ impl App {
             history_collapsed: false,
             history_page: 0,
             expanded_branch: None,
-            expanded_branch_commits: Vec::new(),
             pending_external: None,
             action_registry,
             executor,

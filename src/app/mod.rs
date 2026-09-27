@@ -5,7 +5,7 @@ use crate::command::{CommandExecutor, CommandHistory, ExternalCommand};
 use crate::config::GitConfig;
 use crate::feedback::FeedbackManager;
 pub use crate::git::HistoryMode;
-use crate::git::{CommitDetail, GitCommand, GitRepo, RepoSnapshot};
+use crate::git::{CommitDetail, GitRepo, RepoSnapshot};
 use crate::input::Keymap;
 use crate::menu::MenuStack;
 use crate::section::{
@@ -82,8 +82,6 @@ pub struct App {
     pub history_page: usize,
     /// Which non-current branch is expanded (showing its commits)
     pub expanded_branch: Option<String>,
-    /// Cached commits for the expanded branch
-    pub expanded_branch_commits: Vec<GitCommand>,
     /// Pending external command (requires TUI suspension)
     pub pending_external: Option<ExternalCommand>,
     /// Action registry for contextual actions

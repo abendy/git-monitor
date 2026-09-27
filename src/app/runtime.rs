@@ -68,11 +68,23 @@ impl App {
             history_mode: self.history_mode,
             history_page: self.history_page,
             page_size: PAGE_SIZE,
+            expanded_branch: self.expanded_branch.clone(),
         };
         match self.repo.snapshot(&request) {
             Ok(snapshot) => {
                 self.history_page = snapshot.history_page;
                 self.snapshot = snapshot;
+                // Forget an expanded branch that no longer exists
+                if let Some(name) = &self.expanded_branch {
+                    if !self
+                        .snapshot
+                        .branches
+                        .iter()
+                        .any(|b| &b.name == name)
+                    {
+                        self.expanded_branch = None;
+                    }
+                }
                 true
             }
             Err(e) => {

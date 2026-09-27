@@ -1,5 +1,5 @@
 use super::App;
-use crate::git::BranchInfo;
+use crate::git::{BranchInfo, GitCommand};
 use crate::section::SectionId;
 
 impl App {
@@ -38,7 +38,7 @@ impl App {
             .expanded_branch_index(&branches)
             .is_some()
         {
-            self.expanded_branch_commits.len()
+            self.expanded_branch_commits().len()
         } else {
             0
         };
@@ -76,7 +76,7 @@ impl App {
         }
 
         let commit_len = if self.expanded_branch.is_some() {
-            self.expanded_branch_commits.len()
+            self.expanded_branch_commits().len()
         } else {
             0
         };
@@ -107,7 +107,7 @@ impl App {
     pub(super) fn branch_commit_index_for_local_index(&self, local_index: usize) -> Option<usize> {
         let branches = self.other_branches();
         let expanded_idx = self.expanded_branch_index(&branches)?;
-        let commit_len = self.expanded_branch_commits.len();
+        let commit_len = self.expanded_branch_commits().len();
         if commit_len == 0 {
             return None;
         }
@@ -144,22 +144,23 @@ impl App {
             return; // Already expanded
         }
 
-        // Fetch commits unique to this branch
-        match self
-            .repo
-            .commit_log_for_branch(branch_name)
-        {
-            Ok(commits) => {
-                self.expanded_branch = Some(branch_name.to_string());
-                self.expanded_branch_commits = commits;
-            }
-            Err(e) => {
-                self.feedback.error = Some(format!(
-                    "Failed to load branch history: {e}"
-                ));
-            }
+        // Reload so the snapshot carries this branch's commits
+        let previous = self
+            .expanded_branch
+            .replace(branch_name.to_string());
+        if !self.load_snapshot() {
+            self.expanded_branch = previous;
         }
         self.update_sections();
+    }
+
+    /// Commits shown under the expanded branch (empty when none is expanded)
+    pub(super) fn expanded_branch_commits(&self) -> &[GitCommand] {
+        if self.expanded_branch.is_some() {
+            &self.snapshot.branch_commits
+        } else {
+            &[]
+        }
     }
 
     /// Collapse the currently expanded branch
@@ -167,7 +168,6 @@ impl App {
     /// Note: Does NOT call `update_sections()` - callers are responsible for updating.
     pub(super) fn collapse_branch(&mut self) {
         self.expanded_branch = None;
-        self.expanded_branch_commits.clear();
     }
 
     /// Get the selected branch info (if on a branch header)

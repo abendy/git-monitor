@@ -84,7 +84,7 @@ impl App {
             .update(BranchesSectionData {
                 branches: self.snapshot.branches.clone(),
                 expanded_branch: self.expanded_branch.clone(),
-                expanded_branch_commits: self.expanded_branch_commits.clone(),
+                expanded_branch_commits: self.expanded_branch_commits().to_vec(),
                 expanded_commit: self.expanded_commit.clone(),
                 expanded_detail: self.expanded_detail.clone(),
                 expanded_file_idx: self.expanded_file_idx,

@@ -201,7 +201,7 @@ impl App {
         // Check if in expanded branch commits
         if let Some(commit_idx) = self.branch_commit_index_for_selection() {
             return self
-                .expanded_branch_commits
+                .expanded_branch_commits()
                 .get(commit_idx)
                 .and_then(|cmd| cmd.sha.clone());
         }

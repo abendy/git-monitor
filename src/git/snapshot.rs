@@ -20,7 +20,7 @@ pub enum HistoryMode {
 }
 
 /// What a snapshot should load, derived from the current view
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct SnapshotRequest {
     /// Which history list to load
     pub history_mode: HistoryMode,
@@ -28,6 +28,8 @@ pub struct SnapshotRequest {
     pub history_page: usize,
     /// Entries per history page
     pub page_size: usize,
+    /// Branch whose commits the view shows, if any
+    pub expanded_branch: Option<String>,
 }
 
 /// Git data for one refresh
@@ -45,6 +47,9 @@ pub struct RepoSnapshot {
     pub history_page: usize,
     /// Local and remote branches
     pub branches: Vec<BranchInfo>,
+    /// Commits unique to the requested branch; empty if none was requested
+    /// or it no longer exists
+    pub branch_commits: Vec<GitCommand>,
 }
 
 impl GitRepo {
@@ -75,6 +80,13 @@ impl GitRepo {
             .list_branches()
             .context("listing branches")?;
 
+        let branch_commits = match &request.expanded_branch {
+            Some(name) if branches.iter().any(|b| &b.name == name) => self
+                .commit_log_for_branch(name)
+                .context("reading branch history")?,
+            _ => Vec::new(),
+        };
+
         Ok(RepoSnapshot {
             status,
             history,
@@ -82,6 +94,7 @@ impl GitRepo {
             history_pages,
             history_page,
             branches,
+            branch_commits,
         })
     }
 }
@@ -135,6 +148,7 @@ mod tests {
             history_mode: HistoryMode::CommitLog,
             history_page: page,
             page_size: 2,
+            expanded_branch: None,
         }
     }
 

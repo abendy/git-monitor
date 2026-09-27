@@ -124,7 +124,7 @@ impl App {
             ));
         }
         self.branch_commit_index_for_local_index(local)
-            .and_then(|idx| self.expanded_branch_commits.get(idx))
+            .and_then(|idx| self.expanded_branch_commits().get(idx))
             .and_then(|cmd| cmd.sha.clone())
             .map(SelectionKey::BranchCommit)
     }

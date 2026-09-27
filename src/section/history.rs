@@ -202,23 +202,48 @@ impl HistorySection {
         Some(Line::from(spans))
     }
 
-    /// Render pagination status beneath the history list
+    /// Render the page line: position first, then only the page keys that apply
     fn render_pagination(&self) -> Line<'static> {
         let total_items = self.data.total_items;
         let total_pages = self.data.total_pages;
-        let current_page = if total_pages == 0 {
-            0
+        let noun = match (self.data.history_mode, total_items) {
+            (HistoryMode::CommitLog, 1) => "commit",
+            (HistoryMode::CommitLog, _) => "commits",
+            (HistoryMode::Reflog, 1) => "entry",
+            (HistoryMode::Reflog, _) => "entries",
+        };
+        let position = if total_pages > 1 {
+            format!(
+                "  page {}/{total_pages} · {total_items} {noun}",
+                self.data.page + 1
+            )
         } else {
-            self.data.page + 1
+            format!("  {total_items} {noun}")
         };
 
-        let label =
-            format!("  [ prev · page ]  {current_page}/{total_pages} of {total_items} items");
+        let gray = Style::default().fg(Color::DarkGray);
+        let key = Style::default().fg(Color::Cyan);
+        let label = gray.add_modifier(Modifier::ITALIC);
+        let mut spans = vec![Span::styled(position, gray)];
 
-        Line::from(Span::styled(
-            label,
-            Style::default().fg(Color::DarkGray),
-        ))
+        let has_prev = self.data.page > 0;
+        let has_next = self.data.page + 1 < total_pages;
+        if has_prev || has_next {
+            spans.push(Span::raw("   "));
+        }
+        if has_prev {
+            spans.push(Span::styled("[ ", key));
+            spans.push(Span::styled("prev", label));
+        }
+        if has_prev && has_next {
+            spans.push(Span::styled(" · ", gray));
+        }
+        if has_next {
+            spans.push(Span::styled("] ", key));
+            spans.push(Span::styled("next", label));
+        }
+
+        Line::from(spans)
     }
 }
 

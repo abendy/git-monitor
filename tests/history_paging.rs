@@ -251,3 +251,69 @@ fn new_commits_forget_saved_page_spots() {
         "fresh start on the first commit: {line}"
     );
 }
+
+/// Text of the History page line
+fn page_line(terminal: &mut Terminal<TestBackend>, app: &mut App) -> String {
+    terminal
+        .draw(|frame| git_monitor::ui::render(frame, app))
+        .expect("draw frame");
+    let buffer = terminal.backend().buffer();
+    (0..buffer.area.height)
+        .map(|y| {
+            (0..buffer.area.width)
+                .map(|x| buffer[(x, y)].symbol())
+                .collect::<String>()
+        })
+        .find(|row| row.contains(" commit"))
+        .expect("page line on screen")
+}
+
+#[test]
+fn page_line_leads_with_position_and_shows_only_usable_keys() {
+    let dir = repo_with_commits(120);
+    let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+    // Tall enough that the page line under 50 commits is on screen
+    let mut terminal = Terminal::new(TestBackend::new(80, 70)).expect("terminal");
+    press(&mut app, KeyCode::Char('h'), 1);
+
+    let first = page_line(&mut terminal, &mut app);
+    assert!(
+        first.contains("page 1/3 · 120 commits"),
+        "position first: {first}"
+    );
+    assert!(
+        first.contains("] next") && !first.contains("[ prev"),
+        "only next: {first}"
+    );
+
+    press(&mut app, KeyCode::Char(']'), 1);
+    let middle = page_line(&mut terminal, &mut app);
+    assert!(
+        middle.contains("[ prev · ] next"),
+        "both keys: {middle}"
+    );
+
+    press(&mut app, KeyCode::Char(']'), 1);
+    let last = page_line(&mut terminal, &mut app);
+    assert!(
+        last.contains("[ prev") && !last.contains("] next"),
+        "only prev: {last}"
+    );
+}
+
+#[test]
+fn single_page_shows_the_count_without_page_keys() {
+    let dir = repo_with_commits(3);
+    let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+    let mut terminal = Terminal::new(TestBackend::new(80, 30)).expect("terminal");
+
+    let line = page_line(&mut terminal, &mut app);
+    assert!(
+        line.contains("3 commits"),
+        "count: {line}"
+    );
+    assert!(
+        !line.contains("prev") && !line.contains("next") && !line.contains("page"),
+        "no paging: {line}"
+    );
+}

@@ -54,7 +54,7 @@ See the [product roadmap](docs/ROADMAP.md) for sequencing and non-goals.
 │▸    ├─ 7acc512 14 min ago  ● Keep commit messages visible (HEAD → develop)       │
 │     ├─ f026fc6 2 hr ago  ● Include expanded-b... (feature/new-ui, origin/develop)│
 │     └─ 422d414 3 hr ago  ● Load repository data as one snapshot                  │
-│  [ prev · page ]  1/1 of 3 items                                                 │
+│  3 commits                                                                       │
 │                                                                                  │
 │  ▸ Branches (1)  b                                                               │
 │  feature/new-ui                                                                  │

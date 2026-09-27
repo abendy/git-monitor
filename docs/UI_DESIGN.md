@@ -36,7 +36,7 @@ popup hints. The help overlay and menus draw on top of the whole screen.
 │▸    ├─ e29d83a 14 min ago  ● Keep commit messages visible (HEAD → develop)       │
 │     ├─ 9bfa421 2 hr ago  ● Include expanded-branch commits (origin/develop)      │
 │     └─ 234a04a 3 hr ago  ● Load repository data as one snapshot                  │
-│  [ prev · page ]  1/1 of 3 items                                                 │
+│  3 commits                                                                       │
 │                                                                                  │
 │  ▸ Branches (1)                                                                  │
 │  feature/new-ui                                                                  │
@@ -138,7 +138,8 @@ Below an expanded header:
    and the upstream is dark gray. `P push` shows when ahead, `p pull` when behind, and `f fetch`
    always.
 3. One line per commit.
-4. The page line: `  [ prev · page ]  1/4 of 180 items`, in dark gray. A page holds 50 local entries.
+4. The page line: `  page 2/4 · 180 commits   [ prev · ] next` (reflog: "entries"). The position is dark
+   gray; the keys are cyan and appear only when that page exists. A single page shows just the count. A page holds 50 local entries.
 
 #### Commit Lines
 

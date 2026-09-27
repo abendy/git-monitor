@@ -16,8 +16,13 @@ a reviewed and green pull request after confirmation.
 Version 0.8 provides:
 
 - local Git status, history, branches, diffs, staging, and selected Git actions;
-- contextual menus, command execution, feedback overlays, and gitconfig aliases;
-- debounced refresh for normal repositories and linked worktrees;
+- contextual menus, a command prompt that runs any command, feedback overlays, and gitconfig
+  aliases;
+- confirmation before destructive actions started from keys or menus;
+- debounced refresh for normal repositories and linked worktrees, with the cursor kept on the same
+  item across refreshes;
+- a header that shows how fresh the data is, and keeps the last good data when a refresh fails;
+- stable repository and worktree identity;
 - strict format/lint/test gates and a reproducible release build.
 
 It does not yet provide forge data, agent-session data, a provider abstraction, or a `jj` backend.
@@ -36,7 +41,7 @@ The section registry is implemented for built-in sections; it is not a dynamic p
 
 ## Delivery Sequence
 
-### 1. Repository State Spine
+### 1. Repository State Spine — done (September 2026)
 
 - Separate repository snapshots from rendering and cursor state.
 - Give refreshes explicit reasons, timestamps, and failure state.

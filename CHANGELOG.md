@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-09-27
+
+### Added
+
+- The main panel scrolls to keep the cursor in view, with a few rows of context around it
+
+### Changed
+
+- A failed refresh keeps the previous data and shows the error, instead of updating only some
+  sections
+
+### Fixed
+
+- Refreshes keep the cursor on the same file, commit, or branch instead of letting it slide onto a
+  neighbor when rows appear or disappear above it (LON-123)
+- An expanded branch's commits update on refresh, and a deleted branch collapses
+
 ## [0.9.1] - 2026-08-07
 
 ### Changed

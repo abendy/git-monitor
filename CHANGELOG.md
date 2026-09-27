@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-27
+
+### Changed
+
+- The command prompt runs any command through your shell, with quotes, pipes, and variables, not
+  only Git commands; a typed command is its own confirmation
+- README, key bindings, and UI docs rewritten to match the app
+
 ## [0.10.1] - 2026-09-27
 
 ### Fixed

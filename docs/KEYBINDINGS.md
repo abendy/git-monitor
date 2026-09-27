@@ -131,6 +131,7 @@ The prompt runs any command.
 | Action menu | `j` / `k` / arrows move, `Enter` runs, `m` / `q` / `Esc` close |
 | Alias sections | `j` / `k` / arrows move, `Enter` opens, `a` / `q` / `Esc` close |
 | Aliases in a section | `j` / `k` / arrows move, `Enter` runs, `q` / `Esc` go back, `a` closes |
+| Destructive-action confirmation | `Enter` / `y` run the shown command, `n` / `q` / `Esc` cancel |
 | Push confirmation | `Enter` / `y` push, `f` toggles `--force-with-lease`, `j` / `k` / arrows move to the force checkbox, `Space` / `Enter` toggle it there, `n` / `q` / `Esc` cancel |
 
 ## Help

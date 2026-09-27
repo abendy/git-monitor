@@ -1,8 +1,4 @@
 //! Confirmation dialog implementation.
-//!
-//! Not yet integrated - provides generic `ConfirmMenu` for future use.
-
-#![allow(dead_code)] // Module reserved for future generic confirm dialogs
 
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::Rect;
@@ -11,7 +7,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::Frame;
 
-use super::{Menu, MenuItem, MenuResult};
+use super::{Menu, MenuAction, MenuItem, MenuResult};
 
 /// A confirmation dialog with optional checkboxes
 pub struct ConfirmMenu {
@@ -25,6 +21,8 @@ pub struct ConfirmMenu {
     checkboxes: Vec<Checkbox>,
     /// Currently focused element (0 = confirm button, 1+ = checkboxes)
     focus: usize,
+    /// Action to run when the user confirms
+    on_confirm: Option<MenuAction>,
 }
 
 /// A checkbox option in a confirmation dialog
@@ -74,7 +72,22 @@ impl ConfirmMenu {
             info: Vec::new(),
             checkboxes: Vec::new(),
             focus: 0,
+            on_confirm: None,
         }
+    }
+
+    /// Run `action` when the user confirms
+    #[must_use]
+    pub fn on_confirm(mut self, action: MenuAction) -> Self {
+        self.on_confirm = Some(action);
+        self
+    }
+
+    /// Result of confirming: run the stored action, or just close
+    fn confirm(&mut self) -> MenuResult {
+        self.on_confirm
+            .take()
+            .map_or(MenuResult::Close, MenuResult::Execute)
     }
 
     /// Add an info line
@@ -170,14 +183,14 @@ impl Menu for ConfirmMenu {
             KeyCode::Enter => {
                 if self.focus == 0 {
                     // Confirm button is focused
-                    MenuResult::Close
+                    self.confirm()
                 } else {
                     // Toggle checkbox
                     self.toggle_focused();
                     MenuResult::Continue
                 }
             }
-            KeyCode::Char('y') => MenuResult::Close,
+            KeyCode::Char('y') => self.confirm(),
 
             // Cancel
             KeyCode::Esc | KeyCode::Char('n' | 'q') => MenuResult::CloseAll,
@@ -422,6 +435,38 @@ mod tests {
             let result = menu.handle_key(KeyEvent::from(KeyCode::Char('y')));
 
             assert!(matches!(result, MenuResult::Close));
+        }
+
+        #[test]
+        fn handle_key_y_runs_the_confirm_action() {
+            let mut menu = ConfirmMenu::new("Confirm", "Message").on_confirm(MenuAction::App(
+                crate::actions::AppAction::Refresh,
+            ));
+
+            let result = menu.handle_key(KeyEvent::from(KeyCode::Char('y')));
+
+            assert!(matches!(
+                result,
+                MenuResult::Execute(MenuAction::App(
+                    crate::actions::AppAction::Refresh
+                ))
+            ));
+        }
+
+        #[test]
+        fn handle_key_enter_on_button_runs_the_confirm_action() {
+            let mut menu = ConfirmMenu::new("Confirm", "Message").on_confirm(MenuAction::App(
+                crate::actions::AppAction::Refresh,
+            ));
+
+            let result = menu.handle_key(KeyEvent::from(KeyCode::Enter));
+
+            assert!(matches!(
+                result,
+                MenuResult::Execute(MenuAction::App(
+                    crate::actions::AppAction::Refresh
+                ))
+            ));
         }
 
         #[test]

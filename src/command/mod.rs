@@ -64,6 +64,8 @@ pub struct CommandRequest {
     pub feedback: FeedbackPolicy,
     /// Whether to refresh git status after execution
     pub refresh_after: bool,
+    /// Whether the user already confirmed this command in a dialog
+    pub confirmed: bool,
 }
 
 impl CommandRequest {
@@ -82,6 +84,7 @@ impl CommandRequest {
             source: CommandSource::default(),
             feedback: FeedbackPolicy::default(),
             refresh_after: true,
+            confirmed: false,
         }
     }
 
@@ -109,6 +112,7 @@ impl CommandRequest {
             source: CommandSource::Palette,
             feedback: FeedbackPolicy::default(),
             refresh_after: true,
+            confirmed: false,
         })
     }
 
@@ -133,7 +137,64 @@ impl CommandRequest {
             source: CommandSource::Palette,
             feedback: FeedbackPolicy::default(),
             refresh_after: true,
+            confirmed: false,
         })
+    }
+
+    /// Mark the command as confirmed by the user
+    #[must_use]
+    pub const fn confirmed(mut self) -> Self {
+        self.confirmed = true;
+        self
+    }
+
+    /// Plain-language description of what this command can destroy or publish,
+    /// if it is a Git command that must be confirmed before running from a key
+    /// or menu.
+    #[must_use]
+    pub fn destructive_effect(&self) -> Option<&'static str> {
+        if self.program != "git" {
+            return None;
+        }
+
+        // Skip global options (`-C <path>`, `-c <key=value>`) to find the subcommand
+        let mut args = self.args.iter().map(String::as_str);
+        let subcommand = loop {
+            match args.next()? {
+                "-C" | "-c" => {
+                    args.next()?;
+                }
+                arg if arg.starts_with('-') => {}
+                arg => break arg,
+            }
+        };
+        let rest: Vec<&str> = args.collect();
+        let has = |flags: &[&str]| {
+            rest.iter()
+                .any(|arg| flags.contains(arg))
+        };
+
+        match subcommand {
+            "reset" => {
+                Some("Moves the current branch. With --hard it also discards uncommitted changes.")
+            }
+            "rebase" => Some("Rewrites commits on the current branch."),
+            "branch" if has(&["-d", "-D", "--delete"]) => Some("Deletes a branch."),
+            "push"
+                if has(&["-f", "--force", "-d", "--delete", "--mirror"])
+                    || rest.iter().any(|arg| {
+                        arg.starts_with("--force-with-lease")
+                            || arg.starts_with("--force-if-includes")
+                            || arg.starts_with('+')
+                            || arg.starts_with(':')
+                    }) =>
+            {
+                Some("Force-pushes or deletes on the remote.")
+            }
+            "clean" if !has(&["-n", "--dry-run"]) => Some("Deletes untracked files."),
+            "stash" if has(&["drop", "clear"]) => Some("Deletes stashed changes."),
+            _ => None,
+        }
     }
 
     /// Set the command source
@@ -189,6 +250,7 @@ impl CommandRequest {
             source: CommandSource::default(),
             feedback: FeedbackPolicy::default(),
             refresh_after: true,
+            confirmed: false,
         }
     }
 }
@@ -240,6 +302,58 @@ mod tests {
                 request.args,
                 vec!["log", "--oneline", "-n", "10"]
             );
+        }
+
+        fn effect(line: &str) -> Option<&'static str> {
+            CommandRequest::from_input(line)
+                .unwrap()
+                .destructive_effect()
+        }
+
+        #[test]
+        fn destructive_git_commands_need_confirmation() {
+            for line in [
+                "git reset --hard HEAD~1",
+                "git reset HEAD~1",
+                "git rebase -i main",
+                "git branch -D feature",
+                "git branch --delete feature",
+                "git push --force",
+                "git push -f origin main",
+                "git push --force-with-lease",
+                "git push origin +main",
+                "git push origin :old-branch",
+                "git push --delete origin old-branch",
+                "git clean -fd",
+                "git stash drop",
+                "git stash clear",
+                "git -C sub reset --hard",
+            ] {
+                assert!(
+                    effect(line).is_some(),
+                    "should confirm: {line}"
+                );
+            }
+        }
+
+        #[test]
+        fn safe_git_commands_run_without_confirmation() {
+            for line in [
+                "git status",
+                "git push",
+                "git push -u origin main",
+                "git branch -a",
+                "git clean -n",
+                "git stash list",
+                "git log --oneline",
+                "git -c color.ui=always status",
+                "ls -la",
+            ] {
+                assert!(
+                    effect(line).is_none(),
+                    "should not confirm: {line}"
+                );
+            }
         }
 
         #[test]

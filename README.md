@@ -18,6 +18,8 @@ A real-time TUI for monitoring and interacting with git repositories.
 - **External tools** - pager and difftool integration
 - **Command prompt** - run any command from `:`
 - **Push confirmation** - optional `--force-with-lease`; sets upstream when missing
+- **Destructive-action confirmation** - menu and key actions that reset, rebase, delete a branch,
+  force-push, clean, or drop stashes show the exact command first; typed commands run as typed
 - **Commit expansion** - file-level navigation within commits
 
 ## Direction

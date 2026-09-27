@@ -68,9 +68,11 @@ impl PushConfirmMenu {
             "git push".to_string()
         };
 
+        // This dialog is the confirmation, so the command must not ask again
         CommandRequest::git(args)
             .with_source(CommandSource::Keyboard)
             .with_display_name(display)
+            .confirmed()
     }
 }
 

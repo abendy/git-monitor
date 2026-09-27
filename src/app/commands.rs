@@ -4,7 +4,7 @@ use super::App;
 use crate::command::{CommandRequest, CommandSource, ExternalCommand};
 use crate::feedback::{Feedback, PopupContent, Toast};
 use crate::git::FileState;
-use crate::menu::PushConfirmMenu;
+use crate::menu::{ConfirmMenu, MenuAction, PushConfirmMenu};
 
 impl App {
     pub(super) fn open_editor(&mut self) {
@@ -215,6 +215,14 @@ impl App {
     /// - Refreshing git status if requested
     #[allow(clippy::needless_pass_by_value)] // Takes ownership of request for cleaner API
     pub(super) fn run_command(&mut self, request: CommandRequest) {
+        // Keys and menus ask before destructive commands; typed commands are already deliberate
+        if request.source != CommandSource::Palette && !request.confirmed {
+            if let Some(effect) = request.destructive_effect() {
+                self.confirm_command(request, effect);
+                return;
+            }
+        }
+
         // Execute via the executor
         let result = self.executor.execute(&request);
 
@@ -236,6 +244,42 @@ impl App {
         if request.refresh_after {
             self.refresh_status();
         }
+    }
+
+    /// Ask before running a destructive command, showing exactly what will run
+    fn confirm_command(&mut self, request: CommandRequest, effect: &str) {
+        let command_line = std::iter::once(request.program.as_str())
+            .chain(request.args.iter().map(String::as_str))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let branch = self
+            .snapshot
+            .status
+            .branch
+            .clone()
+            .unwrap_or_else(|| "(detached HEAD)".to_string());
+
+        let mut menu = ConfirmMenu::new(" Confirm ", effect)
+            .with_info("Command", command_line)
+            .with_info("Branch", branch);
+
+        // Aliases run as written, so the row under the cursor may not be the target
+        if let Some(sha) = self.selected_activity_sha() {
+            let uses_selection = request.args.iter().any(|arg| {
+                arg.len() >= 7 && (sha.starts_with(arg.as_str()) || arg.starts_with(&sha))
+            });
+            if !uses_selection {
+                menu = menu.with_info(
+                    "Selected",
+                    format!("{sha} (not used by this command)"),
+                );
+            }
+        }
+
+        self.menu_stack.push(Box::new(
+            menu.on_confirm(MenuAction::Command(request.confirmed())),
+        ));
+        self.update_sections();
     }
 
     /// Execute command from the command palette (: mode)

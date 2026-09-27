@@ -1505,3 +1505,66 @@ mod conditional_keys {
         );
     }
 }
+
+mod section_cycling {
+    use super::*;
+    use git_monitor::actions::Context;
+
+    /// Command row, Working (two files), History, and Branches (one other branch)
+    fn repo_with_every_section() -> TempDir {
+        let dir = create_repo_with_files();
+        let repo = git2::Repository::open(dir.path()).expect("open repo");
+        let head = repo
+            .head()
+            .expect("head")
+            .peel_to_commit()
+            .expect("head commit");
+        repo.branch("feature", &head, false)
+            .expect("create branch");
+        dir
+    }
+
+    #[test]
+    fn tab_walks_the_sections_and_wraps() {
+        let dir = repo_with_every_section();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+        app.selected = Some(0);
+
+        let mut seen = Vec::new();
+        for _ in 0..4 {
+            app.handle_key(key(KeyCode::Tab));
+            seen.push(app.current_context());
+        }
+
+        assert_eq!(
+            seen,
+            vec![
+                Context::WorkingFiles,
+                Context::HistoryHeader,
+                Context::BranchHeader,
+                Context::Command,
+            ],
+            "empty Staged is skipped, and Tab wraps back to the command row"
+        );
+    }
+
+    #[test]
+    fn shift_tab_walks_backwards_and_wraps() {
+        let dir = repo_with_every_section();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+        app.selected = Some(0);
+
+        app.handle_key(key(KeyCode::BackTab));
+        assert_eq!(
+            app.current_context(),
+            Context::BranchHeader,
+            "wraps to the last section"
+        );
+
+        app.handle_key(key(KeyCode::BackTab));
+        assert_eq!(
+            app.current_context(),
+            Context::HistoryHeader
+        );
+    }
+}

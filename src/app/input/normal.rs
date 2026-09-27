@@ -43,6 +43,14 @@ impl App {
             KeyCode::Esc => {
                 self.back_out();
             }
+
+            // Next / previous section
+            KeyCode::Tab => {
+                self.cycle_section(true);
+            }
+            KeyCode::BackTab => {
+                self.cycle_section(false);
+            }
             KeyCode::Char('c')
                 if key
                     .modifiers

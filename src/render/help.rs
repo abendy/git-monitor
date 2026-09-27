@@ -69,6 +69,7 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
             Line::from("  j / ↓              Move down"),
             Line::from("  k / ↑              Move up"),
             Line::from("  J / K              Move within section"),
+            Line::from("  Tab / Shift+Tab    Next / previous section"),
             Line::from("  g                  Go to first"),
             Line::from("  G                  Go to last"),
         ];

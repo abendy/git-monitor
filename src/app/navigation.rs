@@ -191,6 +191,61 @@ impl App {
         self.selected = Some(0);
     }
 
+    /// Move to the first row of the next or previous non-empty section (`Tab` / `Shift+Tab`),
+    /// wrapping around at either end
+    pub(super) fn cycle_section(&mut self, forward: bool) {
+        let counts = self.section_item_counts();
+        let sections: Vec<SectionId> = self
+            .section_registry
+            .sections()
+            .iter()
+            .copied()
+            .filter(|&id| counts.get(id) > 0)
+            .collect();
+        if sections.is_empty() {
+            return;
+        }
+
+        let current = self
+            .selected
+            .and_then(|index| {
+                self.section_registry
+                    .lookup_index(index, &counts)
+            })
+            .and_then(|lookup| {
+                sections
+                    .iter()
+                    .position(|&id| id == lookup.section_id)
+            });
+        let last = sections.len() - 1;
+        let target = match (current, forward) {
+            (Some(at), true) => {
+                if at == last {
+                    0
+                } else {
+                    at + 1
+                }
+            }
+            (Some(at), false) => {
+                if at == 0 {
+                    last
+                } else {
+                    at - 1
+                }
+            }
+            (None, true) => 0,
+            (None, false) => last,
+        };
+
+        if let Some(start) = self
+            .section_registry
+            .section_start_index(sections[target], &counts)
+        {
+            self.close_expanded_commit();
+            self.selected = Some(start);
+        }
+    }
+
     /// Back out one level (`Esc`): close an open commit, else collapse an expanded branch.
     ///
     /// The cursor stays on the same item when it is still listed, otherwise it moves to

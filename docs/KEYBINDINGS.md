@@ -12,6 +12,7 @@ These work on every row unless a section below gives the key another meaning.
 | `j` / `↓` | Move down |
 | `k` / `↑` | Move up |
 | `J` / `K` | Move down / up without leaving the current section; on History commits, turn the page at the edges. Hold to speed up |
+| `Tab` / `Shift+Tab` | Next / previous section, skipping empty ones and wrapping around |
 | `g` / `G` | First / last row |
 | `w` | Jump to the first staged or working file |
 | `h` | Jump to History, expand it, and select the newest commit |

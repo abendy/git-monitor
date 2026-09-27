@@ -116,9 +116,32 @@ Homebrew paths.
 
 ## Documentation and Git
 
-- Update `README.md` for user-visible behavior, `docs/KEYBINDINGS.md` for key changes, and
-  `docs/ROADMAP.md` for sequencing. Don't paste code into docs; name the type and its path.
-- Create or supersede an ADR when a durable architectural trade-off changes.
-- Use focused Conventional Commits and stage files by name. Add `Refs LON-123` (or `Fixes LON-123`)
-  to the body when the work belongs to a Linear issue.
+This project is developed in public. The README, roadmap, changelog, releases, and ADRs are
+written for outside readers: plain language, no private tooling, no internal commit SHAs.
+
+**At commit time**, each commit carries the docs it changes:
+
+- User-visible behavior → `README.md`; keys → `docs/KEYBINDINGS.md`; layout → `docs/UI_DESIGN.md`.
+  Don't paste code into docs; name the type and its path.
+- A durable decision or trade-off → a new ADR in `docs/adr/`, or a superseding one. Statuses are
+  `Proposed`, `Implemented`, and `Superseded by ADR-NNN`; flip `Proposed` to `Implemented` in the
+  commit that implements it.
+- Focused Conventional Commits, files staged by name. Add `Refs LON-123` (or `Fixes LON-123`) to
+  the body when the work belongs to a Linear issue.
+- Fold a correction into the commit it corrects before pushing. After a push, a correction is a
+  new commit; rewriting pushed history is the maintainer's call, and the maintainer runs any
+  force push.
 - Commit working snapshots and push completed work to `develop` unless the user asks otherwise.
+
+**At release time**, docs are already current, so a release only:
+
+1. Picks the version from the commits since the last tag (`feat` → minor; fixes and chores →
+   patch; pre-1.0, behavior changes are minor).
+2. Bumps `version` in `Cargo.toml` and the `git-monitor` entry in `Cargo.lock`.
+3. Adds a `CHANGELOG.md` section distilled from those commits: user-facing lines, Linear IDs kept,
+   internal-only commits (tests, refactors, docs) left out unless a user would notice.
+4. Updates `docs/ROADMAP.md` when a milestone finished or direction changed (current baseline,
+   milestone status).
+5. Commits `chore(release): prepare vX.Y.Z` and adds an annotated tag `vX.Y.Z` (`Release vX.Y.Z`).
+
+Shared `commit` and `release` skills may be installed; treat them as guides, not required steps.

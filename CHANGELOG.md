@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-09-27
+
+### Fixed
+
+- Menu and key actions that reset, rebase, delete a branch, force-push, clean, or drop stashes now
+  confirm first and show the exact command (LON-154)
+- Footer hints fit narrow panels instead of being cut off (LON-157)
+
 ## [0.11.0] - 2026-09-27
 
 ### Changed

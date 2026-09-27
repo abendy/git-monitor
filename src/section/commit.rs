@@ -8,6 +8,12 @@ use crate::git::{format_relative_time, CommandType, CommitDetail, GitCommand, Re
 use crate::render::file_list::{render_file_entry, FileEntryView, FileListStyle};
 use crate::section::SectionLines;
 
+/// Below this panel width the commit graph moves left to leave room for text
+const NARROW_WIDTH: u16 = 80;
+
+/// Message columns to keep before extra refs fold into "+N"
+const MIN_MESSAGE_WIDTH: usize = 20;
+
 #[allow(clippy::too_many_lines)] // Render functions are naturally verbose
 pub fn render_commit_line(
     cmd: &GitCommand,
@@ -16,44 +22,23 @@ pub fn render_commit_line(
     render_width: u16,
 ) -> Line<'static> {
     let selection_prefix = if selected { "▸" } else { " " };
+    let local_indent = if render_width < NARROW_WIDTH {
+        " "
+    } else {
+        "   "
+    };
     let (indent, graph_char) = if cmd.is_remote_only {
         ("", "├—")
     } else if is_last {
-        ("   ", "└─")
+        (local_indent, "└─")
     } else {
-        ("   ", "├─")
+        (local_indent, "├─")
     };
 
     let time_str = format_relative_time(cmd.timestamp);
     let icon = cmd.command_type.icon();
     let color = commit_command_color(cmd.command_type);
     let sha_str = cmd.sha.as_deref().unwrap_or("-------");
-
-    let decoration_spans = format_decorations(&cmd.decorations);
-    let decoration_width: usize = decoration_spans
-        .iter()
-        .map(|s| s.content.len())
-        .sum();
-
-    let fixed_width = selection_prefix.len()
-        + 1
-        + indent.len()
-        + graph_char.len()
-        + 1
-        + sha_str.len()
-        + 1
-        + time_str.len()
-        + 2
-        + icon.len()
-        + 1
-        + if decoration_spans.is_empty() {
-            0
-        } else {
-            1 + decoration_width
-        };
-    #[allow(clippy::cast_possible_truncation)] // fixed_width is a small sum of widths
-    let max_msg_len = render_width.saturating_sub(fixed_width as u16) as usize;
-    let message = truncate_message(&cmd.message, max_msg_len);
 
     let style = if selected {
         Style::default().add_modifier(Modifier::BOLD)
@@ -87,6 +72,24 @@ pub fn render_commit_line(
         ),
         Span::styled(format!("{icon} "), style.fg(color)),
     ];
+
+    // Panel borders take one column on each side
+    let prefix_width: usize = spans.iter().map(Span::width).sum();
+    let available = usize::from(render_width).saturating_sub(2 + prefix_width);
+
+    // Show every ref when the message keeps enough room; otherwise fold extras into "+N"
+    let mut decoration_spans = format_decorations(&cmd.decorations, false);
+    let full_width = spans_width(&decoration_spans);
+    if full_width > 0 && available.saturating_sub(full_width + 1) < MIN_MESSAGE_WIDTH {
+        decoration_spans = format_decorations(&cmd.decorations, true);
+    }
+    let decoration_width = spans_width(&decoration_spans);
+    let max_msg_len = if decoration_width == 0 {
+        available
+    } else {
+        available.saturating_sub(decoration_width + 1)
+    };
+    let message = truncate_message(&cmd.message, max_msg_len);
 
     let special_prefixes = ["fixup!", "squash!", "amend!"];
     let wip_prefixes = ["WIP", "wip:", "wip ", "WIP:", "WIP "];
@@ -344,130 +347,284 @@ pub const fn commit_command_color(cmd: CommandType) -> Color {
     }
 }
 
-fn format_decorations(decorations: &[RefDecoration]) -> Vec<Span<'static>> {
-    if decorations.is_empty() {
+/// Render refs as `(HEAD → branch, other, ...)`.
+///
+/// With `collapse`, only the leading ref stays (`HEAD → branch` when HEAD is
+/// here) and the rest become a `+N` count.
+fn format_decorations(decorations: &[RefDecoration], collapse: bool) -> Vec<Span<'static>> {
+    let gray = Style::default().fg(Color::DarkGray);
+    let has_head = decorations
+        .iter()
+        .any(|dec| matches!(dec, RefDecoration::Head));
+    let head_branch = if has_head {
+        decorations
+            .iter()
+            .find_map(|dec| match dec {
+                RefDecoration::LocalBranch(name) => Some(name.as_str()),
+                _ => None,
+            })
+    } else {
+        None
+    };
+
+    let mut entries: Vec<Vec<Span<'static>>> = Vec::new();
+    if has_head {
+        let head_style = Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD);
+        entries.push(head_branch.map_or_else(
+            || vec![Span::styled("HEAD", head_style)],
+            |branch| {
+                vec![
+                    Span::styled("HEAD → ", head_style),
+                    Span::styled(
+                        branch.to_string(),
+                        Style::default()
+                            .fg(Color::Green)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                ]
+            },
+        ));
+    }
+
+    for dec in decorations {
+        match dec {
+            RefDecoration::Head => {}
+            RefDecoration::LocalBranch(name) if head_branch == Some(name.as_str()) => {}
+            RefDecoration::LocalBranch(name) => entries.push(vec![Span::styled(
+                name.clone(),
+                Style::default().fg(Color::Green),
+            )]),
+            RefDecoration::RemoteBranch(name) => entries.push(vec![Span::styled(
+                name.clone(),
+                Style::default().fg(Color::Red),
+            )]),
+            RefDecoration::Tag(name) => entries.push(vec![
+                Span::styled("tag: ", gray),
+                Span::styled(
+                    name.clone(),
+                    Style::default().fg(Color::Yellow),
+                ),
+            ]),
+        }
+    }
+
+    if entries.is_empty() {
         return Vec::new();
     }
 
-    let mut spans = Vec::new();
-    spans.push(Span::styled(
-        "(",
-        Style::default().fg(Color::DarkGray),
-    ));
-
-    let mut first = true;
-    let mut has_head = false;
-    let mut head_branch: Option<&str> = None;
-
-    for dec in decorations {
-        if matches!(dec, RefDecoration::Head) {
-            has_head = true;
+    let hidden = if collapse { entries.len() - 1 } else { 0 };
+    let mut spans = vec![Span::styled("(", gray)];
+    for (i, entry) in entries
+        .into_iter()
+        .take(if collapse { 1 } else { usize::MAX })
+        .enumerate()
+    {
+        if i > 0 {
+            spans.push(Span::styled(", ", gray));
         }
+        spans.extend(entry);
     }
-
-    if has_head {
-        for dec in decorations {
-            if let RefDecoration::LocalBranch(name) = dec {
-                head_branch = Some(name);
-                break;
-            }
-        }
+    if hidden > 0 {
+        spans.push(Span::styled(
+            format!(" +{hidden}"),
+            gray,
+        ));
     }
-
-    if has_head {
-        if let Some(branch) = head_branch {
-            spans.push(Span::styled(
-                "HEAD → ",
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
-            ));
-            spans.push(Span::styled(
-                branch.to_string(),
-                Style::default()
-                    .fg(Color::Green)
-                    .add_modifier(Modifier::BOLD),
-            ));
-        } else {
-            spans.push(Span::styled(
-                "HEAD",
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
-            ));
-        }
-        first = false;
-    }
-
-    for dec in decorations {
-        if matches!(dec, RefDecoration::Head) {
-            continue;
-        }
-        if let RefDecoration::LocalBranch(name) = dec {
-            if head_branch == Some(name) {
-                continue;
-            }
-        }
-
-        if !first {
-            spans.push(Span::styled(
-                ", ",
-                Style::default().fg(Color::DarkGray),
-            ));
-        }
-        first = false;
-
-        match dec {
-            RefDecoration::LocalBranch(name) => {
-                spans.push(Span::styled(
-                    name.clone(),
-                    Style::default().fg(Color::Green),
-                ));
-            }
-            RefDecoration::RemoteBranch(name) => {
-                spans.push(Span::styled(
-                    name.clone(),
-                    Style::default().fg(Color::Red),
-                ));
-            }
-            RefDecoration::Tag(name) => {
-                spans.push(Span::styled(
-                    "tag: ",
-                    Style::default().fg(Color::DarkGray),
-                ));
-                spans.push(Span::styled(
-                    name.clone(),
-                    Style::default().fg(Color::Yellow),
-                ));
-            }
-            RefDecoration::Head => {}
-        }
-    }
-
-    spans.push(Span::styled(
-        ")",
-        Style::default().fg(Color::DarkGray),
-    ));
+    spans.push(Span::styled(")", gray));
     spans
 }
 
-fn truncate_message(message: &str, max_len: usize) -> String {
-    if max_len <= 3 {
+/// Display width of a run of spans
+fn spans_width(spans: &[Span<'_>]) -> usize {
+    spans.iter().map(Span::width).sum()
+}
+
+/// Display width of one character
+fn char_width(c: char) -> usize {
+    let mut buf = [0u8; 4];
+    Span::raw(&*c.encode_utf8(&mut buf)).width()
+}
+
+/// Fit `message` into `max_width` display columns, ending in "..." when cut
+fn truncate_message(message: &str, max_width: usize) -> String {
+    if message
+        .chars()
+        .map(char_width)
+        .sum::<usize>()
+        <= max_width
+    {
+        return message.to_string();
+    }
+    if max_width <= 3 {
         return String::new();
     }
 
-    if message.len() > max_len {
-        format!(
-            "{}...",
-            &message[..max_len.saturating_sub(3)]
-        )
-    } else {
-        message.to_string()
-    }
+    let budget = max_width - 3;
+    let mut used = 0;
+    let mut out: String = message
+        .chars()
+        .take_while(|&c| {
+            used += char_width(c);
+            used <= budget
+        })
+        .collect();
+    out.push_str("...");
+    out
 }
 
 fn editor_available() -> bool {
     std::env::var("EDITOR")
         .ok()
         .is_some_and(|value| !value.trim().is_empty())
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::Local;
+
+    use super::*;
+
+    fn commit(message: &str, decorations: Vec<RefDecoration>) -> GitCommand {
+        GitCommand {
+            timestamp: Local::now(),
+            command_type: CommandType::Commit,
+            message: message.to_string(),
+            sha: Some("e29d83a".to_string()),
+            decorations,
+            is_remote_only: false,
+        }
+    }
+
+    fn head_on_develop() -> Vec<RefDecoration> {
+        vec![
+            RefDecoration::Head,
+            RefDecoration::LocalBranch("develop".to_string()),
+            RefDecoration::RemoteBranch("origin/develop".to_string()),
+        ]
+    }
+
+    fn text(line: &Line<'_>) -> String {
+        line.spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect()
+    }
+
+    const MESSAGE: &str = "docs: record the repository snapshot design";
+
+    #[test]
+    fn narrow_line_keeps_message_and_folds_extra_refs() {
+        let line = render_commit_line(
+            &commit(MESSAGE, head_on_develop()),
+            false,
+            false,
+            66,
+        );
+        let text = text(&line);
+
+        assert!(
+            text.contains("docs: record"),
+            "message shown: {text}"
+        );
+        assert!(
+            text.contains("(HEAD → develop +1)"),
+            "refs folded: {text}"
+        );
+        assert!(
+            !text.contains("origin/develop"),
+            "remote hidden: {text}"
+        );
+        assert!(
+            line.width() <= 64,
+            "fits inside borders: {text}"
+        );
+    }
+
+    #[test]
+    fn wide_line_shows_every_ref() {
+        let line = render_commit_line(
+            &commit(MESSAGE, head_on_develop()),
+            false,
+            false,
+            140,
+        );
+        let text = text(&line);
+
+        assert!(
+            text.contains(MESSAGE),
+            "full message: {text}"
+        );
+        assert!(
+            text.contains("(HEAD → develop, origin/develop)"),
+            "all refs: {text}"
+        );
+    }
+
+    #[test]
+    fn commit_without_head_keeps_its_first_ref() {
+        let refs = vec![
+            RefDecoration::RemoteBranch("origin/feature".to_string()),
+            RefDecoration::Tag("v1.0.0".to_string()),
+        ];
+        let text = text(&render_commit_line(
+            &commit(MESSAGE, refs),
+            false,
+            false,
+            60,
+        ));
+
+        assert!(
+            text.contains("(origin/feature +1)"),
+            "first ref kept: {text}"
+        );
+    }
+
+    #[test]
+    fn narrow_panel_moves_graph_two_columns_left() {
+        let narrow = text(&render_commit_line(
+            &commit(MESSAGE, Vec::new()),
+            false,
+            false,
+            66,
+        ));
+        let wide = text(&render_commit_line(
+            &commit(MESSAGE, Vec::new()),
+            false,
+            false,
+            100,
+        ));
+
+        assert_eq!(
+            narrow.find('├'),
+            Some(3),
+            "narrow: {narrow}"
+        );
+        assert_eq!(wide.find('├'), Some(5), "wide: {wide}");
+    }
+
+    #[test]
+    fn truncation_respects_multibyte_characters() {
+        let line = render_commit_line(
+            &commit(
+                "fix: gérer les accents — ça marche 🎉 vraiment",
+                Vec::new(),
+            ),
+            false,
+            false,
+            40,
+        );
+
+        assert!(
+            text(&line).ends_with("..."),
+            "{}",
+            text(&line)
+        );
+        assert!(
+            line.width() <= 38,
+            "fits: {}",
+            text(&line)
+        );
+    }
 }

@@ -63,7 +63,8 @@ See the [product roadmap](docs/ROADMAP.md) for sequencing and non-goals.
 
 In normal mode the footer shows the same hints on every row:
 `j/k nav  g/G top/btm  m menu  e edit │ : cmd  w files  h history  b branches │ ? help  q quit`.
-`e edit` appears only when `$EDITOR` is set.
+`e edit` appears only when `$EDITOR` is set. In narrow panels the least-used hints drop first;
+`? help` always stays.
 
 ## Quick Start
 

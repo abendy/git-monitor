@@ -38,6 +38,14 @@ pub(crate) enum PageLanding {
     Last,
 }
 
+/// A held `J`/`K`: direction, time of the last repeat, and repeats so far
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct SectionHold {
+    down: bool,
+    at: std::time::Instant,
+    streak: u32,
+}
+
 /// Cursor spot remembered for one history page
 #[derive(Debug, Clone)]
 pub(crate) struct PageCursor {
@@ -100,6 +108,8 @@ pub struct App {
     pub history_collapsed: bool,
     /// Requested history page (0-indexed); synced to the page the snapshot loaded
     pub history_page: usize,
+    /// Last `J`/`K` repeat, for speeding up a held key
+    section_hold: Option<SectionHold>,
     /// Cursor spot per history page, so paging back returns to it
     history_page_cursors: std::collections::HashMap<(HistoryMode, usize), PageCursor>,
     /// Which non-current branch is expanded (showing its commits)

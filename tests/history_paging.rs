@@ -133,8 +133,9 @@ fn shift_j_turns_the_page_instead_of_stopping() {
     let mut app = App::new(dir.path().to_path_buf()).expect("create app");
     let mut terminal = Terminal::new(TestBackend::new(80, 30)).expect("terminal");
 
+    // Walk with j so the J presses below are single taps, not a held key
     press(&mut app, KeyCode::Char('h'), 1);
-    press(&mut app, KeyCode::Char('J'), PAGE - 1);
+    press(&mut app, KeyCode::Char('j'), PAGE - 1);
     let (_, line) = cursor(&mut terminal, &mut app);
     assert!(
         line.contains(&last_sha(&app)),
@@ -189,5 +190,21 @@ fn shift_j_never_leaves_the_files_section() {
     assert!(
         line.contains("b.txt"),
         "stopped on the last file: {line}"
+    );
+}
+
+#[test]
+fn held_shift_j_speeds_up() {
+    let dir = repo_with_commits(120);
+    let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+
+    // 40 quick repeats: 10 rows at 1, 10 at 2, 10 at 4, then 8 per repeat
+    press(&mut app, KeyCode::Char('h'), 1);
+    press(&mut app, KeyCode::Char('J'), 40);
+
+    assert!(
+        app.history_page >= 2,
+        "40 repeats covered more than two pages (page {})",
+        app.history_page
     );
 }

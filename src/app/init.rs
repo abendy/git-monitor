@@ -63,6 +63,7 @@ impl App {
             history_collapsed: false,
             history_page: 0,
             history_page_cursors: std::collections::HashMap::new(),
+            section_hold: None,
             expanded_branch: None,
             pending_external: None,
             action_registry,

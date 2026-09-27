@@ -1,4 +1,6 @@
-use super::{App, PageLanding};
+use std::time::{Duration, Instant};
+
+use super::{App, PageLanding, SectionHold};
 use crate::section::SectionId;
 
 impl App {
@@ -188,13 +190,30 @@ impl App {
         self.selected = Some(0);
     }
 
-    /// Move one row within the current section (`J`/`K`).
+    /// Move within the current section for a held `J`/`K`, speeding up while the key repeats.
+    pub(super) fn held_section_move(&mut self, down: bool) {
+        let now = Instant::now();
+        let streak = hold_streak(self.section_hold, down, now);
+        self.section_hold = Some(SectionHold {
+            down,
+            at: now,
+            streak,
+        });
+
+        for _ in 0..hold_step(streak) {
+            if !self.move_within_section(down) {
+                break;
+            }
+        }
+    }
+
+    /// Move one row within the current section. Returns whether the cursor moved.
     ///
     /// Never leaves the section. On History commits it turns the page at the edges.
-    pub(super) fn move_within_section(&mut self, down: bool) {
+    pub(super) fn move_within_section(&mut self, down: bool) -> bool {
         let Some(index) = self.selected else {
             self.selected = Some(0);
-            return;
+            return true;
         };
 
         if self.is_in_history() {
@@ -206,12 +225,10 @@ impl App {
                     .len()
                     .saturating_sub(1);
             if down && index == last {
-                self.turn_history_page(true, PageLanding::First);
-                return;
+                return self.turn_history_page(true, PageLanding::First);
             }
             if !down && index == first && self.history_page > 0 {
-                self.turn_history_page(false, PageLanding::Last);
-                return;
+                return self.turn_history_page(false, PageLanding::Last);
             }
         }
 
@@ -220,7 +237,7 @@ impl App {
         } else {
             index.checked_sub(1)
         }) else {
-            return;
+            return false;
         };
         let counts = self.section_item_counts();
         let section_of = |i| {
@@ -228,9 +245,86 @@ impl App {
                 .lookup_index(i, &counts)
                 .map(|lookup| lookup.section_id)
         };
-        if section_of(index).is_some() && section_of(index) == section_of(target) {
-            self.close_expanded_commit();
-            self.selected = Some(target);
+        if section_of(index).is_none() || section_of(index) != section_of(target) {
+            return false;
         }
+        self.close_expanded_commit();
+        self.selected = Some(target);
+        true
+    }
+}
+
+/// Key repeats closer together than this count as one held key
+const HOLD_GAP: Duration = Duration::from_millis(150);
+
+/// How many repeats in a row a held `J`/`K` has sent
+pub(super) fn hold_streak(previous: Option<SectionHold>, down: bool, now: Instant) -> u32 {
+    match previous {
+        Some(hold) if hold.down == down && now.saturating_duration_since(hold.at) <= HOLD_GAP => {
+            hold.streak.saturating_add(1)
+        }
+        _ => 0,
+    }
+}
+
+/// Rows to move for a repeat: 1 at first, then doubling every 10 repeats up to 8
+pub(super) const fn hold_step(streak: u32) -> usize {
+    match streak {
+        0..=9 => 1,
+        10..=19 => 2,
+        20..=29 => 4,
+        _ => 8,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hold(down: bool, at: Instant, streak: u32) -> Option<SectionHold> {
+        Some(SectionHold { down, at, streak })
+    }
+
+    #[test]
+    fn quick_repeat_in_the_same_direction_extends_the_streak() {
+        let start = Instant::now();
+        let next = start + Duration::from_millis(30);
+
+        assert_eq!(
+            hold_streak(hold(true, start, 4), true, next),
+            5
+        );
+    }
+
+    #[test]
+    fn pause_or_direction_change_restarts_the_streak() {
+        let start = Instant::now();
+
+        assert_eq!(
+            hold_streak(
+                hold(true, start, 4),
+                true,
+                start + Duration::from_millis(400)
+            ),
+            0
+        );
+        assert_eq!(
+            hold_streak(
+                hold(true, start, 4),
+                false,
+                start + Duration::from_millis(30)
+            ),
+            0
+        );
+        assert_eq!(hold_streak(None, true, start), 0);
+    }
+
+    #[test]
+    fn step_speeds_up_while_held() {
+        assert_eq!(hold_step(0), 1);
+        assert_eq!(hold_step(9), 1);
+        assert_eq!(hold_step(10), 2);
+        assert_eq!(hold_step(25), 4);
+        assert_eq!(hold_step(500), 8);
     }
 }

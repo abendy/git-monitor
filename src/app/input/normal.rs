@@ -249,10 +249,10 @@ impl App {
             }
             // Move within the current section; History turns pages at the edges
             KeyCode::Char('J') => {
-                self.move_within_section(true);
+                self.held_section_move(true);
             }
             KeyCode::Char('K') => {
-                self.move_within_section(false);
+                self.held_section_move(false);
             }
 
             KeyCode::Char('G') => {

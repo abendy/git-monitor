@@ -15,9 +15,8 @@ that boundary.
 
 1. `README.md` for the current feature set and basic usage.
 2. `docs/ROADMAP.md` for product direction and sequencing.
-3. `docs/ARCHITECTURE.md` for the implemented system.
-4. `docs/adr/` for decisions that still constrain the code.
-5. `.agents/README.md` for focused Rust, test, dependency, package, and security guidance.
+3. `docs/adr/` for decisions that still constrain the code.
+4. `.agents/README.md` for focused Rust, test, dependency, package, and security guidance.
 
 ## Required Checks
 
@@ -72,18 +71,21 @@ the abstraction.
 
 ## Security and Interaction
 
-- The command palette currently accepts Git commands only. Do not loosen that boundary implicitly.
-- Construct processes with program/argument APIs; never interpolate user data into a shell command.
-- Require confirmation for force push, reset, branch deletion, merge, and other destructive or
-  externally visible actions.
+- The command prompt runs any command line the user types, through their shell. A typed command is
+  its own confirmation.
+- Only text the user typed may reach a shell. For everything else (menus, aliases, agents, sockets,
+  repository content), construct processes with program/argument APIs and never interpolate data
+  into a shell command.
+- Actions started by a key or menu that force-push, reset, rebase, delete a branch, merge, or are
+  otherwise destructive or externally visible must confirm first.
 - Never persist provider tokens in repository files or application logs. Prefer an installed
   provider CLI or OS credential storage when provider work begins.
 - Keep passive refresh failures visible without making the dashboard unusable.
 
 ## Documentation and Git
 
-- Update `README.md` for user-visible behavior, `docs/ARCHITECTURE.md` for implemented structure,
-  and `docs/ROADMAP.md` for sequencing changes.
+- Update `README.md` for user-visible behavior, `docs/KEYBINDINGS.md` for key changes, and
+  `docs/ROADMAP.md` for sequencing changes. Don't paste code into docs; name the type and path.
 - Create or supersede an ADR when changing a durable architectural tradeoff.
 - Use focused Conventional Commits and stage files by explicit name.
 - Commit working snapshots and push completed work to the current upstream unless the user asks

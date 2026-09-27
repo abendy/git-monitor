@@ -82,5 +82,5 @@ Two existing constraints apply:
 - `Event` gains a `Control` variant carrying a request and a reply sender.
 - A `control` module owns the listener, protocol types, and request dispatch; `App` exposes
   handlers that read snapshot/selection state and perform navigation.
-- README and ARCHITECTURE document the socket location, protocol version, and capability tiers
+- README documents the socket location, protocol version, and capability tiers
   once implemented; this ADR moves to Accepted when the read tier ships.

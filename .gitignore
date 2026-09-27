@@ -15,7 +15,6 @@
 
 # LLM
 .claude/*
-!.claude/*.md
 
 # OS
 .DS_Store

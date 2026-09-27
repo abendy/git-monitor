@@ -19,7 +19,7 @@ identity (`SelectionKey`). Both can be answered without reading the screen.
 
 Two existing constraints apply:
 
-- `.claude/rust-dependencies.md` defers a serialization framework and any plugin protocol until
+- `AGENTS.md` (Dependencies) defers a serialization framework and any plugin protocol until
   a concrete provider or backend path needs them.
 - LON-139 rules out a generic external-binary/IPC *section platform* (outside programs
   contributing UI sections).

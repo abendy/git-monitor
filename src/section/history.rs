@@ -6,7 +6,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 
-use super::{Section, SectionAction, SectionId, SectionLines, SectionState};
+use super::{jump_hint, Section, SectionAction, SectionId, SectionLines, SectionState};
 use crate::actions::{ActionRegistry, ActionType, AppAction, AppState, Context};
 use crate::git::{BranchInfo, CommitDetail, GitCommand, GitStatus, HistoryMode};
 use crate::section::{render_commit_detail, render_commit_line, render_context_hint};
@@ -273,7 +273,7 @@ impl Section for HistorySection {
             .fg(Color::Cyan)
             .add_modifier(Modifier::BOLD);
 
-        let header_spans = vec![
+        let mut header_spans = vec![
             Span::raw(header_prefix),
             Span::styled(
                 format!("{collapse_indicator} "),
@@ -285,6 +285,9 @@ impl Section for HistorySection {
             ),
         ];
 
+        if !in_section {
+            header_spans.extend(jump_hint("h"));
+        }
         lines.push_marked(
             Line::from(header_spans),
             header_selected,

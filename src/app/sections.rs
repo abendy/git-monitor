@@ -36,6 +36,7 @@ impl App {
                     .cloned()
                     .collect(),
                 command_mode_active: self.is_command_mode(),
+                show_jump_hint: true,
                 action_registry: Some(self.action_registry.clone()),
                 app_state: Some(self.app_state()),
             });
@@ -51,6 +52,11 @@ impl App {
                     .cloned()
                     .collect(),
                 command_mode_active: self.is_command_mode(),
+                show_jump_hint: self
+                    .snapshot
+                    .status
+                    .staged_changes()
+                    .is_empty(),
                 action_registry: Some(self.action_registry.clone()),
                 app_state: Some(self.app_state()),
             });

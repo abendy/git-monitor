@@ -7,7 +7,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 
-use super::{Section, SectionAction, SectionId, SectionLines, SectionState};
+use super::{jump_hint, Section, SectionAction, SectionId, SectionLines, SectionState};
 use crate::actions::{Action, ActionRegistry, AppAction, AppState, Context};
 use crate::git::FileStatus;
 use crate::render::file_list::{render_file_entry, FileEntryView, FileListStyle};
@@ -71,6 +71,8 @@ pub struct FileListData {
     pub files: Vec<FileStatus>,
     /// Whether command mode is active (suppresses selection highlight)
     pub command_mode_active: bool,
+    /// Whether this header shows the `w` jump key (the first file section does)
+    pub show_jump_hint: bool,
     /// Action registry for hints
     pub action_registry: Option<ActionRegistry>,
     /// App state for action conditions
@@ -185,8 +187,8 @@ impl Section for FileListSection {
         let in_section = state.is_focused && !self.data.command_mode_active;
         let arrow = if in_section { "▾" } else { "▸" };
 
-        // Section header
-        lines.push(Line::from(Span::styled(
+        // Section header, with its jump key when the cursor is elsewhere
+        let mut header = vec![Span::styled(
             format!(
                 "  {arrow} {} ({file_count})",
                 self.config.name
@@ -194,7 +196,11 @@ impl Section for FileListSection {
             Style::default()
                 .fg(self.config.header_color)
                 .add_modifier(Modifier::BOLD),
-        )));
+        )];
+        if self.data.show_jump_hint && !in_section {
+            header.extend(jump_hint("w"));
+        }
+        lines.push(Line::from(header));
 
         // Hints (only when focused)
         if in_section {

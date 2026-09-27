@@ -61,11 +61,10 @@ See the [product roadmap](docs/ROADMAP.md) for sequencing and non-goals.
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-In normal mode the footer shows the same hints on every row:
-`j/k nav  g/G top/btm  m menu  e edit │ : cmd  w files  h history  b branches │ ? help  q quit`.
-`e edit` appears only when `$EDITOR` is set, `w files` only when there are changed files, and
-`b branches` only when there are other branches. In narrow panels the least-used hints drop first;
-`m menu`, `h history`, `w files`, `b branches`, and `? help` always stay.
+In normal mode the footer shows `j/k nav  g/G top/btm  m menu  e edit │ ? help  q quit`.
+`e edit` appears only when `$EDITOR` is set. Keys shown elsewhere stay out of the footer: `:` is on
+the command row, and each section header shows its jump key (`w`, `h`, `b`) while the cursor is in
+another section. In narrow panels the least-used hints drop first; `m menu` and `? help` always stay.
 
 ## Quick Start
 

@@ -232,13 +232,14 @@ The footer shows one of these, in priority order:
 1. **Command prompt**: `Enter execute  Esc cancel  Up/Down history`.
 2. **Toast**: a short message. Info is blue, success green, warning yellow, and error red.
 3. **Error**: the error message in red.
-4. **Hints**: `j/k nav  g/G top/btm  m menu  e edit │ : cmd  w files  h history  b branches │ ? help  q quit`.
+4. **Hints**: `j/k nav  g/G top/btm  m menu  e edit │ ? help  q quit`.
 
 The hints never change with the cursor. Context hints render inside the sections instead.
-`e edit` shows only when `$EDITOR` is set, `w files` only when there are changed files, and
-`b branches` only when there are other branches. When the line doesn't fit, hints drop in this
-order: `g/G`, `j/k`, `e`, `:`, `q`. `m menu`, `h history`, `w files`, `b branches`, and `? help`
-never drop. The popup footer drops `g/G`, then
+A key shown elsewhere stays out of the footer: `:` is on the command row, and section headers
+show their jump key (`w` on the first file section, `h` on History, `b` on Branches) while the
+cursor is in another section. `e edit` shows only when `$EDITOR` is set. When the line doesn't
+fit, hints drop in this order: `g/G`, `j/k`, `e`, `q`. `m menu` and `? help` never drop. The
+popup footer drops `g/G`, then
 `Ctrl+d/u`, then `j/k`, and always keeps `q close`.
 
 Hints are centered. Keys sit on dark gray bold chips. The border is dark gray.

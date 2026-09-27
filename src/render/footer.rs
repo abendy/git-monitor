@@ -71,7 +71,8 @@ pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
             ),
         ])
     } else {
-        let counts = app.section_item_counts();
+        // Keys shown elsewhere (`:` on the command row, `w`/`h`/`b` on section
+        // headers) stay out of the footer
         let mut navigate = vec![
             Hint::new("j/k", "nav", 2),
             Hint::new("g/G", "top/btm", 1),
@@ -81,22 +82,11 @@ pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
             navigate.push(Hint::new("e", "edit", 3));
         }
 
-        // Jump keys stay whenever there is somewhere to jump to
-        let mut jump = vec![Hint::new(":", "cmd", 4)];
-        if counts.staged + counts.working > 0 {
-            jump.push(Hint::new("w", "files", Hint::ALWAYS));
-        }
-        jump.push(Hint::new("h", "history", Hint::ALWAYS));
-        if !app.other_branches().is_empty() {
-            jump.push(Hint::new("b", "branches", Hint::ALWAYS));
-        }
-
         let groups = vec![
             navigate,
-            jump,
             vec![
                 Hint::new("?", "help", Hint::ALWAYS),
-                Hint::new("q", "quit", 5),
+                Hint::new("q", "quit", 4),
             ],
         ];
         fit_hints(groups, inner_width(area))

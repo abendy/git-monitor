@@ -6,7 +6,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 
-use super::{Section, SectionAction, SectionId, SectionLines, SectionState};
+use super::{jump_hint, Section, SectionAction, SectionId, SectionLines, SectionState};
 use crate::actions::{ActionRegistry, AppAction, AppState, Context};
 use crate::git::{BranchInfo, CommitDetail, GitCommand};
 use crate::section::{render_commit_detail, render_commit_line, render_context_hint};
@@ -135,8 +135,8 @@ impl Section for BranchesSection {
         let in_section = state.is_focused && !self.data.command_mode_active;
         let arrow = if in_section { "▾" } else { "▸" };
 
-        // Section header (not selectable)
-        lines.push(Line::from(Span::styled(
+        // Section header (not selectable), with its jump key when the cursor is elsewhere
+        let mut header = vec![Span::styled(
             format!(
                 "  {arrow} Branches ({})",
                 other_branches.len()
@@ -144,7 +144,11 @@ impl Section for BranchesSection {
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
-        )));
+        )];
+        if !in_section {
+            header.extend(jump_hint("b"));
+        }
+        lines.push(Line::from(header));
 
         let expanded_idx = self.expanded_branch_index(&other_branches);
         let commit_len = if expanded_idx.is_some() {

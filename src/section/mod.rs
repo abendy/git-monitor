@@ -175,6 +175,18 @@ pub struct SectionState {
     pub render_width: u16,
 }
 
+/// Spans that follow a section header with the key that jumps to it
+#[must_use]
+pub fn jump_hint(key: &'static str) -> [ratatui::text::Span<'static>; 2] {
+    [
+        ratatui::text::Span::raw("  "),
+        ratatui::text::Span::styled(
+            key,
+            ratatui::style::Style::default().fg(ratatui::style::Color::Cyan),
+        ),
+    ]
+}
+
 /// Lines rendered by a section, plus the row holding the cursor
 #[derive(Debug, Default)]
 pub struct SectionLines {

@@ -3,9 +3,10 @@ use std::sync::mpsc::Sender;
 use anyhow::Result;
 use tracing::warn;
 
-use super::{App, HistoryMode, PAGE_SIZE};
+use super::{App, PAGE_SIZE};
 use crate::command::ExternalCommand;
 use crate::event::Event;
+use crate::git::SnapshotRequest;
 use crate::tui::Tui;
 use crate::ui;
 use crate::watcher::{RepoWatcher, WatchEvent};
@@ -45,66 +46,40 @@ impl App {
         Ok(())
     }
 
-    /// Refresh git status and activity
+    /// Reload Git data and keep the cursor on the same item
     pub fn refresh_status(&mut self) {
         let selection = self.selection_key();
 
-        match self.repo.status() {
-            Ok(status) => {
-                self.status = status;
-                self.feedback.error = None;
-            }
-            Err(e) => {
-                warn!("Failed to refresh git status: {}", e);
-                self.feedback.error = Some(format!("Git error: {e}"));
-            }
+        if self.load_snapshot() {
+            self.feedback.error = None;
         }
-
-        // Refresh activity log based on history mode
-        self.refresh_activity();
-
-        // Refresh branches
-        if let Ok(branches) = self.repo.list_branches() {
-            self.branches = branches;
-        }
-
-        // Update section data
         self.update_sections();
 
         // Keep the cursor on the same item now that rows may have moved
         self.restore_selection(selection.as_ref());
     }
 
-    /// Refresh activity based on current history mode and page
-    pub(super) fn refresh_activity(&mut self) {
-        self.history_total_items = match self.history_mode {
-            HistoryMode::Reflog => self.repo.reflog_total().unwrap_or(0),
-            HistoryMode::CommitLog => self
-                .repo
-                .commit_log_total()
-                .unwrap_or(0),
+    /// Read a new snapshot for the current view and swap it in.
+    ///
+    /// On failure the previous snapshot stays and the error is shown.
+    /// Returns whether the swap happened.
+    pub(super) fn load_snapshot(&mut self) -> bool {
+        let request = SnapshotRequest {
+            history_mode: self.history_mode,
+            history_page: self.history_page,
+            page_size: PAGE_SIZE,
         };
-        self.history_total_pages = if self.history_total_items == 0 {
-            0
-        } else {
-            self.history_total_items
-                .div_ceil(PAGE_SIZE)
-        };
-
-        if self.history_total_pages == 0 {
-            self.history_page = 0;
-        } else if self.history_page >= self.history_total_pages {
-            self.history_page = self.history_total_pages - 1;
-        }
-
-        let skip = self.history_page * PAGE_SIZE;
-        let result = match self.history_mode {
-            HistoryMode::Reflog => self.repo.reflog(skip, PAGE_SIZE),
-            HistoryMode::CommitLog => self.repo.commit_log(skip, PAGE_SIZE),
-        };
-
-        if let Ok(activity) = result {
-            self.activity = activity;
+        match self.repo.snapshot(&request) {
+            Ok(snapshot) => {
+                self.history_page = snapshot.history_page;
+                self.snapshot = snapshot;
+                true
+            }
+            Err(e) => {
+                warn!("Failed to refresh repository: {e:#}");
+                self.feedback.error = Some(format!("Git error: {e:#}"));
+                false
+            }
         }
     }
 

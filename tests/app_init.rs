@@ -139,7 +139,7 @@ mod app_git_status {
         let app = App::new(dir.path().to_path_buf()).expect("create app");
 
         // Default branch should be master or main
-        let branch = app.status.branch.as_deref();
+        let branch = app.snapshot().status.branch.as_deref();
         assert!(
             branch == Some("master") || branch == Some("main"),
             "Expected master or main, got: {branch:?}"
@@ -151,7 +151,7 @@ mod app_git_status {
         let dir = create_test_repo();
         let app = App::new(dir.path().to_path_buf()).expect("create app");
 
-        assert!(app.status.files.is_empty());
+        assert!(app.snapshot().status.files.is_empty());
     }
 
     #[test]
@@ -167,8 +167,9 @@ mod app_git_status {
 
         let app = App::new(dir.path().to_path_buf()).expect("create app");
 
-        assert!(!app.status.files.is_empty());
+        assert!(!app.snapshot().status.files.is_empty());
         assert!(app
+            .snapshot()
             .status
             .files
             .iter()
@@ -215,6 +216,6 @@ mod app_git_status {
 
         let app = App::new(dir.path().to_path_buf()).expect("create app");
 
-        assert!(!app.status.files.is_empty());
+        assert!(!app.snapshot().status.files.is_empty());
     }
 }

@@ -41,18 +41,21 @@ impl App {
         match lookup.section_id {
             SectionId::Command => Some(SelectionKey::Command),
             SectionId::Staged => self
+                .snapshot
                 .status
                 .staged_changes()
                 .get(local)
                 .map(|f| SelectionKey::Staged(f.path.clone())),
             SectionId::Working => self
+                .snapshot
                 .status
                 .working_changes()
                 .get(local)
                 .map(|f| SelectionKey::Working(f.path.clone())),
             SectionId::History if local == 0 => Some(SelectionKey::HistoryHeader),
             SectionId::History => self
-                .activity
+                .snapshot
+                .history
                 .get(local - 1)
                 .and_then(|cmd| cmd.sha.clone())
                 .map(SelectionKey::HistoryCommit),
@@ -72,6 +75,7 @@ impl App {
             SelectionKey::Command => start(SectionId::Command),
             SelectionKey::Staged(path) => {
                 let local = self
+                    .snapshot
                     .status
                     .staged_changes()
                     .iter()
@@ -80,6 +84,7 @@ impl App {
             }
             SelectionKey::Working(path) => {
                 let local = self
+                    .snapshot
                     .status
                     .working_changes()
                     .iter()
@@ -92,7 +97,8 @@ impl App {
                     return None;
                 }
                 let local = self
-                    .activity
+                    .snapshot
+                    .history
                     .iter()
                     .position(|cmd| cmd.sha.as_ref() == Some(sha))?;
                 Some(start(SectionId::History)? + 1 + local)

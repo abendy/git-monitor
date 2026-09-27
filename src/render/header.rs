@@ -13,6 +13,7 @@ use crate::tui::Frame;
 /// Render the header bar
 pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let branch_name = app
+        .snapshot()
         .status
         .branch
         .as_deref()
@@ -29,17 +30,17 @@ pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
     ];
 
     // Ahead/behind indicators
-    if app.status.ahead > 0 || app.status.behind > 0 {
+    if app.snapshot().status.ahead > 0 || app.snapshot().status.behind > 0 {
         header_spans.push(Span::raw(" "));
-        if app.status.ahead > 0 {
+        if app.snapshot().status.ahead > 0 {
             header_spans.push(Span::styled(
-                format!("↑{}", app.status.ahead),
+                format!("↑{}", app.snapshot().status.ahead),
                 Style::default().fg(Color::Green),
             ));
         }
-        if app.status.behind > 0 {
+        if app.snapshot().status.behind > 0 {
             header_spans.push(Span::styled(
-                format!("↓{}", app.status.behind),
+                format!("↓{}", app.snapshot().status.behind),
                 Style::default().fg(Color::Red),
             ));
         }

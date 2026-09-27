@@ -1,7 +1,8 @@
 use tracing::warn;
 
-use super::{App, HistoryMode};
+use super::App;
 use crate::feedback::PopupContent;
+use crate::git::HistoryMode;
 use crate::section::SectionId;
 
 impl App {
@@ -12,15 +13,15 @@ impl App {
             HistoryMode::CommitLog => HistoryMode::Reflog,
         };
         self.history_page = 0; // Reset to first page when switching modes
-        self.refresh_activity();
+        self.load_snapshot();
         self.update_sections();
     }
 
     /// Go to next history page
     pub(super) fn next_history_page(&mut self) {
-        if self.history_page + 1 < self.history_total_pages {
+        if self.history_page + 1 < self.snapshot.history_pages {
             self.history_page += 1;
-            self.refresh_activity();
+            self.load_snapshot();
             self.select_first_history_commit();
             self.update_sections();
         }
@@ -30,7 +31,7 @@ impl App {
     pub(super) fn prev_history_page(&mut self) {
         if self.history_page > 0 {
             self.history_page -= 1;
-            self.refresh_activity();
+            self.load_snapshot();
             self.select_first_history_commit();
             self.update_sections();
         }
@@ -38,9 +39,17 @@ impl App {
 
     /// Select the first commit in the history section
     pub(super) fn select_first_history_commit(&mut self) {
-        if !self.activity.is_empty() {
-            let files_total =
-                self.status.staged_changes().len() + self.status.working_changes().len();
+        if !self.snapshot.history.is_empty() {
+            let files_total = self
+                .snapshot
+                .status
+                .staged_changes()
+                .len()
+                + self
+                    .snapshot
+                    .status
+                    .working_changes()
+                    .len();
             // First commit is after header: 1 (command) + files_total + 1 (header)
             self.selected = Some(1 + files_total + 1);
         }
@@ -51,7 +60,7 @@ impl App {
     pub(super) fn first_history_page(&mut self) {
         if self.history_page != 0 {
             self.history_page = 0;
-            self.refresh_activity();
+            self.load_snapshot();
             self.update_sections();
         }
     }
@@ -74,7 +83,7 @@ impl App {
         };
         // History header is at history_start_index(), commits start at +1
         let history_commits_start = self.history_start_index() + 1;
-        let history_commits_end = history_commits_start + self.activity.len();
+        let history_commits_end = history_commits_start + self.snapshot.history.len();
         selected >= history_commits_start && selected < history_commits_end
     }
 
@@ -177,12 +186,13 @@ impl App {
         let history_header_idx = self.history_start_index();
         if !self.history_collapsed && selected > history_header_idx {
             let history_commits_start = history_header_idx + 1;
-            let history_commits_end = history_commits_start + self.activity.len();
+            let history_commits_end = history_commits_start + self.snapshot.history.len();
 
             if selected >= history_commits_start && selected < history_commits_end {
                 let commit_idx = selected - history_commits_start;
                 return self
-                    .activity
+                    .snapshot
+                    .history
                     .get(commit_idx)
                     .and_then(|cmd| cmd.sha.clone());
             }

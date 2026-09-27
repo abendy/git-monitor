@@ -60,7 +60,7 @@ impl App {
     /// Show push confirmation menu
     #[allow(clippy::option_if_let_else)] // Match is clearer here
     pub(super) fn show_push_confirm(&mut self, force: bool) {
-        let branch = if let Some(b) = &self.status.branch {
+        let branch = if let Some(b) = &self.snapshot.status.branch {
             b.clone()
         } else {
             self.feedback.error = Some("No branch checked out".to_string());
@@ -68,7 +68,7 @@ impl App {
         };
 
         // Extract remote name from upstream (e.g., "origin/main" -> "origin")
-        let (remote, has_upstream) = match &self.status.upstream {
+        let (remote, has_upstream) = match &self.snapshot.status.upstream {
             Some(upstream) => {
                 let remote = upstream
                     .split('/')
@@ -84,7 +84,7 @@ impl App {
             branch,
             remote,
             has_upstream,
-            self.status.ahead,
+            self.snapshot.status.ahead,
             force,
         );
         self.menu_stack.push(Box::new(menu));
@@ -112,8 +112,8 @@ impl App {
             return None;
         }
 
-        let staged = self.status.staged_changes();
-        let working = self.status.working_changes();
+        let staged = self.snapshot.status.staged_changes();
+        let working = self.snapshot.status.working_changes();
         let staged_len = staged.len();
 
         // Adjust for command section at index 0

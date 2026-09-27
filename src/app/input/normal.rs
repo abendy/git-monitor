@@ -76,7 +76,7 @@ impl App {
             KeyCode::Char(']') => {
                 if self.is_in_history() || self.is_on_history_header() {
                     // Use >= because remote-only commits may add extra items beyond PAGE_SIZE
-                    if self.activity.len() >= PAGE_SIZE {
+                    if self.snapshot.history.len() >= PAGE_SIZE {
                         self.next_history_page();
                     }
                 }

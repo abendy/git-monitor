@@ -8,8 +8,7 @@ use ratatui::text::{Line, Span};
 
 use super::{Section, SectionAction, SectionId, SectionLines, SectionState};
 use crate::actions::{ActionRegistry, ActionType, AppAction, AppState, Context};
-use crate::app::HistoryMode;
-use crate::git::{BranchInfo, CommitDetail, GitCommand, GitStatus};
+use crate::git::{BranchInfo, CommitDetail, GitCommand, GitStatus, HistoryMode};
 use crate::section::{render_commit_detail, render_commit_line, render_context_hint};
 
 /// Data needed by the history section for rendering

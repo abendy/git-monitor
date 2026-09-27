@@ -19,7 +19,16 @@ impl App {
 
     /// Jump to working area (first file in staged or working changes)
     pub(super) fn jump_to_working(&mut self) {
-        let files_total = self.status.staged_changes().len() + self.status.working_changes().len();
+        let files_total = self
+            .snapshot
+            .status
+            .staged_changes()
+            .len()
+            + self
+                .snapshot
+                .status
+                .working_changes()
+                .len();
         if files_total == 0 {
             return;
         }
@@ -31,15 +40,23 @@ impl App {
 
     /// Jump to history and expand it, landing on most recent commit
     pub(super) fn jump_to_history(&mut self) {
-        if self.activity.is_empty() {
+        if self.snapshot.history.is_empty() {
             return;
         }
 
         // Expand history (collapses any expanded branch)
         self.expand_history();
 
-        let staged_len = self.status.staged_changes().len();
-        let working_len = self.status.working_changes().len();
+        let staged_len = self
+            .snapshot
+            .status
+            .staged_changes()
+            .len();
+        let working_len = self
+            .snapshot
+            .status
+            .working_changes()
+            .len();
         let files_total = staged_len + working_len;
 
         // Select first commit (skip header)
@@ -81,8 +98,8 @@ impl App {
 
                 // Are we on the last history commit about to move to branches?
                 let on_last_history_commit = !self.history_collapsed
-                    && !self.activity.is_empty()
-                    && idx == self.history_start_index() + self.activity.len();
+                    && !self.snapshot.history.is_empty()
+                    && idx == self.history_start_index() + self.snapshot.history.len();
 
                 if on_last_history_commit {
                     // Moving from last history commit to first branch's first commit
@@ -114,12 +131,12 @@ impl App {
                 self.close_expanded_commit();
 
                 if self.history_collapsed
-                    && !self.activity.is_empty()
+                    && !self.snapshot.history.is_empty()
                     && idx == self.branches_start_index()
                 {
                     self.expand_history();
                     let history_header_idx = self.history_start_index();
-                    self.selected = Some(history_header_idx + self.activity.len());
+                    self.selected = Some(history_header_idx + self.snapshot.history.len());
                     return;
                 }
 

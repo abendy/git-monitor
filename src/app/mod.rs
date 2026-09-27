@@ -4,7 +4,8 @@ use crate::actions::ActionRegistry;
 use crate::command::{CommandExecutor, CommandHistory, ExternalCommand};
 use crate::config::GitConfig;
 use crate::feedback::FeedbackManager;
-use crate::git::{BranchInfo, CommitDetail, GitCommand, GitRepo, GitStatus};
+pub use crate::git::HistoryMode;
+use crate::git::{CommitDetail, GitCommand, GitRepo, RepoSnapshot};
 use crate::input::Keymap;
 use crate::menu::MenuStack;
 use crate::section::{
@@ -26,16 +27,6 @@ mod selection;
 /// Page size for history pagination
 const PAGE_SIZE: usize = 50;
 
-/// History display mode
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum HistoryMode {
-    /// Show reflog (git actions)
-    Reflog,
-    /// Show commit log
-    #[default]
-    CommitLog,
-}
-
 /// View mode for the application body
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum ViewMode {
@@ -52,10 +43,8 @@ pub struct App {
     pub repo_path: PathBuf,
     /// Git repository handle
     repo: GitRepo,
-    /// Current git status
-    pub status: GitStatus,
-    /// Recent git activity
-    pub activity: Vec<GitCommand>,
+    /// Git data from the latest refresh (replaced whole, never edited in place)
+    snapshot: RepoSnapshot,
     /// Git config with aliases
     pub config: GitConfig,
     /// File watcher
@@ -87,16 +76,10 @@ pub struct App {
     pub expanded_detail: Option<CommitDetail>,
     /// Selected file index within expanded commit (None = on commit header)
     pub expanded_file_idx: Option<usize>,
-    /// List of local branches
-    pub branches: Vec<BranchInfo>,
     /// Whether the History section (current branch) is collapsed
     pub history_collapsed: bool,
-    /// Current page offset for history pagination (0-indexed)
+    /// Requested history page (0-indexed); synced to the page the snapshot loaded
     pub history_page: usize,
-    /// Total history items for current mode
-    pub history_total_items: usize,
-    /// Total pages for history pagination
-    pub history_total_pages: usize,
     /// Which non-current branch is expanded (showing its commits)
     pub expanded_branch: Option<String>,
     /// Cached commits for the expanded branch
@@ -126,4 +109,12 @@ pub struct App {
     pub branches_section: BranchesSection,
     /// Section registry for index calculations
     section_registry: SectionRegistry,
+}
+
+impl App {
+    /// Git data from the latest refresh
+    #[must_use]
+    pub const fn snapshot(&self) -> &RepoSnapshot {
+        &self.snapshot
+    }
 }

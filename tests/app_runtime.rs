@@ -145,7 +145,7 @@ mod refresh_status {
         let mut app = App::new(dir.path().to_path_buf()).expect("create app");
 
         // Initially no files
-        let initial_count = app.status.files.len();
+        let initial_count = app.snapshot().status.files.len();
 
         // Create a new file
         std::fs::write(
@@ -159,7 +159,7 @@ mod refresh_status {
 
         // Should detect the new file
         assert!(
-            app.status.files.len() > initial_count,
+            app.snapshot().status.files.len() > initial_count,
             "Expected file count to increase after refresh"
         );
     }
@@ -198,14 +198,14 @@ mod refresh_status {
                 .expect("create branch");
         }
 
-        let initial_branch_count = app.branches.len();
+        let initial_branch_count = app.snapshot().branches.len();
 
         // Refresh status
         app.refresh_status();
 
         // Should detect the new branch
         assert!(
-            app.branches.len() > initial_branch_count,
+            app.snapshot().branches.len() > initial_branch_count,
             "Expected branch count to increase after refresh"
         );
     }
@@ -217,7 +217,7 @@ mod refresh_status {
 
         // Activity should be populated after init (refresh_status is called in new())
         assert!(
-            !app.activity.is_empty(),
+            !app.snapshot().history.is_empty(),
             "Activity should be populated after init"
         );
     }
@@ -235,7 +235,10 @@ mod refresh_status {
 
         // Selection should be clamped to valid range
         if let Some(selected) = app.selected {
-            let total = app.status.files.len() + app.activity.len() + app.branches.len() + 2; // rough total
+            let total = app.snapshot().status.files.len()
+                + app.snapshot().history.len()
+                + app.snapshot().branches.len()
+                + 2; // rough total
             assert!(
                 selected < total + 10, // Allow some buffer
                 "Selection should be clamped to reasonable bounds"
@@ -256,7 +259,7 @@ mod refresh_activity {
 
         // Activity should be populated from commits
         assert!(
-            !app.activity.is_empty(),
+            !app.snapshot().history.is_empty(),
             "Activity should contain commits in CommitLog mode"
         );
     }
@@ -268,9 +271,9 @@ mod refresh_activity {
 
         // Should have at least 6 commits (initial + 5 added)
         assert!(
-            app.history_total_items >= 6,
+            app.snapshot().history_total >= 6,
             "Expected at least 6 history items, got {}",
-            app.history_total_items
+            app.snapshot().history_total
         );
     }
 
@@ -281,9 +284,9 @@ mod refresh_activity {
 
         // With 6 items and PAGE_SIZE of 50, should be 1 page
         assert!(
-            app.history_total_pages >= 1,
+            app.snapshot().history_pages >= 1,
             "Expected at least 1 page, got {}",
-            app.history_total_pages
+            app.snapshot().history_pages
         );
     }
 
@@ -305,7 +308,8 @@ mod refresh_activity {
 
         // Check that activity contains expected commit messages
         let messages: Vec<_> = app
-            .activity
+            .snapshot()
+            .history
             .iter()
             .map(|c| &c.message)
             .collect();
@@ -335,7 +339,7 @@ mod refresh_activity {
 
         // Reflog should have entries (at least commit operations)
         assert!(
-            !app.activity.is_empty(),
+            !app.snapshot().history.is_empty(),
             "Reflog should have entries after commits"
         );
     }
@@ -406,7 +410,7 @@ mod pagination_state {
         app.refresh_status();
 
         assert!(
-            app.history_page < app.history_total_pages || app.history_total_pages == 0,
+            app.history_page < app.snapshot().history_pages || app.snapshot().history_pages == 0,
             "Page should be clamped to valid range"
         );
     }
@@ -423,7 +427,7 @@ mod pagination_state {
         if let Ok(app) = app {
             // With no commits, should have 0 or 1 pages
             assert!(
-                app.history_total_pages <= 1,
+                app.snapshot().history_pages <= 1,
                 "Empty repo should have 0 or 1 history pages"
             );
         }

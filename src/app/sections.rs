@@ -29,6 +29,7 @@ impl App {
         self.staged_section
             .update(FileListData {
                 files: self
+                    .snapshot
                     .status
                     .staged_changes()
                     .into_iter()
@@ -43,6 +44,7 @@ impl App {
         self.working_section
             .update(FileListData {
                 files: self
+                    .snapshot
                     .status
                     .working_changes()
                     .into_iter()
@@ -56,18 +58,19 @@ impl App {
         // Update history section
         self.history_section
             .update(HistorySectionData {
-                activity: self.activity.clone(),
+                activity: self.snapshot.history.clone(),
                 history_mode: self.history_mode,
                 is_collapsed: self.history_collapsed,
                 page: self.history_page,
-                total_items: self.history_total_items,
-                total_pages: self.history_total_pages,
+                total_items: self.snapshot.history_total,
+                total_pages: self.snapshot.history_pages,
                 current_branch: self
+                    .snapshot
                     .branches
                     .iter()
                     .find(|b| b.is_current)
                     .cloned(),
-                status: self.status.clone(),
+                status: self.snapshot.status.clone(),
                 expanded_commit: self.expanded_commit.clone(),
                 expanded_detail: self.expanded_detail.clone(),
                 expanded_file_idx: self.expanded_file_idx,
@@ -79,7 +82,7 @@ impl App {
         // Update branches section
         self.branches_section
             .update(BranchesSectionData {
-                branches: self.branches.clone(),
+                branches: self.snapshot.branches.clone(),
                 expanded_branch: self.expanded_branch.clone(),
                 expanded_branch_commits: self.expanded_branch_commits.clone(),
                 expanded_commit: self.expanded_commit.clone(),
@@ -99,12 +102,20 @@ impl App {
     pub fn section_item_counts(&self) -> SectionItemCounts {
         SectionItemCounts {
             command: 1, // Command section always has 1 item
-            staged: self.status.staged_changes().len(),
-            working: self.status.working_changes().len(),
+            staged: self
+                .snapshot
+                .status
+                .staged_changes()
+                .len(),
+            working: self
+                .snapshot
+                .status
+                .working_changes()
+                .len(),
             history: if self.history_collapsed {
                 1 // Just the header when collapsed
             } else {
-                1 + self.activity.len() // Header + commits
+                1 + self.snapshot.history.len() // Header + commits
             },
             branches: self.branch_items_len(),
         }
@@ -150,12 +161,21 @@ impl App {
     #[must_use]
     pub fn app_state(&self) -> AppState {
         AppState {
-            ahead: self.status.ahead,
-            behind: self.status.behind,
-            has_upstream: self.status.upstream.is_some(),
-            staged_count: self.status.staged_changes().len(),
-            working_count: self.status.working_changes().len(),
+            ahead: self.snapshot.status.ahead,
+            behind: self.snapshot.status.behind,
+            has_upstream: self.snapshot.status.upstream.is_some(),
+            staged_count: self
+                .snapshot
+                .status
+                .staged_changes()
+                .len(),
+            working_count: self
+                .snapshot
+                .status
+                .working_changes()
+                .len(),
             untracked_count: self
+                .snapshot
                 .status
                 .files
                 .iter()

@@ -319,13 +319,13 @@ mod refresh_handling {
         .expect("write file");
 
         // Initial status shouldn't have the file
-        let initial_count = app.status.files.len();
+        let initial_count = app.snapshot().status.files.len();
 
         app.handle_key(key_char('r'));
 
         // After refresh, the new file should appear
         // Note: This depends on proper refresh implementation
-        assert!(app.status.files.len() >= initial_count);
+        assert!(app.snapshot().status.files.len() >= initial_count);
     }
 }
 
@@ -989,10 +989,11 @@ mod expanded_commit_caching {
         assert!(app.expanded_detail.is_none());
 
         // Navigate to a commit (if there are any)
-        if !app.activity.is_empty() {
+        if !app.snapshot().history.is_empty() {
             // Get the SHA of first commit
             if let Some(sha) = app
-                .activity
+                .snapshot()
+                .history
                 .first()
                 .and_then(|c| c.sha.clone())
             {
@@ -1022,7 +1023,7 @@ mod refresh_operations {
         let mut app = App::new(dir.path().to_path_buf()).expect("create app");
 
         // Record initial file count
-        let initial_count = app.status.files.len();
+        let initial_count = app.snapshot().status.files.len();
 
         // Create a new file
         std::fs::write(
@@ -1036,7 +1037,7 @@ mod refresh_operations {
 
         // Should detect the new file
         assert!(
-            app.status.files.len() > initial_count,
+            app.snapshot().status.files.len() > initial_count,
             "Expected files to increase after refresh"
         );
     }

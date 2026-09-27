@@ -19,7 +19,8 @@ impl App {
 
     /// Get branches excluding the current one (for accordion display)
     pub fn other_branches(&self) -> Vec<&BranchInfo> {
-        self.branches
+        self.snapshot
+            .branches
             .iter()
             .filter(|b| !b.is_current)
             .collect()

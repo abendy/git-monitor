@@ -47,6 +47,8 @@ impl App {
 
     /// Refresh git status and activity
     pub fn refresh_status(&mut self) {
+        let selection = self.selection_key();
+
         match self.repo.status() {
             Ok(status) => {
                 self.status = status;
@@ -69,8 +71,8 @@ impl App {
         // Update section data
         self.update_sections();
 
-        // Clamp selection to valid bounds after item counts change
-        self.clamp_selection();
+        // Keep the cursor on the same item now that rows may have moved
+        self.restore_selection(selection.as_ref());
     }
 
     /// Refresh activity based on current history mode and page

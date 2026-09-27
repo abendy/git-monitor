@@ -21,6 +21,7 @@ mod input;
 mod navigation;
 mod runtime;
 mod sections;
+mod selection;
 
 /// Page size for history pagination
 const PAGE_SIZE: usize = 50;

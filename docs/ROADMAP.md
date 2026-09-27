@@ -42,10 +42,9 @@ The section registry is implemented for built-in sections; it is not a dynamic p
 - Give refreshes explicit reasons, timestamps, and failure state.
 - Coalesce filesystem, timer, command, and provider updates into predictable state transitions.
 - Establish stable repository/worktree identity for correlating later provider and agent events.
-- Add the second VCS use case with a narrow `jj` read adapter before generalizing a backend trait.
 
-**Exit:** Git and `jj` can populate a small shared repository summary without provider code or UI
-code knowing how either command-line tool stores its state.
+**Exit:** refreshes never move the cursor or reset the view, the screen shows how fresh the data is,
+and each repository and worktree has a stable identity that later provider and agent data can use.
 
 ### 2. GitHub Read Adapter
 
@@ -76,8 +75,7 @@ required.
 - Add narrowly justified follow-ups such as rerunning checks or opening a review request.
 - Record action progress and result in the same workflow item; never hide a failed mutation.
 
-**Exit:** a developer can safely complete the common green-PR handoff without turning the TUI into
-a full forge client.
+**Exit:** a developer can safely complete the common green-PR handoff from the dashboard.
 
 ### 5. Additional Providers
 
@@ -98,4 +96,4 @@ a full forge client.
 - A general workflow engine.
 - External binary section protocols.
 - User-authored dynamic layouts.
-- A full issue tracker, log viewer, or replacement for provider web UIs.
+- A `jj` backend, until `jj` is in daily use.

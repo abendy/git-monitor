@@ -11,6 +11,7 @@ These work on every row unless a section below gives the key another meaning.
 |-----|--------|
 | `j` / `↓` | Move down |
 | `k` / `↑` | Move up |
+| `J` / `K` | Move down / up without leaving the current section; on History commits, turn the page at the edges |
 | `g` / `G` | First / last row |
 | `w` | Jump to the first staged or working file |
 | `h` | Jump to History, expand it, and select the newest commit |
@@ -60,7 +61,7 @@ On the History header:
 |-----|--------|
 | `Space` | Collapse or expand History |
 | `h` | Switch between commit log and reflog |
-| `[` / `]` | Previous / next page |
+| `[` / `]` | Previous / next page; returns to where the cursor was on that page |
 
 On a commit:
 
@@ -68,7 +69,7 @@ On a commit:
 |-----|--------|
 | `Space` | Expand or collapse the commit |
 | `h` | Switch between commit log and reflog |
-| `[` / `]` | Previous / next page |
+| `[` / `]` | Previous / next page; returns to where the cursor was on that page |
 | `y` | Copy short SHA |
 | `c` | Copy SHA (full when the commit is expanded, short otherwise) |
 | `R` | Interactive rebase onto the commit |

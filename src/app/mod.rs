@@ -27,6 +27,26 @@ mod selection;
 /// Page size for history pagination
 const PAGE_SIZE: usize = 50;
 
+/// Where the cursor lands after turning a history page
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PageLanding {
+    /// Where it was the last time this page was shown, else the first commit
+    Remembered,
+    /// The first commit on the page
+    First,
+    /// The last commit on the page
+    Last,
+}
+
+/// Cursor spot remembered for one history page
+#[derive(Debug, Clone)]
+pub(crate) struct PageCursor {
+    /// Selected commit
+    sha: String,
+    /// Body scroll offset at the time
+    scroll: usize,
+}
+
 /// View mode for the application body
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum ViewMode {
@@ -80,6 +100,8 @@ pub struct App {
     pub history_collapsed: bool,
     /// Requested history page (0-indexed); synced to the page the snapshot loaded
     pub history_page: usize,
+    /// Cursor spot per history page, so paging back returns to it
+    history_page_cursors: std::collections::HashMap<(HistoryMode, usize), PageCursor>,
     /// Which non-current branch is expanded (showing its commits)
     pub expanded_branch: Option<String>,
     /// Pending external command (requires TUI suspension)

@@ -1,4 +1,4 @@
-use super::App;
+use super::{App, PageLanding};
 use crate::section::SectionId;
 
 impl App {
@@ -186,5 +186,51 @@ impl App {
         }
 
         self.selected = Some(0);
+    }
+
+    /// Move one row within the current section (`J`/`K`).
+    ///
+    /// Never leaves the section. On History commits it turns the page at the edges.
+    pub(super) fn move_within_section(&mut self, down: bool) {
+        let Some(index) = self.selected else {
+            self.selected = Some(0);
+            return;
+        };
+
+        if self.is_in_history() {
+            let first = self.history_start_index() + 1;
+            let last = first
+                + self
+                    .snapshot
+                    .history
+                    .len()
+                    .saturating_sub(1);
+            if down && index == last {
+                self.turn_history_page(true, PageLanding::First);
+                return;
+            }
+            if !down && index == first && self.history_page > 0 {
+                self.turn_history_page(false, PageLanding::Last);
+                return;
+            }
+        }
+
+        let Some(target) = (if down {
+            index.checked_add(1)
+        } else {
+            index.checked_sub(1)
+        }) else {
+            return;
+        };
+        let counts = self.section_item_counts();
+        let section_of = |i| {
+            self.section_registry
+                .lookup_index(i, &counts)
+                .map(|lookup| lookup.section_id)
+        };
+        if section_of(index).is_some() && section_of(index) == section_of(target) {
+            self.close_expanded_commit();
+            self.selected = Some(target);
+        }
     }
 }

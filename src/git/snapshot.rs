@@ -10,7 +10,7 @@ use anyhow::{Context as _, Result};
 use super::{BranchInfo, GitCommand, GitRepo, GitStatus};
 
 /// History display mode
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum HistoryMode {
     /// Show reflog (git actions)
     Reflog,

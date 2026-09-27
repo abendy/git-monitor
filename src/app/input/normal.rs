@@ -247,6 +247,14 @@ impl App {
                     self.select_prev();
                 }
             }
+            // Move within the current section; History turns pages at the edges
+            KeyCode::Char('J') => {
+                self.move_within_section(true);
+            }
+            KeyCode::Char('K') => {
+                self.move_within_section(false);
+            }
+
             KeyCode::Char('G') => {
                 self.select_last();
             }

@@ -1,6 +1,7 @@
 use tracing::warn;
 
-use super::App;
+use super::selection::SelectionKey;
+use super::{App, PageCursor, PageLanding};
 use crate::feedback::PopupContent;
 use crate::git::HistoryMode;
 use crate::section::SectionId;
@@ -17,23 +18,86 @@ impl App {
         self.update_sections();
     }
 
-    /// Go to next history page
+    /// Go to next history page, back to where the cursor was on it last time
     pub(super) fn next_history_page(&mut self) {
-        if self.history_page + 1 < self.snapshot.history_pages {
-            self.history_page += 1;
-            self.load_snapshot();
-            self.select_first_history_commit();
-            self.update_sections();
+        self.turn_history_page(true, PageLanding::Remembered);
+    }
+
+    /// Go to previous history page, back to where the cursor was on it last time
+    pub(super) fn prev_history_page(&mut self) {
+        self.turn_history_page(false, PageLanding::Remembered);
+    }
+
+    /// Turn one history page and place the cursor. Returns false at either end.
+    pub(super) fn turn_history_page(&mut self, forward: bool, landing: PageLanding) -> bool {
+        let target = if forward {
+            if self.history_page + 1 >= self.snapshot.history_pages {
+                return false;
+            }
+            self.history_page + 1
+        } else {
+            let Some(target) = self.history_page.checked_sub(1) else {
+                return false;
+            };
+            target
+        };
+
+        self.remember_history_cursor();
+        self.history_page = target;
+        let _ = self.load_snapshot();
+
+        match landing {
+            PageLanding::Remembered => {
+                if !self.restore_history_cursor() {
+                    self.select_first_history_commit();
+                }
+            }
+            PageLanding::First => self.select_first_history_commit(),
+            PageLanding::Last => self.select_last_history_commit(),
+        }
+        self.update_sections();
+        true
+    }
+
+    /// Save the selected commit and scroll position for the current page
+    fn remember_history_cursor(&mut self) {
+        if !self.is_in_history() {
+            return;
+        }
+        if let Some(sha) = self.selected_activity_sha() {
+            self.history_page_cursors.insert(
+                (self.history_mode, self.history_page),
+                PageCursor {
+                    sha,
+                    scroll: self.body_scroll,
+                },
+            );
         }
     }
 
-    /// Go to previous history page
-    pub(super) fn prev_history_page(&mut self) {
-        if self.history_page > 0 {
-            self.history_page -= 1;
-            self.load_snapshot();
-            self.select_first_history_commit();
-            self.update_sections();
+    /// Put the cursor back where it was on this page. Returns false if there is no saved spot.
+    fn restore_history_cursor(&mut self) -> bool {
+        let Some(saved) = self
+            .history_page_cursors
+            .get(&(self.history_mode, self.history_page))
+        else {
+            return false;
+        };
+        let scroll = saved.scroll;
+        let Some(index) = self.index_for_key(&SelectionKey::HistoryCommit(
+            saved.sha.clone(),
+        )) else {
+            return false;
+        };
+        self.selected = Some(index);
+        self.body_scroll = scroll;
+        true
+    }
+
+    /// Select the last commit on the current history page
+    pub(super) fn select_last_history_commit(&mut self) {
+        if !self.snapshot.history.is_empty() {
+            self.selected = Some(self.history_start_index() + self.snapshot.history.len());
         }
     }
 

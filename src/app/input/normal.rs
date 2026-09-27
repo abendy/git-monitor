@@ -17,23 +17,6 @@ impl App {
             return;
         }
 
-        // Auto-enter command mode when typing on command section
-        // (except for quit, help, and special keys)
-        if self.selected == Some(0) {
-            if let KeyCode::Char(c) = key.code {
-                if !matches!(c, 'q' | '?' | ':' | 'o')
-                    && !key
-                        .modifiers
-                        .contains(KeyModifiers::CONTROL)
-                {
-                    self.enter_command_mode();
-                    self.command_input.push(c);
-                    self.update_sections();
-                    return;
-                }
-            }
-        }
-
         match key.code {
             // Quit
             KeyCode::Char('q') | KeyCode::Esc => {

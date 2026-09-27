@@ -216,6 +216,12 @@ impl App {
             return true;
         };
 
+        // The command row is a launch point, not a list: step off it like `j`
+        if index == 0 && down {
+            self.select_next();
+            return self.selected != Some(0);
+        }
+
         if self.is_in_history() {
             let first = self.history_start_index() + 1;
             let last = first

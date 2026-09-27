@@ -39,10 +39,9 @@ The command row is the top row of the list.
 | `Enter` | Open the command prompt |
 | `↑` | Open the prompt with the last command (when history exists) |
 | `o` | Show the last command output in a popup |
-| Other characters | Open the prompt and type that character |
 
-Global keys still work here. Other characters, including `j`, `k`, `g`, `G`, and `m`, start a
-command instead. Use `↓` to leave the row.
+All other keys work as they do anywhere else. `:` or `Enter` opens the prompt; letters don't start a
+command on their own. `J` steps off the row like `j`.
 
 ## Staged and Working Files
 

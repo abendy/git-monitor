@@ -1292,3 +1292,53 @@ mod command_prompt {
         );
     }
 }
+
+mod command_row_keys {
+    use super::*;
+
+    #[test]
+    fn j_moves_off_the_command_row_instead_of_typing() {
+        let dir = create_repo_with_files();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+        app.selected = Some(0);
+
+        app.handle_key(key_char('j'));
+
+        assert_eq!(
+            app.view_mode,
+            ViewMode::Normal,
+            "no command mode"
+        );
+        assert!(
+            app.command_input.is_empty(),
+            "nothing typed"
+        );
+        assert_ne!(app.selected, Some(0), "moved down");
+    }
+
+    #[test]
+    fn m_opens_the_menu_from_the_command_row() {
+        let dir = create_repo_with_files();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+        app.selected = Some(0);
+
+        app.handle_key(key_char('m'));
+
+        assert!(app.menu_stack.is_active(), "menu open");
+        assert!(
+            app.command_input.is_empty(),
+            "nothing typed"
+        );
+    }
+
+    #[test]
+    fn colon_still_opens_the_prompt() {
+        let dir = create_repo_with_files();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+        app.selected = Some(0);
+
+        app.handle_key(key_char(':'));
+
+        assert_eq!(app.view_mode, ViewMode::Command);
+    }
+}

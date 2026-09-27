@@ -245,22 +245,10 @@ impl App {
             return;
         }
 
-        // Parse command - for now still restrict to git commands for safety
-        // TODO: Make this configurable for allowed command prefixes
-        let Some(request) = CommandRequest::from_input(input) else {
+        // A typed command is its own confirmation: run any command line as typed
+        let Some(request) = CommandRequest::shell_line(input) else {
             return;
         };
-
-        if request.program != "git" {
-            self.feedback.error = Some(String::from(
-                "Only git commands are allowed",
-            ));
-            self.command_input.clear();
-            self.command_draft = None;
-            self.command_history.reset_navigation();
-            self.update_sections();
-            return;
-        }
 
         // Execute using unified framework (source = Palette)
         self.run_command(request.with_source(CommandSource::Palette));

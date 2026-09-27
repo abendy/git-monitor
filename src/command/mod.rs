@@ -85,6 +85,33 @@ impl CommandRequest {
         }
     }
 
+    /// Create a request that runs a typed command line through the user's shell.
+    ///
+    /// The whole line goes to `$SHELL -c` (falling back to `sh`), so quotes,
+    /// pipes, and variables behave as they do at a prompt. Use only for text
+    /// the user typed; never assemble the line from other data.
+    pub fn shell_line(input: &str) -> Option<Self> {
+        let line = input.trim();
+        if line.is_empty() {
+            return None;
+        }
+
+        let shell = std::env::var("SHELL")
+            .ok()
+            .filter(|shell| !shell.trim().is_empty())
+            .unwrap_or_else(|| "sh".to_string());
+
+        Some(Self {
+            program: shell,
+            args: vec!["-c".to_string(), line.to_string()],
+            display_name: line.to_string(),
+            cwd: None,
+            source: CommandSource::Palette,
+            feedback: FeedbackPolicy::default(),
+            refresh_after: true,
+        })
+    }
+
     /// Create a command request from a full command string
     pub fn from_input(input: &str) -> Option<Self> {
         let parts: Vec<&str> = input.split_whitespace().collect();
@@ -213,6 +240,20 @@ mod tests {
                 request.args,
                 vec!["log", "--oneline", "-n", "10"]
             );
+        }
+
+        #[test]
+        fn shell_line_passes_the_whole_line_to_the_shell() {
+            let line = r#"echo "two words" | tr a-z A-Z"#;
+            let request = CommandRequest::shell_line(&format!("  {line}  ")).unwrap();
+
+            assert_eq!(request.args, vec!["-c", line]);
+            assert_eq!(request.display_name, line);
+        }
+
+        #[test]
+        fn shell_line_returns_none_for_blank_input() {
+            assert!(CommandRequest::shell_line("   ").is_none());
         }
 
         #[test]

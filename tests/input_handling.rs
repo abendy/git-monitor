@@ -1254,3 +1254,41 @@ mod boundary_conditions {
         assert!(!app.running);
     }
 }
+
+mod command_prompt {
+    use super::*;
+
+    fn type_line(app: &mut App, line: &str) {
+        app.handle_key(key_char(':'));
+        for c in line.chars() {
+            app.handle_key(key_char(c));
+        }
+        app.handle_key(key(KeyCode::Enter));
+    }
+
+    #[test]
+    fn runs_non_git_commands_with_shell_syntax() {
+        let dir = create_test_repo();
+        let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+
+        type_line(
+            &mut app,
+            r#"echo "two words" | tr a-z A-Z"#,
+        );
+
+        let output = app
+            .feedback
+            .output()
+            .expect("command output shown");
+        assert!(
+            output.success,
+            "command succeeded: {}",
+            output.output
+        );
+        assert!(
+            output.output.contains("TWO WORDS"),
+            "shell handled quotes and the pipe: {}",
+            output.output
+        );
+    }
+}

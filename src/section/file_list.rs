@@ -11,6 +11,7 @@ use super::{jump_hint, Section, SectionAction, SectionId, SectionLines, SectionS
 use crate::actions::{Action, ActionRegistry, AppAction, AppState, Context};
 use crate::git::FileStatus;
 use crate::render::file_list::{render_file_entry, FileEntryView, FileListStyle};
+use crate::section::render_context_hints;
 
 /// Selects which fields to extract from [`FileStatus`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -112,44 +113,22 @@ impl FileListSection {
         self.data = data;
     }
 
-    /// Render context hints for file actions.
-    fn render_hints(&self) -> Line<'static> {
-        let Some(ref registry) = self.data.action_registry else {
-            return Line::from("");
+    /// Render context hints for file actions, wrapped to the panel width
+    fn render_hints(&self, render_width: u16) -> Vec<Line<'static>> {
+        let (Some(registry), Some(state)) = (
+            &self.data.action_registry,
+            &self.data.app_state,
+        ) else {
+            return Vec::new();
         };
-        let Some(ref state) = self.data.app_state else {
-            return Line::from("");
-        };
 
-        let actions = registry.hint_actions_for_context(self.config.context, state);
-
-        if actions.is_empty() {
-            return Line::from("");
-        }
-
-        let mut spans = vec![Span::raw("  ")];
-        let italic_gray = Style::default()
-            .fg(Color::DarkGray)
-            .add_modifier(Modifier::ITALIC);
-
-        for (i, action) in actions.iter().take(5).enumerate() {
-            if i > 0 {
-                spans.push(Span::styled(
-                    " · ",
-                    Style::default().fg(Color::DarkGray),
-                ));
-            }
-            spans.push(Span::styled(
-                format!("{} ", action.key),
-                Style::default().fg(Color::Cyan),
-            ));
-            spans.push(Span::styled(
-                action.label.clone(),
-                italic_gray,
-            ));
-        }
-
-        Line::from(spans)
+        render_context_hints(
+            registry,
+            self.config.context,
+            state,
+            render_width,
+            "  ",
+        )
     }
 }
 
@@ -204,7 +183,9 @@ impl Section for FileListSection {
 
         // Hints (only when focused)
         if in_section {
-            lines.push(self.render_hints());
+            for line in self.render_hints(state.render_width) {
+                lines.push(line);
+            }
         }
 
         // File entries using shared renderer

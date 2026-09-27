@@ -143,6 +143,7 @@ pub fn render_commit_detail(
     expanded_file_idx: Option<usize>,
     action_registry: Option<&ActionRegistry>,
     app_state: Option<&AppState>,
+    render_width: u16,
 ) -> SectionLines {
     let mut lines = SectionLines::default();
 
@@ -243,10 +244,15 @@ pub fn render_commit_detail(
 
         if expanded_file_idx.is_some() {
             if let (Some(registry), Some(state)) = (action_registry, app_state) {
-                let hint = render_context_hint(registry, Context::CommitFiles, state);
-                let mut spans = vec![Span::raw("  ")];
-                spans.extend(hint.spans);
-                lines.push(Line::from(spans));
+                for line in render_context_hints(
+                    registry,
+                    Context::CommitFiles,
+                    state,
+                    render_width,
+                    "    ",
+                ) {
+                    lines.push(line);
+                }
             }
         }
 
@@ -279,11 +285,16 @@ pub fn render_commit_detail(
     lines
 }
 
-pub fn render_context_hint(
+/// Render a section's key hints, wrapping onto more lines when they don't fit.
+///
+/// `render_width` is the panel width including its borders; `indent` starts each line.
+pub fn render_context_hints(
     registry: &ActionRegistry,
     context: Context,
     state: &AppState,
-) -> Line<'static> {
+    render_width: u16,
+    indent: &'static str,
+) -> Vec<Line<'static>> {
     let mut actions = registry.hint_actions_for_context(context, state);
 
     if editor_available() {
@@ -307,32 +318,49 @@ pub fn render_context_hint(
         }
     }
 
-    if actions.is_empty() {
-        return Line::from("");
-    }
+    let separator = Span::styled(
+        " · ",
+        Style::default().fg(Color::DarkGray),
+    );
+    let width = usize::from(render_width.saturating_sub(2));
+    let mut lines = Vec::new();
+    let mut spans: Vec<Span<'static>> = Vec::new();
+    let mut used = 0;
 
-    let mut spans = vec![Span::raw("  ")];
+    for action in actions {
+        let item = [
+            Span::styled(
+                format!("{} ", action.key),
+                Style::default().fg(Color::Cyan),
+            ),
+            Span::styled(
+                action.label.clone(),
+                Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::ITALIC),
+            ),
+        ];
+        let item_width = spans_width(&item);
 
-    for (i, action) in actions.iter().take(5).enumerate() {
-        if i > 0 {
-            spans.push(Span::styled(
-                " · ",
-                Style::default().fg(Color::DarkGray),
-            ));
+        if spans.is_empty() {
+            spans.push(Span::raw(indent));
+            used = Span::raw(indent).width();
+        } else if used + separator.width() + item_width > width {
+            lines.push(Line::from(std::mem::take(&mut spans)));
+            spans.push(Span::raw(indent));
+            used = Span::raw(indent).width();
+        } else {
+            spans.push(separator.clone());
+            used += separator.width();
         }
-        spans.push(Span::styled(
-            format!("{} ", action.key),
-            Style::default().fg(Color::Cyan),
-        ));
-        spans.push(Span::styled(
-            action.label.clone(),
-            Style::default()
-                .fg(Color::DarkGray)
-                .add_modifier(Modifier::ITALIC),
-        ));
+        used += item_width;
+        spans.extend(item);
     }
 
-    Line::from(spans)
+    if !spans.is_empty() {
+        lines.push(Line::from(spans));
+    }
+    lines
 }
 
 pub const fn commit_command_color(cmd: CommandType) -> Color {
@@ -602,6 +630,34 @@ mod tests {
             "narrow: {narrow}"
         );
         assert_eq!(wide.find('├'), Some(5), "wide: {wide}");
+    }
+
+    #[test]
+    fn hints_wrap_instead_of_running_past_the_panel() {
+        let registry = ActionRegistry::new();
+        let state = AppState::default();
+
+        let lines = render_context_hints(
+            &registry,
+            Context::HistoryCommits,
+            &state,
+            40,
+            "  ",
+        );
+        let joined: Vec<String> = lines.iter().map(text).collect();
+
+        assert!(lines.len() > 1, "wrapped: {joined:?}");
+        for line in &lines {
+            assert!(
+                line.width() <= 38,
+                "fits inside borders: {joined:?}"
+            );
+        }
+        let all = joined.join(" ");
+        assert!(
+            all.contains("R rebase -i"),
+            "last hint kept: {all}"
+        );
     }
 
     #[test]

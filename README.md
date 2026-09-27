@@ -49,7 +49,7 @@ See the [product roadmap](docs/ROADMAP.md) for sequencing and non-goals.
 │  ○ ? untracked.txt                                                               │
 │                                                                                  │
 │  ▾ History (3)                                                                   │
-│  h log/reflog · Space expand · [ prev page · ] next page · y copy short          │
+│  h log/reflog · Space expand · y copy short · c copy sha · R rebase -i           │
 │  develop ↑1 → origin/develop  · P push  f fetch                                  │
 │▸    ├─ e29d83a 14 min ago  ● Keep commit messages visible (HEAD → develop)       │
 │     ├─ 9bfa421 2 hr ago  ● Include expanded-branch commits (origin/develop)      │

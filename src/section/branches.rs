@@ -9,7 +9,7 @@ use ratatui::text::{Line, Span};
 use super::{jump_hint, Section, SectionAction, SectionId, SectionLines, SectionState};
 use crate::actions::{ActionRegistry, AppAction, AppState, Context};
 use crate::git::{BranchInfo, CommitDetail, GitCommand};
-use crate::section::{render_commit_detail, render_commit_line, render_context_hint};
+use crate::section::{render_commit_detail, render_commit_line, render_context_hints};
 
 /// Data needed by the branches section for rendering
 #[derive(Debug, Clone, Default)]
@@ -71,15 +71,21 @@ impl BranchesSection {
     }
 
     /// Render context hints for branch actions
-    fn render_hints(&self, context: Context) -> Line<'static> {
-        let Some(ref registry) = self.data.action_registry else {
-            return Line::from("");
-        };
-        let Some(ref state) = self.data.app_state else {
-            return Line::from("");
+    fn render_hints(&self, context: Context, render_width: u16) -> Vec<Line<'static>> {
+        let (Some(registry), Some(state)) = (
+            &self.data.action_registry,
+            &self.data.app_state,
+        ) else {
+            return Vec::new();
         };
 
-        render_context_hint(registry, context, state)
+        render_context_hints(
+            registry,
+            context,
+            state,
+            render_width,
+            "  ",
+        )
     }
 }
 
@@ -175,7 +181,9 @@ impl Section for BranchesSection {
                         Context::BranchHeader
                     }
                 });
-            lines.push(self.render_hints(hint_context));
+            for line in self.render_hints(hint_context, state.render_width) {
+                lines.push(line);
+            }
         }
 
         // Branch entries - branch names shown, commits under expanded branch
@@ -248,6 +256,7 @@ impl Section for BranchesSection {
                                 self.data.expanded_file_idx,
                                 self.data.action_registry.as_ref(),
                                 self.data.app_state.as_ref(),
+                                state.render_width,
                             ));
                         }
                     }

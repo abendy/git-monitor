@@ -9,7 +9,7 @@ use ratatui::text::{Line, Span};
 use super::{jump_hint, Section, SectionAction, SectionId, SectionLines, SectionState};
 use crate::actions::{ActionRegistry, ActionType, AppAction, AppState, Context};
 use crate::git::{BranchInfo, CommitDetail, GitCommand, GitStatus, HistoryMode};
-use crate::section::{render_commit_detail, render_commit_line, render_context_hint};
+use crate::section::{render_commit_detail, render_commit_line, render_context_hints};
 
 /// Data needed by the history section for rendering
 #[derive(Debug, Clone, Default)]
@@ -72,15 +72,21 @@ impl HistorySection {
     }
 
     /// Render context hints for history actions
-    fn render_hints(&self) -> Line<'static> {
-        let Some(ref registry) = self.data.action_registry else {
-            return Line::from("");
-        };
-        let Some(ref state) = self.data.app_state else {
-            return Line::from("");
+    fn render_hints(&self, render_width: u16) -> Vec<Line<'static>> {
+        let (Some(registry), Some(state)) = (
+            &self.data.action_registry,
+            &self.data.app_state,
+        ) else {
+            return Vec::new();
         };
 
-        render_context_hint(registry, Context::HistoryCommits, state)
+        render_context_hints(
+            registry,
+            Context::HistoryCommits,
+            state,
+            render_width,
+            "  ",
+        )
     }
 
     /// Render the current branch info line
@@ -304,7 +310,9 @@ impl Section for HistorySection {
                 .local_selection
                 .is_some_and(|s| s > 0)
         {
-            lines.push(self.render_hints());
+            for line in self.render_hints(state.render_width) {
+                lines.push(line);
+            }
         }
 
         // Current branch info with remote action hints
@@ -335,6 +343,7 @@ impl Section for HistorySection {
                         self.data.expanded_file_idx,
                         self.data.action_registry.as_ref(),
                         self.data.app_state.as_ref(),
+                        state.render_width,
                     ));
                 }
             }

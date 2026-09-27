@@ -14,7 +14,7 @@ mod registry;
 
 pub use branches::{BranchesSection, BranchesSectionData};
 pub use command::{CommandSection, CommandSectionData};
-pub use commit::{render_commit_detail, render_commit_line, render_context_hint};
+pub use commit::{render_commit_detail, render_commit_line, render_context_hints};
 use crossterm::event::KeyEvent;
 pub use file_list::{FileListData, FileListSection};
 pub use history::{HistorySection, HistorySectionData};

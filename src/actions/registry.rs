@@ -86,14 +86,15 @@ impl ActionRegistry {
             "prev page",
             AppAction::PrevPage,
             vec![Context::HistoryHeader, Context::HistoryCommits],
-            30,
+            // 80+ keeps it off the hint line; the page line under History shows it
+            80,
         ));
         actions.push(Action::app(
             KeyBinding::char(']'),
             "next page",
             AppAction::NextPage,
             vec![Context::HistoryHeader, Context::HistoryCommits],
-            31,
+            81,
         ));
         actions.push(Action::app(
             KeyBinding::char('y'),

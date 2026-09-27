@@ -144,3 +144,32 @@ fn section_headers_show_jump_keys_when_the_cursor_is_elsewhere() {
         "no h while in History"
     );
 }
+
+#[test]
+fn history_hints_wrap_to_show_every_key_in_a_narrow_panel() {
+    let dir = repo(false, false);
+    let mut app = App::new(dir.path().to_path_buf()).expect("create app");
+    app.handle_key(crossterm::event::KeyEvent::new(
+        crossterm::event::KeyCode::Char('h'),
+        crossterm::event::KeyModifiers::NONE,
+    ));
+
+    let rows = screen(&mut app, 60);
+    let text = rows.join("\n");
+    for hint in [
+        "h log/reflog",
+        "Space expand",
+        "y copy short",
+        "c copy sha",
+        "R rebase -i",
+    ] {
+        assert!(
+            text.contains(hint),
+            "{hint} visible:\n{text}"
+        );
+    }
+    assert!(
+        !text.contains("[ prev page"),
+        "page keys stay on the page line:\n{text}"
+    );
+}

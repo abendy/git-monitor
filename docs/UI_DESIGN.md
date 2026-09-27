@@ -31,7 +31,7 @@ popup hints. The help overlay and menus draw on top of the whole screen.
 │  ○ ? untracked.txt                                                               │
 │                                                                                  │
 │  ▾ History (3)                                                                   │
-│  h log/reflog · Space expand · [ prev page · ] next page · y copy short          │
+│  h log/reflog · Space expand · y copy short · c copy sha · R rebase -i           │
 │  develop ↑1 → origin/develop  · P push  f fetch                                  │
 │▸    ├─ e29d83a 14 min ago  ● Keep commit messages visible (HEAD → develop)       │
 │     ├─ 9bfa421 2 hr ago  ● Include expanded-branch commits (origin/develop)      │
@@ -104,8 +104,9 @@ or a third of the visible rows on short terminals. It never scrolls past the las
 
 - The header reads `▾ Staged (N)` or `▾ Working (N)` while the cursor is in the section, and `▸`
   otherwise. Staged is bold green. Working is bold yellow.
-- While the cursor is in the section, a hint line lists up to five actions. Keys are cyan. Labels
-  are dark gray italic.
+- While the cursor is in the section, a hint line lists its actions, wrapping onto more lines
+  when the panel is narrow. Keys are cyan. Labels are dark gray italic. Keys already shown
+  elsewhere, like `[`/`]` on the History page line, stay off it.
 - Staged files start with a green `●`. Working files start with a yellow `○`.
 - The selected row gets a `▸` prefix and bold text.
 - Line counts show as `+N` (green) and `-N` (red).

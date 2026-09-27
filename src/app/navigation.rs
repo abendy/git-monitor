@@ -281,8 +281,8 @@ pub(super) const fn hold_step(streak: u32) -> usize {
 mod tests {
     use super::*;
 
-    fn hold(down: bool, at: Instant, streak: u32) -> Option<SectionHold> {
-        Some(SectionHold { down, at, streak })
+    const fn hold(down: bool, at: Instant, streak: u32) -> SectionHold {
+        SectionHold { down, at, streak }
     }
 
     #[test]
@@ -291,7 +291,7 @@ mod tests {
         let next = start + Duration::from_millis(30);
 
         assert_eq!(
-            hold_streak(hold(true, start, 4), true, next),
+            hold_streak(Some(hold(true, start, 4)), true, next),
             5
         );
     }
@@ -302,7 +302,7 @@ mod tests {
 
         assert_eq!(
             hold_streak(
-                hold(true, start, 4),
+                Some(hold(true, start, 4)),
                 true,
                 start + Duration::from_millis(400)
             ),
@@ -310,7 +310,7 @@ mod tests {
         );
         assert_eq!(
             hold_streak(
-                hold(true, start, 4),
+                Some(hold(true, start, 4)),
                 false,
                 start + Duration::from_millis(30)
             ),

@@ -5,10 +5,7 @@ Implemented
 
 **Implementation Date:** 2026-01-17
 
-**What's Done:**
-- `Space` key on expanded commit files opens diff in external pager (`core.pager`)
-- `M` key on expanded commit files opens diff in external difftool (`diff.tool`)
-- Both display "[Press Enter to continue]" prompt after execution
+Extended since: `Space` and `M` also open working and staged file diffs, and the prompt follows every external command, including interactive rebase and the editor.
 
 ## Context
 When viewing commit file diffs, users can press `Space` to open the diff in an external pager (respecting `core.pager` from gitconfig) or `M` to open in an external difftool (respecting `diff.tool` from gitconfig).
@@ -37,3 +34,4 @@ After running an external diff command, display a "[Press Enter to continue]" pr
 - Users see a consistent "[Press Enter to continue]" after every external diff
 - The `d` key remains available for inline diff viewing without the prompt
 - External difftool (`M` key) also shows the prompt, though GUI tools like meld manage their own window lifecycle
+- The prompt lives in `App::run_external_command()` in `src/app/runtime.rs`; external commands are defined in `src/command/external.rs`

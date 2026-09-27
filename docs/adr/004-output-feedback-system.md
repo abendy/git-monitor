@@ -5,37 +5,29 @@ Implemented
 
 **Implementation Date:** 2026-01-17
 
-**What's Done:**
-- `Feedback` enum with CommandOutput, Toast, Error, Diff variants
-- `FeedbackManager` for centralized feedback state
-- `PopupContent` and `PopupState` for scrollable overlays
-- `Toast` and `ToastLevel` types defined
-- Source-aware feedback policy (menu/browser → popup, keyboard → conditional)
-- Integration with unified command execution framework
-- Toast rendering in footer with level-based coloring
-- Auto-dismiss tick handling for toast expiry
+Superseded in part: toasts render in the footer, not the header. The inline ✓/✗ status line was not built; inline output uses white/red text and a "more lines" hint.
 
 ## Context (Historical)
-*This section describes the pre-integration state that motivated this ADR. The system has since been unified as described in "What's Done" above.*
+*This section describes the state that motivated this ADR.*
 
 Command output was previously displayed through multiple mechanisms with inconsistent behavior:
 
 ### Previous Output Display Paths
 
-1. **Inline Command Section** (ui.rs:270-296)
+1. **Inline Command Section** (`ui.rs`)
    - Shows first 4 lines of `command_output`
    - Color-coded (white for success, red for failure)
    - "o to expand" hint when output exceeds 4 lines
    - Hidden during alias mode
 
-2. **Full-Screen Popup** (ui.rs:1224-1280)
+2. **Full-Screen Popup** (`ui.rs`)
    - Scrollable view of complete output
    - Triggered by:
      - User pressing `o` on command section
      - Auto-open when output > 5 lines (`AUTO_POPUP_LINE_THRESHOLD`)
      - Always on `execute_push()` failure
 
-3. **Error Field** (app.rs)
+3. **Error Field** (`app.rs`)
    - `self.error: Option<String>` for transient messages
    - Displayed in header, auto-clears
    - Used for non-command feedback (e.g., "Copied: abc123")
@@ -52,33 +44,7 @@ Command output was previously displayed through multiple mechanisms with inconsi
 Implement a unified feedback system with clear ownership and consistent behavior.
 
 ### 1. Feedback Types
-```rust
-pub enum Feedback {
-    /// Command completed - show output
-    CommandOutput {
-        command: String,
-        output: String,
-        success: bool,
-        source: CommandSource,
-    },
-    /// Transient notification (auto-dismisses)
-    Toast {
-        message: String,
-        level: ToastLevel,
-    },
-    /// Error requiring acknowledgment
-    Error {
-        message: String,
-        recoverable: bool,
-    },
-}
-
-pub enum ToastLevel {
-    Info,    // Blue - informational
-    Success, // Green - operation completed
-    Warning, // Yellow - completed with concerns
-}
-```
+One enum covers command output, transient toasts, and errors. Toasts have levels (info, success, warning). See `Feedback` in `src/feedback/mod.rs` and `Toast`/`ToastLevel` in `src/feedback/toast.rs`.
 
 ### 2. Feedback Display Policy
 Define when each feedback type triggers each display mechanism:
@@ -95,88 +61,20 @@ Define when each feedback type triggers each display mechanism:
 "Long" = output lines > threshold
 
 ### 3. Unified Feedback Entry Point
-```rust
-impl App {
-    fn show_feedback(&mut self, feedback: Feedback) {
-        match feedback {
-            Feedback::CommandOutput { command, output, success, source } => {
-                self.command_output = output.clone();
-                self.command_success = success;
-
-                let should_popup = match source {
-                    // Menu/browser always popup for visibility
-                    CommandSource::ActionMenu | CommandSource::AliasBrowser => true,
-                    // Keyboard/palette: popup on failure or long output
-                    _ => !success || output.lines().count() > AUTO_POPUP_LINE_THRESHOLD,
-                };
-
-                if should_popup {
-                    self.popup.open(PopupContent::CommandOutput {
-                        command,
-                        output,
-                        success,
-                    });
-                }
-            }
-            Feedback::Toast { message, level } => {
-                self.toast = Some(Toast { message, level, created: Instant::now() });
-            }
-            Feedback::Error { message, recoverable } => {
-                self.error = Some(message);
-                if !recoverable {
-                    // Could trigger error popup in future
-                }
-            }
-        }
-    }
-}
-```
+One method receives all feedback and applies the source-aware popup rule: menu and alias browser always pop up; keyboard and palette pop up on failure or long output. See `FeedbackManager::show()` in `src/feedback/mod.rs`.
 
 ### 4. Toast System Enhancement
-Add auto-dismissing toasts to the header for lightweight feedback:
-
-```rust
-pub struct Toast {
-    pub message: String,
-    pub level: ToastLevel,
-    pub created: Instant,
-}
-
-const TOAST_DURATION: Duration = Duration::from_secs(3);
-
-impl App {
-    fn tick(&mut self) {
-        // Auto-dismiss expired toasts
-        if let Some(toast) = &self.toast {
-            if toast.created.elapsed() > TOAST_DURATION {
-                self.toast = None;
-            }
-        }
-    }
-}
-```
+Add auto-dismissing toasts (3 seconds) to the header for lightweight feedback, cleared on tick. See `FeedbackManager::tick()` in `src/feedback/mod.rs`.
 
 ### 5. Inline Section Enhancement
-Improve the command section to show clearer status:
-
-```
-Success case:
-  : git fetch
-  > Fetching origin...
-  > Done (2 lines)  ✓
-
-Failure case:
-  : git push
-  > error: failed to push
-  > (1 more line)  ✗ o expand
-```
+Show a clear success or failure marker in the inline command section, with a line count and an `o` expand hint.
 
 ## Rationale
 
 1. **Predictable behavior**: Users know what to expect based on command source
 2. **Appropriate feedback level**: Quick keyboard commands get lightweight feedback; deliberate menu selections get full popup
 3. **Clear success indication**: Toast or inline indicator confirms completion
-4. **Unified ownership**: All feedback flows through `show_feedback()`
+4. **Unified ownership**: All feedback flows through `FeedbackManager::show()`
 5. **Extensibility**: Toast system enables future notifications (e.g., file watcher events)
 
 ## Trade-offs
@@ -202,17 +100,6 @@ Failure case:
 ## Consequences
 
 - Feedback behavior becomes source-aware and predictable
-- `error` field evolves into `toast` for transient messages
+- Toasts carry transient messages; a persistent `error` field remains for errors
 - Popup auto-opens consistently based on documented policy
 - Users can predict feedback based on how they triggered the command
-
-## Implementation Plan (Completed)
-
-*All steps completed as of 2026-01-14. See "What's Done" section for details.*
-
-1. ~~Add `Toast` struct and rendering in header~~
-2. ~~Implement `show_feedback()` method~~
-3. ~~Refactor `execute_git_command()` to use `show_feedback()`~~
-4. ~~Update inline command section with success/failure indicators~~
-5. ~~Add tick-based toast dismissal~~
-6. Document feedback policy in help overlay (partial - covered in KEYBINDINGS.md)

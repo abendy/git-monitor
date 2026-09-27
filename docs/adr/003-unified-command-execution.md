@@ -5,25 +5,16 @@ Implemented
 
 **Implementation Date:** 2026-01-17
 
-**What's Done:**
-- `CommandRequest` type with program, args, source, feedback policy
-- `CommandSource` enum (Keyboard, Palette, ActionMenu, AliasBrowser, Internal)
-- `FeedbackPolicy` enum (Default, AlwaysPopup, InlineOnly, Silent, External)
-- `CommandResult` with stdout/stderr capture
-- `CommandExecutor` for unified execution
-- `CommandHistory` for persistent history across sessions
-- Integration with `App` through `run_command()` method
-
 ## Context
 The application currently has multiple paths for executing commands:
 
-1. **`execute_push()`** (app.rs:1672-1783) - Dedicated push logic with:
+1. **`execute_push()`** (then in `app.rs`) - Dedicated push logic with:
    - Custom argument building
    - History recording (deduplicated)
    - Always opens popup on failure
    - Auto-popup on long output (>5 lines)
 
-2. **`execute_command()`** (app.rs:2132-2206) - Generic command execution with:
+2. **`execute_command()`** (then in `app.rs`) - Generic command execution with:
    - Whitespace-parsed command input
    - History recording
    - Threshold-based popup (>5 lines only)
@@ -49,70 +40,17 @@ These paths are invoked from different triggers:
 ## Decision
 Introduce a unified command execution framework with these components:
 
-### 1. Command Request Type
-```rust
-pub struct CommandRequest {
-    /// Program to execute (e.g., "git", "cargo", "make")
-    pub program: String,
-    /// Arguments to pass to the program
-    pub args: Vec<String>,
-    /// Human-readable description for history/popup
-    pub display_name: String,
-    /// Working directory (None = use repo path)
-    pub cwd: Option<PathBuf>,
-    /// Source of the command for context-aware feedback
-    pub source: CommandSource,
-    /// Override default feedback behavior
-    pub feedback: FeedbackPolicy,
-    /// Whether to refresh git status after execution
-    pub refresh_after: bool,
-}
+1. **Command request** - One type describing what to run: program, args, display name, working directory, source, feedback policy, and whether to refresh status after. See `CommandRequest`, `CommandSource`, and `FeedbackPolicy` in `src/command/mod.rs`.
+2. **Command result** - One type for success, output, exit code, and duration. See `CommandResult` in `src/command/executor.rs`.
+3. **Single execution entry point** - Execute, capture output, record history, choose feedback, refresh status. See `App::run_command()` in `src/app/commands.rs`.
+4. **Feedback determination** - Default feedback behavior by source:
 
-pub enum CommandSource {
-    Keyboard,       // Direct keybinding
-    CommandPalette, // : mode
-    ActionMenu,     // m menu
-    AliasBrowser,   // a mode
-}
-
-pub enum FeedbackPolicy {
-    Default,              // Use source-based defaults
-    AlwaysPopup,          // Always show popup
-    InlineOnly,           // Never auto-popup
-    Silent,               // No visible feedback (for background ops)
-}
-```
-
-### 2. Command Result Type
-```rust
-pub struct CommandResult {
-    pub success: bool,
-    pub output: String,
-    pub exit_code: Option<i32>,
-    pub duration: Duration,
-}
-```
-
-### 3. Single Execution Entry Point
-```rust
-fn execute_git_command(&mut self, request: CommandRequest) -> CommandResult {
-    // 1. Execute command
-    // 2. Capture output (prefer stderr for git)
-    // 3. Record in history (always)
-    // 4. Determine feedback based on policy and result
-    // 5. Refresh status
-    // 6. Return result for caller inspection
-}
-```
-
-### 4. Feedback Determination
-Default feedback behavior by source:
 | Source | Success | Failure |
 |--------|---------|---------|
 | Keyboard | Inline (popup if >5 lines) | Always popup |
-| CommandPalette | Inline (popup if >5 lines) | Always popup |
-| ActionMenu | Always popup | Always popup |
-| AliasBrowser | Always popup | Always popup |
+| Command palette | Inline (popup if >5 lines) | Always popup |
+| Action menu | Always popup | Always popup |
+| Alias browser | Always popup | Always popup |
 
 Rationale: Menu/browser actions are deliberate selections that deserve immediate feedback; keyboard shortcuts are often quick operations where inline suffices.
 
@@ -140,17 +78,8 @@ Rationale: Menu/browser actions are deliberate selections that deserve immediate
 
 ## Consequences
 
-- All command execution flows through `execute_git_command()`
-- `execute_push()` becomes a thin wrapper that builds a `CommandRequest`
+- All captured command execution flows through `App::run_command()`
+- Push builds a `CommandRequest` from the push confirmation menu (`src/menu/push.rs`)
 - `execute_pull()`, `execute_fetch()` become one-liners
 - Action menu and alias browser use the same path with appropriate `CommandSource`
 - Output display behavior becomes predictable and documented
-
-## Implementation Plan
-
-1. Define `CommandRequest`, `CommandResult`, `CommandSource`, `FeedbackPolicy` types
-2. Implement `execute_git_command()` with unified logic
-3. Refactor `execute_push()` to use new framework
-4. Refactor `execute_command()` to use new framework
-5. Update action menu and alias browser to specify source
-6. Add configuration option for default feedback policy (future)

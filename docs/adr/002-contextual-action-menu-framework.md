@@ -5,13 +5,7 @@ Implemented
 
 **Implementation Date:** 2026-01-17
 
-**What's Done:**
-- `Context` enum with all UI section types
-- `ActionRegistry` as single source of truth for keybindings
-- `ActionCondition` enum for conditional actions (BranchAhead, BranchBehind, etc.)
-- Dynamic footer hints based on current context
-- Action menu popup (`m` key) showing context-filtered actions
-- Alias integration with context inference
+Superseded in part: the help overlay (`?`) is now built from the registry, not static text. The action menu now lives on the menu stack (ADR-005).
 
 ## Context
 The application has numerous keybindings that vary by context (staged files, working files, history, branches, commit files). Users need to discover available actions, and the UI needs a consistent way to show relevant hints without cluttering every section with static text.
@@ -21,7 +15,7 @@ Previously, hints were hardcoded strings scattered throughout `ui.rs`, always vi
 ## Decision
 Implement a centralized contextual action framework consisting of:
 
-1. **Context enum** (`src/actions.rs`) - Formal definitions of UI sections (Command, StagedFiles, WorkingFiles, HistoryHeader, HistoryCommits, CommitFiles, BranchCommits, Global)
+1. **Context enum** - Formal definitions of UI sections. See `Context` in `src/actions/context.rs`.
 
 2. **Action registry** - Single source of truth for all actions, including:
    - Keyboard shortcut
@@ -68,13 +62,15 @@ Implement a centralized contextual action framework consisting of:
 
 - Press `m` to see context-aware action menu
 - Inline hints only appear when cursor is in that section
-- Adding new keybindings requires updating `ActionRegistry::new()` and the handler in `app.rs`
+- Adding new keybindings requires updating `ActionRegistry::new()` and the handler in `src/app/` (`input/normal.rs`, `actions.rs`)
 - Git aliases from user's gitconfig appear in relevant contexts automatically
-- Help overlay (`?`) remains as comprehensive static reference
+- Help overlay (`?`) remains the full reference
 
 ## Implementation
 
 Key files:
-- `src/actions.rs` - Context, Action, ActionType, AppAction, ActionCondition, AppState, ActionRegistry
-- `src/app.rs` - ViewMode::ActionMenu, current_context(), app_state(), execute_app_action()
-- `src/ui.rs` - render_action_menu(), render_context_hint()
+- `src/actions/` - `Context`, `Action`, `ActionType`, `AppAction`, `ActionCondition`, `AppState`, `ActionRegistry`
+- `src/app/sections.rs` - `current_context()`, `app_state()`
+- `src/app/actions.rs` - `execute_app_action()`
+- `src/menu/action.rs` - `ActionMenu`
+- `src/section/commit.rs` - `render_context_hint()`; footer hints in `src/render/footer.rs`

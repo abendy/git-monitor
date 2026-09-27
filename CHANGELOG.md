@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-09-27
+
+### Changed
+
+- `Esc` backs out one level (closes a commit, collapses a branch) and never quits (LON-163)
+- `P` and `p` say "Nothing to push" / "Nothing to pull" instead of running when there is nothing
+  to do; `P` still publishes a branch without an upstream (LON-156)
+
+### Fixed
+
+- `e` opens error details while an error shows (LON-155)
+- Section hints wrap instead of being cut off, so History rows show `c` and `R` (LON-164)
+- A repository whose objects become unreadable no longer freezes the dashboard
+
 ## [0.12.0] - 2026-09-27
 
 ### Added

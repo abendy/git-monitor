@@ -9,6 +9,7 @@ pub mod command;
 pub mod config;
 pub mod event;
 pub mod feedback;
+pub mod freshness;
 pub mod git;
 pub mod input;
 pub mod menu;

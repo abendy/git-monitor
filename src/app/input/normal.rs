@@ -11,10 +11,10 @@ impl App {
     /// Handle keyboard input in normal mode
     #[allow(clippy::too_many_lines)] // Key dispatch is naturally verbose
     pub(in crate::app) fn handle_normal_key(&mut self, key: KeyEvent) {
-        // While an error shows, `e` opens its details, as the footer offers
+        // While an error shows (footer) or the data is stale (header), `e` opens the details
         if key.code == KeyCode::Char('e')
             && key.modifiers.is_empty()
-            && self.feedback.expand_error()
+            && (self.feedback.expand_error() || self.open_refresh_failure())
         {
             return;
         }

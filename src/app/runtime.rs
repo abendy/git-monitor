@@ -1,4 +1,5 @@
 use std::sync::mpsc::Sender;
+use std::time::Instant;
 
 use anyhow::Result;
 use tracing::warn;
@@ -6,6 +7,7 @@ use tracing::warn;
 use super::{App, PAGE_SIZE};
 use crate::command::ExternalCommand;
 use crate::event::Event;
+use crate::freshness::RefreshReason;
 use crate::git::SnapshotRequest;
 use crate::tui::Tui;
 use crate::ui;
@@ -46,11 +48,16 @@ impl App {
         Ok(())
     }
 
-    /// Reload Git data and keep the cursor on the same item
+    /// Reload Git data on request and keep the cursor on the same item
     pub fn refresh_status(&mut self) {
+        self.refresh(RefreshReason::Manual);
+    }
+
+    /// Reload Git data for `reason` and keep the cursor on the same item
+    pub fn refresh(&mut self, reason: RefreshReason) {
         let selection = self.selection_key();
 
-        if self.load_snapshot() {
+        if self.load_snapshot(reason) {
             self.feedback.error = None;
         }
         self.update_sections();
@@ -59,11 +66,26 @@ impl App {
         self.restore_selection(selection.as_ref());
     }
 
+    /// Show the last refresh failure in the details popup. Returns false if there is none.
+    pub(super) fn open_refresh_failure(&mut self) -> bool {
+        let Some(failure) = self.freshness.failure() else {
+            return false;
+        };
+        let title = format!(
+            "Refresh failed ({})",
+            failure.reason.label()
+        );
+        let message = failure.error.clone();
+        self.feedback
+            .open_error_details(title, message);
+        true
+    }
+
     /// Read a new snapshot for the current view and swap it in.
     ///
     /// On failure the previous snapshot stays and the error is shown.
     /// Returns whether the swap happened.
-    pub(super) fn load_snapshot(&mut self) -> bool {
+    pub(super) fn load_snapshot(&mut self, reason: RefreshReason) -> bool {
         let request = SnapshotRequest {
             history_mode: self.history_mode,
             history_page: self.history_page,
@@ -78,6 +100,8 @@ impl App {
                 {
                     self.history_page_cursors.clear();
                 }
+                self.freshness
+                    .record_success(reason, Instant::now());
                 self.history_page = snapshot.history_page;
                 self.snapshot = snapshot;
                 // Forget an expanded branch that no longer exists
@@ -96,6 +120,8 @@ impl App {
             Err(e) => {
                 warn!("Failed to refresh repository: {e:#}");
                 self.feedback.error = Some(format!("Git error: {e:#}"));
+                self.freshness
+                    .record_failure(reason, Instant::now(), format!("{e:#}"));
                 false
             }
         }
@@ -117,7 +143,7 @@ impl App {
             match tui.events.next()? {
                 Event::Key(key) => self.handle_key(key),
                 Event::Tick => self.on_tick(),
-                Event::FileChanged => self.refresh_status(),
+                Event::FileChanged => self.refresh(RefreshReason::FileChange),
                 Event::Resize(_, _) | Event::Mouse(_) => {}
             }
         }

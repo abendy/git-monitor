@@ -1,4 +1,5 @@
 use super::App;
+use crate::freshness::RefreshReason;
 use crate::git::{BranchInfo, GitCommand};
 use crate::section::SectionId;
 
@@ -148,7 +149,7 @@ impl App {
         let previous = self
             .expanded_branch
             .replace(branch_name.to_string());
-        if !self.load_snapshot() {
+        if !self.load_snapshot(RefreshReason::View) {
             self.expanded_branch = previous;
         }
         self.update_sections();
@@ -191,7 +192,7 @@ impl App {
                 self.feedback.error = Some(format!(
                     "Switched to branch '{branch_name}'"
                 ));
-                self.refresh_status();
+                self.refresh(RefreshReason::Command);
             }
             Err(e) => {
                 self.feedback.error = Some(e.to_string());

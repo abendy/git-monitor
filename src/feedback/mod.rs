@@ -203,17 +203,21 @@ impl FeedbackManager {
     /// Called when user presses 'e' to see more error details.
     /// Returns true if there was an error to expand.
     pub fn expand_error(&mut self) -> bool {
-        if let Some(ref error) = self.error {
-            self.popup
-                .open(PopupContent::ErrorDetails {
-                    title: "Error".to_string(),
-                    message: error.clone(),
-                    context: vec![],
-                });
-            true
-        } else {
-            false
-        }
+        let Some(error) = self.error.clone() else {
+            return false;
+        };
+        self.open_error_details("Error", error);
+        true
+    }
+
+    /// Open an error in the details popup
+    pub fn open_error_details(&mut self, title: impl Into<String>, message: impl Into<String>) {
+        self.popup
+            .open(PopupContent::ErrorDetails {
+                title: title.into(),
+                message: message.into(),
+                context: vec![],
+            });
     }
 
     /// Tick - handle time-based updates (toast expiry)

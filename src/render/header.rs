@@ -1,13 +1,16 @@
 //! Header rendering for the top status bar.
 //!
-//! Displays branch name, ahead/behind status, repository path, and watch status.
+//! Displays branch name, ahead/behind status, repository path, and data freshness.
 
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 
+use std::time::Instant;
+
 use crate::app::App;
+use crate::freshness::{format_age, FreshnessState};
 use crate::tui::Frame;
 
 /// Render the header bar
@@ -59,9 +62,8 @@ pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
         Style::default().fg(Color::White),
     ));
     header_spans.push(Span::raw(" │ "));
-    header_spans.push(Span::styled(
-        "● watching",
-        Style::default().fg(Color::Green),
+    header_spans.extend(freshness_spans(
+        &app.freshness().state(Instant::now()),
     ));
 
     let header_text = Line::from(header_spans);
@@ -79,4 +81,46 @@ pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
     );
 
     frame.render_widget(header, area);
+}
+
+/// How fresh the data is, in text and color: `● 12s ago (files)` or `⚠ stale 3m · e details`
+fn freshness_spans(state: &FreshnessState<'_>) -> Vec<Span<'static>> {
+    match state {
+        FreshnessState::Unknown => vec![Span::styled(
+            "○ loading",
+            Style::default().fg(Color::DarkGray),
+        )],
+        FreshnessState::Current { age, reason } => {
+            let (age, reason) = (*age, *reason);
+            let age = format_age(age);
+            let when = if age == "now" {
+                age
+            } else {
+                format!("{age} ago")
+            };
+            vec![Span::styled(
+                format!("● {when} ({})", reason.label()),
+                Style::default().fg(Color::Green),
+            )]
+        }
+        FreshnessState::Stale { age, .. } => {
+            let label = match age.map(format_age).as_deref() {
+                None => "⚠ no data".to_string(),
+                Some("now") => "⚠ refresh failed".to_string(),
+                Some(age) => format!("⚠ stale {age}"),
+            };
+            vec![
+                Span::styled(
+                    label,
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    " · e details",
+                    Style::default().fg(Color::DarkGray),
+                ),
+            ]
+        }
+    }
 }

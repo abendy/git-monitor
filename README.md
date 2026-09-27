@@ -35,29 +35,32 @@ See the [product roadmap](docs/ROADMAP.md) for sequencing and non-goals.
 
 ```text
 ┌ git-monitor ─────────────────────────────────────────────────────────────────────┐
-│ ⎇ develop ↑1 │ my-project │ ● watching                                           │
+│ ⎇ develop ↑1 │ my-project │ ● 12s ago (files)                                    │
 └──────────────────────────────────────────────────────────────────────────────────┘
 ┌ Repository ──────────────────────────────────────────────────────────────────────┐
 │  : command  a aliases                                                            │
 │                                                                                  │
 │                                                                                  │
-│  ▸ Staged (1)                                                                    │
-│  ● A src/new_file.rs  +12                                                        │
+│  ▸ Staged (1)  w                                                                 │
+│  ● A new_file.rs  +1                                                             │
 │                                                                                  │
 │  ▸ Working (2)                                                                   │
-│  ○ M src/main.rs  +5/-2                                                          │
+│  ○ M main.rs  +3/-1                                                              │
 │  ○ ? untracked.txt                                                               │
 │                                                                                  │
 │  ▾ History (3)                                                                   │
 │  h log/reflog · Space expand · y copy short · c copy sha · R rebase -i           │
 │  develop ↑1 → origin/develop  · P push  f fetch                                  │
-│▸    ├─ e29d83a 14 min ago  ● Keep commit messages visible (HEAD → develop)       │
-│     ├─ 9bfa421 2 hr ago  ● Include expanded-branch commits (origin/develop)      │
-│     └─ 234a04a 3 hr ago  ● Load repository data as one snapshot                  │
+│▸    ├─ 7acc512 14 min ago  ● Keep commit messages visible (HEAD → develop)       │
+│     ├─ f026fc6 2 hr ago  ● Include expanded-b... (feature/new-ui, origin/develop)│
+│     └─ 422d414 3 hr ago  ● Load repository data as one snapshot                  │
 │  [ prev · page ]  1/1 of 3 items                                                 │
 │                                                                                  │
-│  ▸ Branches (1)                                                                  │
+│  ▸ Branches (1)  b                                                               │
 │  feature/new-ui                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│              j/k  nav   g/G  top/btm   m  menu  │  ?  help   q  quit             │
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
 

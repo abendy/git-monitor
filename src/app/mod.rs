@@ -110,6 +110,8 @@ pub struct App {
     pub history_page: usize,
     /// Last `J`/`K` repeat, for speeding up a held key
     section_hold: Option<SectionHold>,
+    /// When Git data was last read, why, and whether the latest try failed
+    freshness: crate::freshness::Freshness,
     /// Cursor spot per history page, so paging back returns to it
     history_page_cursors: std::collections::HashMap<(HistoryMode, usize), PageCursor>,
     /// Which non-current branch is expanded (showing its commits)
@@ -146,5 +148,11 @@ impl App {
     #[must_use]
     pub const fn snapshot(&self) -> &RepoSnapshot {
         &self.snapshot
+    }
+
+    /// How fresh the Git data is
+    #[must_use]
+    pub const fn freshness(&self) -> &crate::freshness::Freshness {
+        &self.freshness
     }
 }

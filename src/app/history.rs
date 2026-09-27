@@ -3,6 +3,7 @@ use tracing::warn;
 use super::selection::SelectionKey;
 use super::{App, PageCursor, PageLanding};
 use crate::feedback::PopupContent;
+use crate::freshness::RefreshReason;
 use crate::git::HistoryMode;
 use crate::section::SectionId;
 
@@ -14,7 +15,7 @@ impl App {
             HistoryMode::CommitLog => HistoryMode::Reflog,
         };
         self.history_page = 0; // Reset to first page when switching modes
-        self.load_snapshot();
+        self.load_snapshot(RefreshReason::View);
         self.update_sections();
     }
 
@@ -44,7 +45,7 @@ impl App {
 
         self.remember_history_cursor();
         self.history_page = target;
-        let _ = self.load_snapshot();
+        let _ = self.load_snapshot(RefreshReason::View);
 
         match landing {
             PageLanding::Remembered => {
@@ -124,7 +125,7 @@ impl App {
     pub(super) fn first_history_page(&mut self) {
         if self.history_page != 0 {
             self.history_page = 0;
-            self.load_snapshot();
+            self.load_snapshot(RefreshReason::View);
             self.update_sections();
         }
     }

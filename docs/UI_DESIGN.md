@@ -17,7 +17,7 @@ popup hints. The help overlay and menus draw on top of the whole screen.
 
 ```text
 ┌ git-monitor ─────────────────────────────────────────────────────────────────────┐
-│ ⎇ develop ↑1 │ my-project │ ● watching                                           │
+│ ⎇ develop ↑1 │ my-project │ ● 12s ago (files)                                    │
 └──────────────────────────────────────────────────────────────────────────────────┘
 ┌ Repository ──────────────────────────────────────────────────────────────────────┐
 │  : command  a aliases                                                            │
@@ -69,14 +69,17 @@ or a third of the visible rows on short terminals. It never scrolls past the las
 ### Header
 
 ```text
- ⎇ develop ↑1↓2 │ my-project │ ● watching
+ ⎇ develop ↑1↓2 │ my-project │ ● 12s ago (files)
 ```
 
 - The block title "git-monitor" sits on the top border in bold cyan. The border is dark gray.
 - `⎇` is cyan. The branch name is bold green, or "(no branch)" when there is none.
 - `↑N` (green) and `↓N` (red) show only when nonzero.
 - The repository folder name is white.
-- "● watching" is green.
+- The last part shows how fresh the data is: `● 12s ago (files)` in green, with the age of the
+  data and what triggered the last read (`start`, `files`, `command`, `manual`, or `view`). When
+  the latest read failed it reads `⚠ stale 3m · e details` in bold yellow, the old data stays on
+  screen, and `e` opens the saved error. It returns to green on the next good read.
 
 ### Command Row
 

@@ -7,6 +7,7 @@ use super::{App, HistoryMode, ViewMode};
 use crate::actions::ActionRegistry;
 use crate::command::{CommandExecutor, CommandHistory};
 use crate::config::GitConfig;
+use crate::freshness::{Freshness, RefreshReason};
 use crate::git::{GitRepo, RepoSnapshot};
 use crate::input::Keymap;
 use crate::menu::MenuStack;
@@ -64,6 +65,7 @@ impl App {
             history_page: 0,
             history_page_cursors: std::collections::HashMap::new(),
             section_hold: None,
+            freshness: Freshness::default(),
             expanded_branch: None,
             pending_external: None,
             action_registry,
@@ -78,7 +80,7 @@ impl App {
             section_registry: SectionRegistry::new(),
         };
 
-        let _ = app.load_snapshot();
+        let _ = app.load_snapshot(RefreshReason::Startup);
         // Update sections with initial state
         app.update_sections();
         app.select_default_section();

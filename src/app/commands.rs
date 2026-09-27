@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use super::App;
 use crate::command::{CommandRequest, CommandSource, ExternalCommand};
 use crate::feedback::{Feedback, PopupContent, Toast};
+use crate::freshness::RefreshReason;
 use crate::git::FileState;
 use crate::menu::{ConfirmMenu, MenuAction, PushConfirmMenu};
 
@@ -159,7 +160,7 @@ impl App {
         if let Err(e) = result {
             self.feedback.error = Some(format!("Error: {e}"));
         } else {
-            self.refresh_status();
+            self.refresh(RefreshReason::Command);
         }
     }
 
@@ -242,7 +243,7 @@ impl App {
 
         // Refresh git status if requested
         if request.refresh_after {
-            self.refresh_status();
+            self.refresh(RefreshReason::Command);
         }
     }
 

@@ -185,9 +185,10 @@ impl GitRepo {
         let _ = revwalk.set_sorting(git2::Sort::TIME);
 
         if let Some(limit) = limit {
+            // Stop at the first unreadable commit: a broken walk never advances
             for oid_result in revwalk.skip(skip).take(limit) {
                 let Ok(oid) = oid_result else {
-                    continue;
+                    break;
                 };
                 let Ok(commit) = self.repo.find_commit(oid) else {
                     continue;
@@ -197,7 +198,7 @@ impl GitRepo {
         } else {
             for oid_result in revwalk.skip(skip) {
                 let Ok(oid) = oid_result else {
-                    continue;
+                    break;
                 };
                 let Ok(commit) = self.repo.find_commit(oid) else {
                     continue;
@@ -209,12 +210,16 @@ impl GitRepo {
         commands
     }
 
-    fn count_commits(&self, start_oid: git2::Oid, hide_oid: Option<git2::Oid>) -> usize {
+    /// Count commits reachable from `start_oid`, failing on the first unreadable one.
+    ///
+    /// A broken object store makes the walk return errors without advancing, so
+    /// skipping errors would loop forever.
+    fn count_commits(&self, start_oid: git2::Oid, hide_oid: Option<git2::Oid>) -> Result<usize> {
         let Ok(mut revwalk) = self.repo.revwalk() else {
-            return 0;
+            return Ok(0);
         };
         if revwalk.push(start_oid).is_err() {
-            return 0;
+            return Ok(0);
         }
         // Intentionally ignore hide/sorting errors - see walk_commits for rationale
         if let Some(hide_oid) = hide_oid {
@@ -222,11 +227,15 @@ impl GitRepo {
         }
         let _ = revwalk.set_sorting(git2::Sort::TIME);
 
-        revwalk.filter_map(Result::ok).count()
+        let mut count = 0;
+        for oid in revwalk {
+            oid.context("walking commit history")?;
+            count += 1;
+        }
+        Ok(count)
     }
 
     /// Get total commit count for HEAD history
-    #[allow(clippy::unnecessary_wraps)] // Result for API consistency
     pub fn commit_log_total(&self) -> Result<usize> {
         let Ok(head) = self.repo.head() else {
             return Ok(0);
@@ -236,7 +245,7 @@ impl GitRepo {
             return Ok(0);
         };
 
-        Ok(self.count_commits(head_oid, None))
+        self.count_commits(head_oid, None)
     }
 
     /// Get commit history (git log) with pagination, including remote-only commits if tracking
@@ -707,6 +716,25 @@ mod tests {
             let result = repo.commit_log_for_branch("nonexistent");
 
             assert!(result.is_err());
+        }
+    }
+
+    mod broken_repository {
+        use super::*;
+
+        #[test]
+        fn commit_count_fails_instead_of_looping_when_objects_are_missing() {
+            // Read once first, as a running app would have, then break the store
+            let (dir, repo) = create_test_repo();
+            repo.commit_log_total()
+                .expect("count before breakage");
+            fs::rename(
+                dir.path().join(".git/objects"),
+                dir.path().join(".git/objects-hidden"),
+            )
+            .expect("hide objects");
+
+            assert!(repo.commit_log_total().is_err());
         }
     }
 }

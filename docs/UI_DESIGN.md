@@ -235,9 +235,10 @@ The footer shows one of these, in priority order:
 4. **Hints**: `j/k nav  g/G top/btm  m menu  e edit │ : cmd  w files  h history  b branches │ ? help  q quit`.
 
 The hints never change with the cursor. Context hints render inside the sections instead.
-`e edit` shows only when `$EDITOR` is set. When the line doesn't fit, hints drop in this order:
-`g/G`, `b`, `w`, `j/k`, `h`, `e`, `m`, `:`, `q`. `? help` always stays. At 68 columns the footer
-shows `m menu  e edit │ : cmd  h history │ ? help  q quit`. The popup footer drops `g/G`, then
+`e edit` shows only when `$EDITOR` is set, `w files` only when there are changed files, and
+`b branches` only when there are other branches. When the line doesn't fit, hints drop in this
+order: `g/G`, `j/k`, `e`, `:`, `q`. `m menu`, `h history`, `w files`, `b branches`, and `? help`
+never drop. The popup footer drops `g/G`, then
 `Ctrl+d/u`, then `j/k`, and always keeps `q close`.
 
 Hints are centered. Keys sit on dark gray bold chips. The border is dark gray.

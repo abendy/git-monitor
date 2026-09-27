@@ -71,25 +71,32 @@ pub fn render(frame: &mut Frame<'_>, app: &App, area: Rect) {
             ),
         ])
     } else {
+        let counts = app.section_item_counts();
         let mut navigate = vec![
-            Hint::new("j/k", "nav", 4),
+            Hint::new("j/k", "nav", 2),
             Hint::new("g/G", "top/btm", 1),
-            Hint::new("m", "menu", 7),
+            Hint::new("m", "menu", Hint::ALWAYS),
         ];
         if editor_available() {
-            navigate.push(Hint::new("e", "edit", 6));
+            navigate.push(Hint::new("e", "edit", 3));
         }
+
+        // Jump keys stay whenever there is somewhere to jump to
+        let mut jump = vec![Hint::new(":", "cmd", 4)];
+        if counts.staged + counts.working > 0 {
+            jump.push(Hint::new("w", "files", Hint::ALWAYS));
+        }
+        jump.push(Hint::new("h", "history", Hint::ALWAYS));
+        if !app.other_branches().is_empty() {
+            jump.push(Hint::new("b", "branches", Hint::ALWAYS));
+        }
+
         let groups = vec![
             navigate,
-            vec![
-                Hint::new(":", "cmd", 8),
-                Hint::new("w", "files", 3),
-                Hint::new("h", "history", 5),
-                Hint::new("b", "branches", 2),
-            ],
+            jump,
             vec![
                 Hint::new("?", "help", Hint::ALWAYS),
-                Hint::new("q", "quit", 9),
+                Hint::new("q", "quit", 5),
             ],
         ];
         fit_hints(groups, inner_width(area))

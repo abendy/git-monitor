@@ -145,3 +145,12 @@ written for outside readers: plain language, no private tooling, no internal com
 5. Commits `chore(release): prepare vX.Y.Z` and adds an annotated tag `vX.Y.Z` (`Release vX.Y.Z`).
 
 Shared `commit` and `release` skills may be installed; treat them as guides, not required steps.
+
+## After Each Change
+
+The maintainer runs git-monitor live in a tmux window and expects every change to show there:
+
+1. `cargo install --locked --path .` so the installed binary is current.
+2. `tmux respawn-window -k -t phone:git-monitor` to restart it. If the window is gone, recreate it
+   with `tmux new-window -t phone -n git-monitor git-monitor`. Drive tmux from the shell, never by
+   typing into a terminal tab.
